@@ -36,10 +36,9 @@ describe("token units", () => {
     expect(chainUnitScale("polygon", "WETH")).toBe(1n);
   });
 
-  test("DAI and USDS carry 18 decimals on Ethereum and Arbitrum beside 6-decimal USDC and USDT", () => {
+  test("DAI carries 18 decimals on Ethereum and Arbitrum beside 6-decimal USDC and USDT", () => {
     for (const chain of ["ethereum", "arbitrum"] as const) {
       expect(chainUnitScale(chain, "DAI")).toBe(10n ** 12n);
-      expect(chainUnitScale(chain, "USDS")).toBe(10n ** 12n);
       expect(chainUnitScale(chain, "USDC")).toBe(1n);
       expect(chainUnitScale(chain, "USDT")).toBe(1n);
       expect(toChainUnits(chain, "DAI", 2_500_000n)).toBe(2_500_000n * 10n ** 12n);

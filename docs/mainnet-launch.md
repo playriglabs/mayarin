@@ -221,9 +221,9 @@ knows (`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its
 
 | Chain           | Reviewed tokens                                                                                              |
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| Ethereum        | USDC, USDT, EURC (6 decimals), DAI, USDS (18); payer-only WETH, WBTC, LINK, UNI, AAVE                        |
+| Ethereum        | USDC, USDT, EURC (6 decimals), DAI (18); payer-only WETH, WBTC, LINK, UNI, AAVE                              |
 | Base            | USDC, USDT (Tether, bridged), EURC; payer-only WETH, cbBTC                                                   |
-| Arbitrum One    | USDC, USDT (USDT0), USDG (6 decimals), DAI, USDS (18); payer-only WETH, WBTC, ARB, LINK, UNI, AAVE           |
+| Arbitrum One    | USDC, USDT (USDT0), USDG (6 decimals), DAI (18); payer-only WETH, WBTC, ARB, LINK, UNI, AAVE                 |
 | Polygon         | USDC (Circle native), USDT (USDT0), 6 decimals; payer-only WETH, WBTC                                        |
 | BNB Smart Chain | USDC, USDT, DAI, FDUSD, all **18 decimals** (`token-units`); payer-only WBNB, BTCB, UNI, CAKE. BNB is native |
 

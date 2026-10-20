@@ -142,7 +142,6 @@ const DEFINITIONS = {
   // Counted in six decimals like every settlement asset here; the token contracts carry
   // 18 on some chains, and `token-units` is where that is crossed.
   DAI: { kind: "stablecoin", decimals: 6, name: "Dai" },
-  USDS: { kind: "stablecoin", decimals: 6, name: "Sky Dollar" },
   FDUSD: { kind: "stablecoin", decimals: 6, name: "First Digital USD" },
 
   // Native crypto
@@ -254,7 +253,6 @@ const ASSET_LOGOS: Readonly<Record<string, string>> = {
   SOL: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
   DAI: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",
-  USDS: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xdC035D45d973E3EC169d2276DDab16f1e407384F/logo.png",
   FDUSD:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409/logo.png",
   PYUSD:

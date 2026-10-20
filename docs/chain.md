@@ -284,11 +284,11 @@ payer-submitted contract-path evidence.
 
 ### A scale belongs to a chain and an asset
 
-Two stablecoins on one chain can disagree. DAI and USDS carry 18 decimals on Ethereum
+Two stablecoins on one chain can disagree. DAI carries 18 decimals on Ethereum
 and Arbitrum, next to USDC, USDT and USDG at 6, so a scale per chain cannot hold:
 `chainUnitScale(chain, asset)` takes both. A chain whose stablecoins all differ from
 the registry (BNB Smart Chain, all 18) is one entry; a token that differs from its
-siblings (DAI and USDS on Ethereum and Arbitrum) is another. Every conversion names
+siblings (DAI on Ethereum and Arbitrum) is another. Every conversion names
 its asset: the order's `minOut` and `fee` use the settlement asset, the settlement
 indexer reads the asset out of the `PaymentCompleted` log and refuses a token the
 deployment does not list, and an order being renewed carries its settlement asset.
@@ -894,18 +894,27 @@ present, `name()`, `symbol()`, `decimals()`) and found at that address in Uniswa
 token list (Ethereum, Arbitrum) or PancakeSwap's (BNB Smart Chain). Settlement is
 always one of the stablecoins; the rest are payer-only.
 
-| Chain           | Stablecoins                 | Payer-only                       | Native |
-| --------------- | --------------------------- | -------------------------------- | ------ |
-| Ethereum        | USDC, USDT, DAI, USDS       | WETH, WBTC, LINK, UNI, AAVE      | ETH    |
-| Arbitrum One    | USDC, USDT, DAI, USDS, USDG | WETH, WBTC, ARB, LINK, UNI, AAVE | ETH    |
-| BNB Smart Chain | USDC, USDT, DAI, FDUSD      | WBNB, BTCB, UNI, CAKE            | BNB    |
+| Chain           | Stablecoins            | Payer-only                       | Native |
+| --------------- | ---------------------- | -------------------------------- | ------ |
+| Ethereum        | USDC, USDT, DAI        | WETH, WBTC, LINK, UNI, AAVE      | ETH    |
+| Arbitrum One    | USDC, USDT, DAI, USDG  | WETH, WBTC, ARB, LINK, UNI, AAVE | ETH    |
+| BNB Smart Chain | USDC, USDT, DAI, FDUSD | WBNB, BTCB, UNI, CAKE            | BNB    |
 
-DAI and USDS have 18 decimals next to 6-decimal USDC and USDT on Ethereum and
+DAI has 18 decimals next to 6-decimal USDC and USDT on Ethereum and
 Arbitrum (scaled per asset, see above); everything on BNB Smart Chain has 18.
-Upgradeable proxies among them (an EIP-1967 implementation slot is set): USDS and AAVE
-on Ethereum; USDT0, USDS, WETH, ARB and USDG on Arbitrum; USDC, FDUSD and UNI on BNB
+Upgradeable proxies among them (an EIP-1967 implementation slot is set): AAVE
+on Ethereum; USDT0, WETH, ARB and USDG on Arbitrum; USDC, FDUSD and UNI on BNB
 Smart Chain. Admitting them accepts that their issuer can change them. Arbitrum's USDT
 answers `symbol()` as "USD₮0": Tether's LayerZero OFT at the old address.
+
+**USDG on Arbitrum is thin on Uniswap v3.** `arbitrum:USDG/USDC` is configured at the 0.05% tier and
+Pyth's `USDG/USD` feed is its reference, so the rail exists and a USDG payer is guarded like any
+other. But that pool holds about $101 USDG and $66 USDC: 1 USDG gave 0.9991 USDC and 10 gave
+9.9896, 100 gave 65.7. It serves a payment of a few dollars; a larger one fails the quote or the
+deviation guard instead of paying badly. A payment in USDG to a merchant that settles in USDG
+needs no swap and has no such limit. The deep USDG/USDC liquidity on Arbitrum is on Fluid (about
+$5.0 million) and Uniswap v4 (about $0.9 million), neither of which the swap adapter serves, and
+LiFi does not list USDG there. USDS was left out by decision.
 
 BNB has no ETH on BNB Smart Chain: a Binance-Peg ETH is a token and was left out, so the
 native asset there is BNB and `isEvmNativeAsset` names it. `AssetCode` now has `BNB`,
