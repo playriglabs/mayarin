@@ -172,9 +172,10 @@ least:
 ## 7. Repository and delivery
 
 - [ ] Branch protection on `main` with the four CI jobs required: `check`,
-      `committed secrets`, `contract tests and Slither` and `known vulnerabilities
-  in bun.lock`. Code-owner review on (`.github/CODEOWNERS`). They run on every
-      pull request today but nothing makes them mandatory.
+      `committed secrets`, `contract tests and Slither` and
+      `known vulnerabilities in bun.lock`. Code-owner review on
+      (`.github/CODEOWNERS`). They run on every pull request today but nothing
+      makes them mandatory.
 - [ ] Secret scanning and push protection on.
 - [ ] The `osv-scanner` advisories triaged, then the job made blocking.
 - [ ] The exact commit being deployed reviewed, per the gate in
