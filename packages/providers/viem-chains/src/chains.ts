@@ -21,6 +21,7 @@ import {
   baseSepolia,
   bsc,
   bscTestnet,
+  mainnet,
   polygon,
   polygonAmoy,
   sepolia,
@@ -32,6 +33,7 @@ import {
 // unrelated to the generic client's block type and would otherwise force a cast
 // at every call site.
 export const VIEM_CHAINS: Readonly<Record<EvmChainId, Chain>> = {
+  ethereum: mainnet,
   "ethereum-sepolia": sepolia,
   base,
   "base-sepolia": baseSepolia,

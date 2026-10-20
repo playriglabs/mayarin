@@ -246,6 +246,7 @@ with it.
 
 | `ChainId`          | EIP-155 id | Explorer                       |
 | ------------------ | ---------- | ------------------------------ |
+| `ethereum`         | 1          | `https://etherscan.io`         |
 | `ethereum-sepolia` | 11155111   | `https://sepolia.etherscan.io` |
 | `base`             | 8453       | `https://basescan.org`         |
 | `base-sepolia`     | 84532      | `https://sepolia.basescan.org` |

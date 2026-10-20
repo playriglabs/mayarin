@@ -20,6 +20,11 @@ describe("token units", () => {
     expect(fromChainUnits("bsc-testnet", "USDT", 1_500_000n * 10n ** 12n)).toBe(1_500_000n);
   });
 
+  test("Ethereum mainnet agrees with the registry, like its testnet", () => {
+    expect(chainUnitScale("ethereum", "USDC")).toBe(1n);
+    expect(toChainUnits("ethereum", "USDT", 2_000_000n)).toBe(2_000_000n);
+  });
+
   test("BNB Smart Chain mainnet counts like its testnet", () => {
     expect(chainUnitScale("bsc", "USDC")).toBe(10n ** 12n);
     expect(toChainUnits("bsc", "USDT", 2_000_000n)).toBe(2_000_000n * 10n ** 12n);

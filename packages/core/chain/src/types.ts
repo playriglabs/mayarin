@@ -10,6 +10,7 @@ import type { AssetCode, Money } from "@mayarin/shared";
 
 /** EVM chains Mayarin runs on. */
 export const EVM_CHAINS = [
+  "ethereum",
   "ethereum-sepolia",
   "base",
   "base-sepolia",
@@ -63,6 +64,7 @@ export function normaliseChainAddress(chain: ChainId, address: string): string {
  * beside `CHAIN_IDS` rather than in any one deployment's config.
  */
 export const EVM_CHAIN_IDS: Readonly<Record<EvmChainId, bigint>> = {
+  ethereum: 1n,
   "ethereum-sepolia": 11_155_111n,
   base: 8_453n,
   "base-sepolia": 84_532n,
@@ -94,6 +96,7 @@ export function evmChainIdOf(chain: ChainId): bigint {
  * a human reads this, so a chain cannot be labelled two ways in two places.
  */
 export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
+  ethereum: "Ethereum",
   "ethereum-sepolia": "Ethereum Sepolia",
   base: "Base",
   "base-sepolia": "Base Sepolia",
@@ -159,6 +162,7 @@ export function chainLogoUrl(
  * mainnet cannot silently slip past a check written when Base was the only one.
  */
 export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>([
+  "ethereum",
   "base",
   "arbitrum",
   "polygon",

@@ -8,6 +8,7 @@
 import type { ChainId } from "./types.ts";
 
 const EXPLORERS = {
+  ethereum: "https://etherscan.io/",
   "ethereum-sepolia": "https://sepolia.etherscan.io/",
   base: "https://basescan.org/",
   "base-sepolia": "https://sepolia.basescan.org/",

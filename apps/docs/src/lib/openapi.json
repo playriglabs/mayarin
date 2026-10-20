@@ -2109,6 +2109,7 @@
                       "chain": {
                         "type": "string",
                         "enum": [
+                          "ethereum",
                           "ethereum-sepolia",
                           "base",
                           "base-sepolia",
@@ -3909,6 +3910,7 @@
                       "chain": {
                         "type": "string",
                         "enum": [
+                          "ethereum",
                           "ethereum-sepolia",
                           "base",
                           "base-sepolia",
@@ -4402,6 +4404,7 @@
                         "chain": {
                           "type": "string",
                           "enum": [
+                            "ethereum",
                             "ethereum-sepolia",
                             "base",
                             "base-sepolia",
@@ -4812,6 +4815,7 @@
                       "chain": {
                         "type": "string",
                         "enum": [
+                          "ethereum",
                           "ethereum-sepolia",
                           "base",
                           "base-sepolia",
@@ -5778,6 +5782,7 @@
                       "chain": {
                         "type": "string",
                         "enum": [
+                          "ethereum",
                           "ethereum-sepolia",
                           "base",
                           "base-sepolia",
@@ -6497,6 +6502,7 @@
                         "chain": {
                           "type": "string",
                           "enum": [
+                            "ethereum",
                             "ethereum-sepolia",
                             "base",
                             "base-sepolia",
