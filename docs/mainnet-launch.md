@@ -13,9 +13,9 @@ does not mean it has been done on a mainnet: each ticked item still has an
 someone has done them.
 
 Status below follows #143 as of 20 October 2026. Nothing is deployed to mainnet:
-Base and Arbitrum One are the only mainnet chains the code knows
-(`MAINNET_CHAIN_IDS`), and every contract and payment drill so far ran on testnet.
-Of the items below, 8 are implemented and none is done on a mainnet.
+Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnet chains the code
+knows (`MAINNET_CHAIN_IDS`), and every contract and payment drill so far ran on testnet.
+Of the items below, 9 are implemented and none is done on a mainnet.
 
 The deployment mechanics are in [deployment.md](./deployment.md#mainnet-gate).
 Incident procedures are in [runbooks.md](./runbooks.md).
@@ -144,13 +144,18 @@ How value is executed matters as much as the keys that execute it.
       Turnkey or KMS signer's address, and `DESTINATION` (the operator every forwarder
       sweeps to) is its own production address: it is baked into the forwarder's init
       code, so it decides the hash for this deployment.
-- [ ] `scripts/deploy.sh` has testnet chains only. Add a mainnet branch (chain id,
-      RPC variable, explorer, verifier) in its own reviewed change. With a 48 h
-      delay the configure step only **schedules** (the router whitelists, DEX
-      routers and extra input or settlement assets, land in one batch): the delay
-      runs from the schedule, not from the deploy, so schedule it right after the
-      deploy. `ConfigurePaymentRouter` prints the `scheduleBatch` and `executeBatch`
-      calldata for a Safe to sign; for a single-key multisig,
+- [x] `scripts/deploy.sh` has a mainnet mode for `base`, `arbitrum`, `polygon` and
+      `bsc`. It reads `.env.mainnet` (never the testnet `.env`), deploys from a
+      Foundry keystore (`DEPLOYER_ACCOUNT`, not a raw key), keeps the 48 h delay,
+      refuses a deployer that holds a role, a `GUARDIAN` equal to `MULTISIG`, a
+      `MULTISIG` or `FEE_RECIPIENT` without code (they must be Safes), a `local`
+      order signer, `--no-verify` and a missing explorer key, and asks for the chain
+      name before it broadcasts. Rehearsed on local forks of all four chains.
+      **On mainnet:** the configure step only **schedules** (the router whitelists,
+      DEX routers and extra input or settlement assets, land in one batch): the
+      delay runs from the schedule, not from the deploy, so schedule it right after
+      the deploy. `ConfigurePaymentRouter` prints the `scheduleBatch` and
+      `executeBatch` calldata for the Safe to sign; for a single-key multisig,
       `ExecutePaymentRouterConfig` rebuilds the same batch, refuses until it is
       ready (and says when), then executes. Same-asset payments in a settlement
       asset the constructor whitelisted work before the batch executes; anything
@@ -174,20 +179,38 @@ How value is executed matters as much as the keys that execute it.
       implemented and tested (`token-units`). **On mainnet:** read `decimals()` of
       every admitted token before it goes in `CHAIN_ASSETS`.
 
-## 6. Adding a mainnet chain
+## 6. Mainnet chains
 
-Base and Arbitrum One are the only ones. Polygon and BNB Smart Chain run on testnet
-(Amoy, BSC testnet) and are not mainnet-capable yet. A new mainnet chain needs, at
-least:
+Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets the code knows
+(`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its chain
+(`symbol()`, `decimals()`, code present):
 
-- an entry in `MAINNET_CHAIN_IDS` and its reviewed stablecoins in
-  `reviewed-tokens.ts`, so the boot-time token gate has something to admit;
-- the chain's id, label and explorer in `packages/core/chain`, the viem chain, and
-  a branch in `deploy.sh`;
+| Chain           | Reviewed tokens                                                        |
+| --------------- | ---------------------------------------------------------------------- |
+| Base            | USDC, EURC                                                             |
+| Arbitrum One    | USDC, USDT                                                             |
+| Polygon         | USDC (Circle native, 6 decimals)                                       |
+| BNB Smart Chain | USDC and USDT, Binance-Peg tokens with **18 decimals** (`token-units`) |
+
+Left out on purpose: Polygon's USDT address now answers as **USDT0**, a LayerZero
+OFT, and needs its own review; Polygon's bridged USDC.e is a different token. On BNB
+Smart Chain the tokens are Binance-Peg, not Circle's or Tether's own issuance:
+accept that before admitting them. Each chain still needs, before it carries value:
+
 - its own `CHAIN_CONFIRMATIONS` and `WATCHER_REORG_WATCH_WINDOW` from observed
-  reorg behaviour, not another chain's values, and a watcher range its RPC allows;
+  reorg behaviour, not another chain's values (BNB Smart Chain's blocks are under a
+  second, Polygon's reorg more than Base's), and a watcher range its RPC allows;
 - a swap venue if cross-asset payments are wanted there, and an oracle for each
-  non-stablecoin payer asset. Without a venue a chain settles same-asset only.
+  non-stablecoin payer asset. None is configured: each chain settles same-asset only;
+- the Safe addresses (`MULTISIG`, `FEE_RECIPIENT`) and a Turnkey organisation;
+- a `.env.mainnet` with `DEPLOYER_ACCOUNT`, `DEPLOYER_ADDRESS`, the per-chain
+  `<CHAIN>_RPC_URL` (`BASE_`, `ARBITRUM_`, `POLYGON_`, `BSC_`), `MULTISIG`,
+  `GUARDIAN`, `FEE_RECIPIENT`, `SIGNER`, `DESTINATION`, `ETHERSCAN_API_KEY`,
+  `QUOTE_SIGNER` (not `local`), and `CHAIN_ASSETS` naming only the reviewed tokens.
+
+Adding a fifth mainnet chain takes an entry in `MAINNET_CHAIN_IDS`, its reviewed
+tokens, the chain's id, label and explorer in `packages/core/chain`, the viem chain
+and a case in `deploy.sh`.
 
 ## 7. Repository and delivery
 

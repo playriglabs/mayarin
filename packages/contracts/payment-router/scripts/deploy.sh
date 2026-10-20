@@ -35,7 +35,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--no-verify] [--factory-only|--router-only|--configure-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet|base|arbitrum|polygon|bsc> [--dry] [--no-verify] [--factory-only|--router-only|--configure-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -70,7 +70,39 @@ done
   echo "--factory-only, --router-only and --configure-only exclude each other"; exit 1; }
 
 # macOS ships bash 3.2 — no associative arrays. One case, four facts.
+#
+# base and arbitrum are mainnets, and run under rules the testnets do not: see
+# "Mainnet rules" below.
+MAINNET=false
 case "$CHAIN" in
+  base)
+    MAINNET=true
+    CHAIN_ID=8453
+    RPC_VAR=BASE_RPC_URL
+    EXPLORER="https://basescan.org/address"
+    VERIFIER=etherscan
+    ;;
+  polygon)
+    MAINNET=true
+    CHAIN_ID=137
+    RPC_VAR=POLYGON_RPC_URL
+    EXPLORER="https://polygonscan.com/address"
+    VERIFIER=etherscan
+    ;;
+  bsc)
+    MAINNET=true
+    CHAIN_ID=56
+    RPC_VAR=BSC_RPC_URL
+    EXPLORER="https://bscscan.com/address"
+    VERIFIER=etherscan
+    ;;
+  arbitrum)
+    MAINNET=true
+    CHAIN_ID=42161
+    RPC_VAR=ARBITRUM_RPC_URL
+    EXPLORER="https://arbiscan.io/address"
+    VERIFIER=etherscan
+    ;;
   ethereum-sepolia)
     CHAIN_ID=11155111
     RPC_VAR=ETHEREUM_SEPOLIA_RPC_URL
@@ -116,7 +148,13 @@ esac
 
 # --- Load env -----------------------------------------------------------------
 
+# A mainnet reads its own file and never the testnet one: nothing is carried across
+# (docs/deployment.md, Isolation Rules), and a testnet key or delay of 0 in .env
+# must not be able to leak into it.
 ENV_FILE="$REPO_ROOT/.env"
+[[ "$MAINNET" == true ]] && ENV_FILE="$REPO_ROOT/.env.mainnet"
+# DEPLOY_ENV_FILE names another file, for a rehearsal against a local fork.
+ENV_FILE="${DEPLOY_ENV_FILE:-$ENV_FILE}"
 [[ -f "$ENV_FILE" ]] || { echo "missing $ENV_FILE"; exit 1; }
 set -a
 # shellcheck disable=SC1090
@@ -131,13 +169,25 @@ require() {
 # macOS ships bash 3.2, which has no `${var,,}`.
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-for var in DEPLOYER_PRIVATE_KEY "$RPC_VAR" MULTISIG GUARDIAN FEE_RECIPIENT SIGNER; do
-  require "$var"
-done
+if [[ "$MAINNET" == true ]]; then
+  # The deployer is a Foundry keystore (`cast wallet import <name> --interactive`),
+  # not a key in a dotenv: a raw production key in a file is readable by every
+  # process and tool that loads it.
+  [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]] || {
+    echo "DEPLOYER_PRIVATE_KEY is set in $ENV_FILE. A mainnet deploys from a keystore:"
+    echo "  cast wallet import <name> --interactive   then DEPLOYER_ACCOUNT=<name> and DEPLOYER_ADDRESS=0x…"; exit 1; }
+  for var in DEPLOYER_ACCOUNT DEPLOYER_ADDRESS "$RPC_VAR" MULTISIG GUARDIAN FEE_RECIPIENT SIGNER DESTINATION; do
+    require "$var"
+  done
+else
+  for var in DEPLOYER_PRIVATE_KEY "$RPC_VAR" MULTISIG GUARDIAN FEE_RECIPIENT SIGNER; do
+    require "$var"
+  done
+fi
 
 # The forwarder factory needs a sweep destination. It defaults to the operator's
 # own address, so one of the two has to be set.
-if [[ "$ROUTER_ONLY" == false ]]; then
+if [[ "$ROUTER_ONLY" == false && "$MAINNET" == false ]]; then
   [[ -n "${DESTINATION:-}" || -n "${OPERATOR_PRIVATE_KEY:-}" ]] || {
     echo "missing DESTINATION or OPERATOR_PRIVATE_KEY in $ENV_FILE"; exit 1; }
 fi
@@ -225,19 +275,61 @@ command -v forge >/dev/null || { echo "forge not found — install Foundry: foun
 command -v jq    >/dev/null || { echo "jq not found"; exit 1; }
 
 # The scripts read TIMELOCK_DELAY via envOr; the 48h default would gate the
-# configure step below for two days.
-export TIMELOCK_DELAY="${TIMELOCK_DELAY:-0}"
+# configure step below for two days, which is why a testnet sets 0. A mainnet
+# keeps the default: the delay is what bounds a compromised multisig.
+if [[ "$MAINNET" == true ]]; then
+  if [[ -n "${TIMELOCK_DELAY:-}" && "$TIMELOCK_DELAY" -lt 172800 ]]; then
+    echo "TIMELOCK_DELAY=$TIMELOCK_DELAY is under 48 h (172800 s). A mainnet keeps the default;"
+    echo "unset it in $ENV_FILE."; exit 1
+  fi
+  unset TIMELOCK_DELAY
+else
+  export TIMELOCK_DELAY="${TIMELOCK_DELAY:-0}"
+fi
 
-DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+if [[ "$MAINNET" == true ]]; then
+  # Roles are held by different parties, and the ones that hold value are contracts.
+  for role in MULTISIG GUARDIAN FEE_RECIPIENT DESTINATION; do
+    [[ "$(lower "${!role}")" != "$(lower "$DEPLOYER_ADDRESS")" ]] || {
+      echo "$role is the deployer's own address. A mainnet role is its own holder."; exit 1; }
+  done
+  [[ "$(lower "$MULTISIG")" != "$(lower "$GUARDIAN")" ]] || {
+    echo "GUARDIAN is MULTISIG. The pause holder must be separate from config authority."; exit 1; }
+  for role in MULTISIG FEE_RECIPIENT; do
+    code="$(cast code "${!role}" --rpc-url "$RPC_URL")"
+    [[ "$code" != "0x" && -n "$code" ]] || {
+      echo "$role (${!role}) has no code on $CHAIN. It must be a Safe (scripts/deploy-treasury-safe.ts)."; exit 1; }
+  done
+  [[ "${QUOTE_SIGNER:-local}" != "local" ]] || {
+    echo "QUOTE_SIGNER=local. A mainnet order signer is turnkey or KMS; the API refuses local as well."; exit 1; }
+  [[ "$NO_VERIFY" == false ]] || { echo "--no-verify is for testnets. A mainnet verifies."; exit 1; }
+  [[ -n "${ETHERSCAN_API_KEY:-}" ]] || {
+    echo "missing ETHERSCAN_API_KEY in $ENV_FILE. A mainnet is never deployed unverified."; exit 1; }
+else
+  DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+fi
 
 echo "deployer:   $DEPLOYER_ADDRESS"
 echo "chain:      $CHAIN ($CHAIN_ID)"
 echo "settlement: $SETTLEMENT_TOKENS"
 echo "inputs:     ${INPUT_ASSETS:-<none>}"
 echo "routers:    ${DEX_ROUTERS:-<none>}"
-echo "delay:      ${TIMELOCK_DELAY}s"
+echo "delay:      ${TIMELOCK_DELAY:-172800}s${TIMELOCK_DELAY:+}"
 echo "balance:    $(cast balance "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL" --ether)"
+if [[ "$MAINNET" == true ]]; then
+  echo "multisig:   $MULTISIG"
+  echo "guardian:   $GUARDIAN"
+  echo "fees to:    $FEE_RECIPIENT"
+  echo "signer:     $SIGNER"
+  echo "sweeps to:  $DESTINATION"
+fi
 echo
+
+if [[ "$MAINNET" == true && "$DRY_RUN" == false ]]; then
+  echo "This broadcasts to $CHAIN MAINNET with real funds, using keystore \"$DEPLOYER_ACCOUNT\"."
+  read -r -p "Type the chain name to continue: " CONFIRM
+  [[ "$CONFIRM" == "$CHAIN" ]] || { echo "not confirmed"; exit 1; }
+fi
 
 # The SIGNER baked into the constructor must be the address the API signs
 # orders with, or every payment reverts InvalidSigner.
@@ -260,7 +352,11 @@ forge test
 # --sender is the address behind the key, stated rather than inferred: a script that
 # calls startBroadcast() with no argument simulated from forge's default sender on
 # Base Sepolia and failed with CreateCollision before anything was sent.
-BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --sender "$DEPLOYER_ADDRESS")
+if [[ "$MAINNET" == true ]]; then
+  BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --account "$DEPLOYER_ACCOUNT" --sender "$DEPLOYER_ADDRESS")
+else
+  BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --sender "$DEPLOYER_ADDRESS")
+fi
 # Extra forge flags for one run, e.g. FORGE_EXTRA_FLAGS="--gas-estimate-multiplier 300".
 # Ethereum Sepolia under-estimates the timelock deploy and the transaction fails
 # on chain; the fix is a larger estimate, not a code change.
@@ -374,7 +470,20 @@ fi
 
 # The timelock's only proposer and executor is MULTISIG, so this step must be
 # signed by that key — not necessarily the deployer's.
-if [[ "$(lower "$MULTISIG")" != "$(lower "$DEPLOYER_ADDRESS")" ]]; then
+if [[ "$MAINNET" == true ]]; then
+  # MULTISIG is a Safe, which no forge script signs for. Simulating the script as
+  # the Safe prints the calldata it has to send; the delay runs from the schedule,
+  # so schedule right away.
+  echo
+  echo "Config is scheduled by the multisig (a Safe), through the timelock $TIMELOCK."
+  echo "Print the transaction to sign (nothing is broadcast):"
+  echo "  TIMELOCK=$TIMELOCK PAYMENT_ROUTER=$PAYMENT_ROUTER \\"
+  echo "  DEX_ROUTERS=${DEX_ROUTERS:-} INPUT_ASSETS=${INPUT_ASSETS:-} SETTLEMENT_ASSETS= \\"
+  echo "  forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \\"
+  echo "    --rpc-url \$$RPC_VAR --sender $MULTISIG"
+  echo "Send the scheduleBatch calldata from the Safe now, and executeBatch after 48 h."
+  SKIP_CONFIGURE=true
+elif [[ "$(lower "$MULTISIG")" != "$(lower "$DEPLOYER_ADDRESS")" ]]; then
   echo
   echo "MULTISIG ($MULTISIG) is not the deployer — it alone can schedule config."
   echo "Run this with the multisig key:"
@@ -384,12 +493,14 @@ if [[ "$(lower "$MULTISIG")" != "$(lower "$DEPLOYER_ADDRESS")" ]]; then
   exit 0
 fi
 
-echo
-echo "==> ConfigurePaymentRouter"
-# shellcheck disable=SC2086
-forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \
-  --rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" \
-  --broadcast --sender "$MULTISIG" ${FORGE_EXTRA_FLAGS:-}
+if [[ "${SKIP_CONFIGURE:-false}" != true ]]; then
+  echo
+  echo "==> ConfigurePaymentRouter"
+  # shellcheck disable=SC2086
+  forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \
+    --rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" \
+    --broadcast --sender "$MULTISIG" ${FORGE_EXTRA_FLAGS:-}
+fi
 
 # --- Output -------------------------------------------------------------------
 
