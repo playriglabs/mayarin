@@ -203,6 +203,13 @@ accept that before admitting them. Each chain still needs, before it carries val
 - a swap venue if cross-asset payments are wanted there, and an oracle for each
   non-stablecoin payer asset. None is configured: each chain settles same-asset only;
 - the Safe addresses (`MULTISIG`, `FEE_RECIPIENT`) and a Turnkey organisation;
+- `scripts/mainnet-wallets.sh` writes every address that exists to
+  `mainnet-addresses.json` at the repo root (mode 600, gitignored) without printing
+  one: the deployer, the roles already set, and the contract addresses each chain
+  will get (timelock, router, forwarder factory, predicted from the deployer's nonce).
+  `--guardian` and `--owners N` also create encrypted keystores with `cast wallet new`
+  (password prompt, interactive). It makes no Safe and no order signer or operator:
+  those are `scripts/deploy-treasury-safe.ts` and Turnkey or KMS;
 - a `.env.mainnet` with `DEPLOYER_ACCOUNT`, `DEPLOYER_ADDRESS`, the per-chain
   `<CHAIN>_RPC_URL` (`BASE_`, `ARBITRUM_`, `POLYGON_`, `BSC_`), `MULTISIG`,
   `GUARDIAN`, `FEE_RECIPIENT`, `SIGNER`, `DESTINATION`, `ETHERSCAN_API_KEY`,
