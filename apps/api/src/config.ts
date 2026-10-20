@@ -344,6 +344,15 @@ const configSchema = z.object({
   quoteOracleFallbacks: jsonObject<string[]>("QUOTE_ORACLE_FALLBACKS", "[]"),
   /** How far the venue price may sit from the oracle before the quote fails. */
   quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
+  /**
+   * A wider deviation limit for one venue, by name: `{"lifi":400}`. An aggregator's price
+   * carries its fee and the spread of its route, so the limit that suits a single pool
+   * would refuse every quote it gives. Every venue not named keeps `QUOTE_DEVIATION_BPS`.
+   */
+  quoteDeviationBpsByVenue: jsonObject<Record<string, number>>(
+    "QUOTE_DEVIATION_BPS_BY_VENUE",
+    "{}",
+  ),
   /** Chain-scoped testnet pairs allowed to self-reference when public test data is unusable. */
   quoteUnguardedTestnetPairs: jsonObject<string[]>("QUOTE_UNGUARDED_TESTNET_PAIRS", "[]"),
   /**
@@ -635,6 +644,7 @@ export interface QuoteConfig {
   readonly oracle: OracleName;
   readonly fallbackOracles: readonly OracleName[];
   readonly deviationBps: number;
+  readonly deviationBpsByVenue: Readonly<Record<string, number>>;
   readonly unguardedTestnetPairs: readonly string[];
   /** How far two oracles may disagree before neither is trusted. */
   readonly oracleAgreementBps: number;
@@ -723,8 +733,6 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     if (venue === "lifi") {
       if (data.lifiFromAddress === undefined)
         issues.push("LIFI_FROM_ADDRESS is required for the lifi venue");
-      if (Object.keys(data.lifiPairs).length === 0)
-        issues.push("LIFI_PAIRS must configure at least one pair");
     }
     if (venue === "orca" && Object.values(data.solanaOrcaPools).every((pools) => !pools?.length)) {
       issues.push("SOLANA_ORCA_POOLS must configure at least one pool for the orca venue");
@@ -818,6 +826,7 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     oracle: data.quoteOracle,
     fallbackOracles: data.quoteOracleFallbacks as readonly OracleName[],
     deviationBps: data.quoteDeviationBps,
+    deviationBpsByVenue: data.quoteDeviationBpsByVenue,
     unguardedTestnetPairs: data.quoteUnguardedTestnetPairs,
     oracleAgreementBps: data.quoteOracleAgreementBps,
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
@@ -931,13 +940,11 @@ function resolveContract(
   }
 
   const routeCapable = (quote?.venues ?? []).filter(
-    (venue) => venue === "0x" || venue === "uniswap" || venue === "uniswap-v2",
+    (venue) => venue === "0x" || venue === "uniswap" || venue === "uniswap-v2" || venue === "lifi",
   );
   const hasEvmRouter = routers.some(([chain]) => isChainId(chain) && !isSolanaChainId(chain));
   if (quote !== undefined && hasEvmRouter && routeCapable.length === 0) {
-    issues.push(
-      "the contract path needs a route-capable venue (0x, uniswap, or uniswap-v2); LiFi is price-only",
-    );
+    issues.push("the contract path needs a route-capable venue (0x, uniswap, uniswap-v2 or lifi)");
   }
   if (routeCapable.includes("uniswap") && Object.keys(data.uniswapSwapRouters).length === 0) {
     issues.push("UNISWAP_SWAP_ROUTERS is required when the uniswap venue serves routes");
@@ -1404,6 +1411,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteOracle: env.QUOTE_ORACLE,
     quoteOracleFallbacks: env.QUOTE_ORACLE_FALLBACKS,
     quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
+    quoteDeviationBpsByVenue: env.QUOTE_DEVIATION_BPS_BY_VENUE,
     quoteUnguardedTestnetPairs: env.QUOTE_UNGUARDED_TESTNET_PAIRS,
     quoteOracleAgreementBps: env.QUOTE_ORACLE_AGREEMENT_BPS,
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,

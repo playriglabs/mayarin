@@ -49,6 +49,13 @@ export interface ExecutablePrice {
 export interface DeviationPolicy {
   /** Widest tolerated gap between executable and reference, in basis points. */
   readonly maxDeviationBps: number;
+  /**
+   * A wider gap for one venue, by `ExecutablePrice.source`. An aggregator's price carries
+   * its fee and its route's spread, which a single pool's does not, so one limit tight
+   * enough for a pool refuses every aggregator quote. The default still applies to every
+   * source not named.
+   */
+  readonly maxDeviationBpsBySource?: Readonly<Record<string, number>>;
   /** Oldest tolerated reference observation, in milliseconds. */
   readonly maxAgeMs: number;
 }
@@ -149,5 +156,9 @@ export function guardExecutablePrice(
   now: Date,
 ): void {
   assertFresh(reference, policy.maxAgeMs, now);
-  assertWithinDeviation(executable, reference, policy.maxDeviationBps);
+  assertWithinDeviation(
+    executable,
+    reference,
+    policy.maxDeviationBpsBySource?.[executable.source] ?? policy.maxDeviationBps,
+  );
 }

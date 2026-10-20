@@ -209,3 +209,43 @@ describe("LifiSwapVenue", () => {
     expect(venue(fn).quote("ETH", "USDC", ONE_ETH)).rejects.toThrow(ProviderError);
   });
 });
+
+describe("LifiSwapVenue pairs derived from the deployment's tokens", () => {
+  const NATIVE = "0x0000000000000000000000000000000000000000";
+  const resolver = (chain: string, asset: string): string | undefined => {
+    if (chain !== "bsc") return undefined;
+    return { BNB: NATIVE, USDC: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" }[asset];
+  };
+
+  test("prices a pair nobody listed, on the chain it is asked about", async () => {
+    const { calls, fn } = stubFetch(() => json(quoteBody({ toAmount: "700000000000000000000" })));
+    const bsc = new LifiSwapVenue({
+      tokenAddress: resolver as never,
+      fromAddress: FROM_ADDRESS,
+      fetchFn: fn,
+    });
+    const quote = await bsc.quote(
+      "BNB",
+      "USDC",
+      ONE_ETH.asset === "ETH" ? money(10n ** 18n, "BNB") : ONE_ETH,
+      "bsc",
+    );
+    const url = new URL(calls[0]?.url ?? "");
+    expect(url.searchParams.get("fromChain")).toBe("56");
+    expect(url.searchParams.get("fromToken")).toBe(NATIVE);
+    expect(url.searchParams.get("toToken")).toBe("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d");
+    expect(quote.source).toBe("lifi");
+  });
+
+  test("a chain that does not hold both tokens is still a ConfigurationError", async () => {
+    const { fn } = stubFetch(() => json(quoteBody()));
+    const bsc = new LifiSwapVenue({
+      tokenAddress: resolver as never,
+      fromAddress: FROM_ADDRESS,
+      fetchFn: fn,
+    });
+    await expect(bsc.quote("BNB", "USDC", money(10n ** 18n, "BNB"), "base")).rejects.toThrow(
+      ConfigurationError,
+    );
+  });
+});

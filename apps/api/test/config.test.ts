@@ -371,17 +371,28 @@ describe("contract path configuration", () => {
     expect(config.contract?.paymentRouters["base-sepolia"]).toBeDefined();
   });
 
-  test("refuses a venue set with no route-capable venue — LiFi is price-only", () => {
-    expect(() =>
-      loadConfig({
-        ...BASE,
-        ...QUOTE,
-        ...CONTRACT,
-        QUOTE_VENUES: '["lifi"]',
-        LIFI_PAIRS: '{"ETH/USDC":{"chainId":8453,"fromToken":"0xe","toToken":"0xu"}}',
-        LIFI_FROM_ADDRESS: "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
-      }),
-    ).toThrow(/route-capable/);
+  test("LiFi routes by itself and needs no listed pair: its tokens come from CHAIN_ASSETS", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...QUOTE,
+      ...CONTRACT,
+      QUOTE_VENUES: '["lifi"]',
+      LIFI_FROM_ADDRESS: "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
+    });
+    expect(config.quote?.venues).toEqual(["lifi"]);
+  });
+
+  test("a venue may be given a wider deviation limit than the default", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...QUOTE,
+      ...CONTRACT,
+      QUOTE_VENUES: '["lifi"]',
+      LIFI_FROM_ADDRESS: "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
+      QUOTE_DEVIATION_BPS_BY_VENUE: '{"lifi":400}',
+    });
+    expect(config.quote?.deviationBps).toBe(100);
+    expect(config.quote?.deviationBpsByVenue).toEqual({ lifi: 400 });
   });
 
   test("the uniswap venue needs SwapRouter02 addresses to serve routes", () => {
@@ -435,6 +446,7 @@ describe("quote configuration", () => {
       oracle: "pyth",
       fallbackOracles: [],
       deviationBps: 100,
+      deviationBpsByVenue: {},
       unguardedTestnetPairs: [],
       oracleAgreementBps: 100,
       maxReferenceAgeSeconds: 60,

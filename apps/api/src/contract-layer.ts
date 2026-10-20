@@ -62,6 +62,7 @@ import {
   type SolanaSwapRoute,
 } from "@mayarin/provider-solana";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
+import { LifiRouteSource } from "@mayarin/provider-swap-lifi";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
 import { UniswapV2RouteSource } from "@mayarin/provider-swap-uniswap-v2";
 import {
@@ -95,7 +96,7 @@ import type {
   WalletGuard,
 } from "@mayarin/wallet";
 import type { Config, ContractConfig } from "./config.ts";
-import type { QuoteLayer } from "./quote-layer.ts";
+import { lifiTokenAddress, type QuoteLayer } from "./quote-layer.ts";
 import type { MerchantRegistry } from "./services/merchant-registry.ts";
 
 type Hex = `0x${string}`;
@@ -1000,7 +1001,16 @@ export function createRouteSources(
         }),
       );
     }
-    // LiFi is price-only by design (#57): no exact-output API, no route source.
+    if (name === "lifi") {
+      sources.set(
+        "lifi",
+        new LifiRouteSource({
+          tokenAddress: lifiTokenAddress(config),
+          ...(config.lifiApiKey === undefined ? {} : { apiKey: config.lifiApiKey }),
+          integrator: "mayarin",
+        }),
+      );
+    }
   }
   return sources;
 }

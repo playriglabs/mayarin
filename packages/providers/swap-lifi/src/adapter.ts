@@ -3,10 +3,9 @@
  *
  * Implements the `SwapVenue` port over the LiFi quote API — the
  * planning-time read the selector (#48) and the planner (#44) consume.
- * Quotes only: the response's transaction request is the calldata builder's
- * step (#49), and cross-chain execution is out of scope here (#19 owns that
- * design), so every configured pair quotes with the same chain on both
- * sides.
+ * Prices only: the route that executes is `LifiRouteSource` (`route.ts`). Cross-chain
+ * execution is out of scope here (#19 owns that design), so every pair quotes with the
+ * same chain on both sides.
  *
  * The `pairs` map is deployment configuration from pair to chain and token
  * addresses, and it owns every equivalence: which contract address backs
@@ -40,9 +39,21 @@ export interface LifiPair {
   readonly toToken: string;
 }
 
+/**
+ * The token contract an asset is on a chain: the deployment's own table, and the zero
+ * address for the chain's native coin, which is how LiFi names it. `undefined` when the
+ * deployment holds no address for it there.
+ */
+export type LifiTokenResolver = (chain: ChainId, asset: AssetCode) => string | undefined;
+
 export interface LifiSwapVenueOptions {
-  /** Pair (`rateKey(from, to)`) to chain and token addresses. */
-  readonly pairs: Readonly<Record<string, LifiPair>>;
+  /**
+   * Pair (`rateKey(from, to)`) to chain and token addresses. Optional: a pair that is
+   * not listed here is derived from `tokenAddress` and the chain asked about.
+   */
+  readonly pairs?: Readonly<Record<string, LifiPair>>;
+  /** Resolves a pair's tokens from the chain, so no pair needs to be listed per chain. */
+  readonly tokenAddress?: LifiTokenResolver;
   /** The address the quote is priced for — LiFi requires one. */
   readonly fromAddress: string;
   /** Optional API key; LiFi serves unauthenticated requests at a lower rate limit. */
@@ -55,13 +66,15 @@ export interface LifiSwapVenueOptions {
 export class LifiSwapVenue implements SwapVenue {
   readonly name = "lifi";
   readonly #pairs: ReadonlyMap<string, LifiPair>;
+  readonly #tokenAddress: LifiTokenResolver | undefined;
   readonly #fromAddress: string;
   readonly #apiKey: string | undefined;
   readonly #endpoint: string;
   readonly #fetchFn: typeof fetch;
 
   constructor(options: LifiSwapVenueOptions) {
-    this.#pairs = new Map(Object.entries(options.pairs));
+    this.#pairs = new Map(Object.entries(options.pairs ?? {}));
+    this.#tokenAddress = options.tokenAddress;
     this.#fromAddress = options.fromAddress;
     this.#apiKey = options.apiKey;
     this.#endpoint = options.endpoint ?? DEFAULT_LIFI_ENDPOINT;
@@ -99,7 +112,7 @@ export class LifiSwapVenue implements SwapVenue {
       });
     }
 
-    const pair = this.#pairs.get(rateKey(from, to));
+    const pair = this.#pairs.get(rateKey(from, to)) ?? this.#derivedPair(from, to, chain);
     if (pair === undefined) {
       throw new ConfigurationError(`No LiFi pair configured for ${from} -> ${to}`, { from, to });
     }
@@ -131,6 +144,15 @@ export class LifiSwapVenue implements SwapVenue {
     }
 
     return { from, to, scaledRate, source: this.name };
+  }
+
+  /** The pair on `chain`, from the deployment's token table; nothing when either side is unknown. */
+  #derivedPair(from: AssetCode, to: AssetCode, chain: ChainId | undefined): LifiPair | undefined {
+    if (this.#tokenAddress === undefined || chain === undefined) return undefined;
+    const fromToken = this.#tokenAddress(chain, from);
+    const toToken = this.#tokenAddress(chain, to);
+    if (fromToken === undefined || toToken === undefined) return undefined;
+    return { chainId: Number(evmChainIdOf(chain)), fromToken, toToken };
   }
 
   async #quote(pair: LifiPair, from: AssetCode, to: AssetCode, fromAmount: bigint) {
