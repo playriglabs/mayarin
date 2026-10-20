@@ -837,6 +837,33 @@ Prices come from `COINBASE_PRODUCTS` (`WETH/USDC` from `ETH-USD`, `WBTC/USDC` an
 before a merchant accepts them. As with native assets, the Coinbase product is the one
 reference; a Pyth feed for each would give the deviation guard a second opinion.
 
+### BNB Smart Chain deployed (20 October 2026)
+
+| Chain | `PaymentRouter`                              | `TimelockController`                         | `DepositForwarderFactory`                    | Start block |
+| ----- | -------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ----------- |
+| `bsc` | `0x8f90e9ad0120dd03352a2bc01bdf302447fb2537` | `0xbfc95af1706aa271f0207575cff31cc32ad7656f` | `0x0dc52ff8d7d82d1c43827640de024da88c14224b` | 128766055   |
+
+The same addresses as Polygon and Base, for the same reason (the deployer's nonce). Read back
+from the chain: the timelock holds `CONFIG_ROLE` and `DEFAULT_ADMIN_ROLE` with a 48 h delay and
+the multisig as proposer and executor, the deployer holds nothing, the guardian holds
+`GUARDIAN_ROLE`, `signer()` is the KMS order signer, `feeRecipient()` the treasury Safe, the
+factory's `destination()` the KMS operator, its `INIT_CODE_HASH` equals
+`DEPOSIT_FORWARDER_INIT_CODE_HASH`, and BSC USDC (18 decimals) is the settlement asset the
+constructor whitelisted. All three are verified on BscScan; Sourcify has none of them.
+
+**No swap venue yet, on purpose.** Uniswap v3 exists on BNB Smart Chain (SwapRouter02
+`0xB971…85d2`, QuoterV2 `0x78D7…B077`, factory `0xdB1d…61F7`, `WETH9` is WBNB) but it is not where
+the liquidity is. Only WBNB/USDC has real depth, UNI/USDC has none and LINK and CAKE are thin, and
+the quotes miss the market: 1 WBNB gave 723.5 USDC at the 0.01% tier and 698.5 at 0.3% against a
+Coinbase price of 736.4, 1.8% to 5% under a guard of 1%. The liquidity is on PancakeSwap v3, which
+has no venue adapter here. So the BSC batch below carries **no DEX router**: a payer on BNB Smart
+Chain pays in the asset the merchant settles in, and BNB, WBNB, BTCB, LINK, UNI and CAKE wait for a
+PancakeSwap venue. `CHAIN_NATIVE_ASSETS` therefore has no `bsc` entry yet.
+
+The batch for the multisig, `scheduleBatch` through the timelock then `executeBatch` after 48 h:
+`addInputAsset` for USDC, USDT, DAI, FDUSD, WBNB, BTCB, LINK, UNI and CAKE (listed now so the
+48 h is not paid twice), and `addSettlementAsset` for USDT, DAI and FDUSD.
+
 ### Ethereum, Arbitrum and BNB Smart Chain tokens
 
 The tokens decided for the next three chains, each read back from its chain (code
@@ -863,7 +890,7 @@ native asset there is BNB and `isEvmNativeAsset` names it. `AssetCode` now has `
 every address above. `reviewed-tokens.test.ts` holds each token's on-chain decimals
 against the registry and `token-units`, so a stablecoin counted wrong fails a test.
 
-Not yet: the three chains are not deployed, so `PAYMENT_ROUTERS`, the env maps, the
+Not yet: Ethereum and Arbitrum are not deployed, and BNB Smart Chain has no venue, so the env maps, the
 Uniswap (and on BNB Smart Chain, PancakeSwap) pools and the price feeds for the new
 tokens, and each router's whitelist batch, follow the deploys.
 
