@@ -135,7 +135,6 @@ const ONCHAIN_DECIMALS: Readonly<Record<string, Readonly<Partial<Record<AssetCod
     FDUSD: 18,
     WBNB: 18,
     BTCB: 18,
-    LINK: 18,
     UNI: 18,
     CAKE: 18,
   },
