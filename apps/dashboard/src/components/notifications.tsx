@@ -9,7 +9,9 @@
 import {
   BellIcon,
   CoinsIcon,
+  FileTextIcon,
   GearSixIcon,
+  RepeatIcon,
   ScalesIcon,
   ShieldWarningIcon,
 } from "@phosphor-icons/react";
@@ -40,6 +42,13 @@ const CATEGORY_ICON: Readonly<Record<NotificationCategory, typeof BellIcon>> = {
   operations: GearSixIcon,
 };
 
+/** Invoice and subscription lines share the operations category but read as their nav pages do. */
+function iconOf(notification: NotificationDto) {
+  if (notification.type.startsWith("invoice.")) return FileTextIcon;
+  if (notification.type.startsWith("subscription.")) return RepeatIcon;
+  return CATEGORY_ICON[notification.category];
+}
+
 const PAGE_SIZE = 10;
 
 const FILTERS: readonly { readonly value: NotificationCategory | "all"; readonly label: string }[] =
@@ -60,7 +69,7 @@ const TONE_CLASS: Readonly<Record<NotificationTone, string>> = {
 
 /** One line of the feed; the bell's popup shows the same row. */
 export function NotificationRow({ notification }: { readonly notification: NotificationDto }) {
-  const Icon = CATEGORY_ICON[notification.category];
+  const Icon = iconOf(notification);
   const content = (
     <>
       <div
