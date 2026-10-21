@@ -1,0 +1,30 @@
+@import "@fontsource-variable/inter-tight";
+@import "@fontsource-variable/geist-mono";
+
+/* Same type system as docs.mayarin.xyz: PP Neue Montreal for text, Inter Tight
+   for headings, Geist Mono for code. */
+@font-face {
+  font-family: "PP Neue Montreal";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/PPNeueMontreal-VariableUpright.woff2") format("woff2");
+}
+
+:root {
+  --vocs-font-family: "PP Neue Montreal", ui-sans-serif, system-ui, sans-serif;
+  --vocs-font-family-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Inter Tight Variable", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+}

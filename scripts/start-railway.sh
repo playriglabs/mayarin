@@ -3,7 +3,7 @@ set -euo pipefail
 
 case "${RAILWAY_SERVICE_NAME:-}" in
   docs|mayarin-docs)
-    exec bun apps/docs/dist/server/entry.mjs
+    exec bun apps/docs/dist/serve-node.js
     ;;
   core-api)
     exec bun run --cwd apps/api start

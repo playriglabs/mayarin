@@ -86,7 +86,7 @@ required here: every cycle is emailed. `daysUntilDue` defaults to 7.
 
 Creation is not idempotent. A caller that may retry stores the returned id.
 The SDK exposes the surface as `commerce.subscriptions`, and the integration
-guide is `apps/docs/content/docs/guides/subscriptions.mdx`.
+guide is `apps/docs/src/pages/guides/subscriptions.mdx`.
 
 ## Dashboard API (`catalog:manage`)
 

@@ -1,0 +1,78 @@
+---
+title: Build programmable commerce
+description: Price in fiat, settle in stablecoins, and let anyone — or anything — pay with the asset they already hold, through one API and TypeScript SDK.
+---
+
+import { Card, Cards } from 'vocs'
+
+Mayarin is a programmable clearing layer for merchants who think in local currency. Your application creates a fiat-denominated payment request; Mayarin handles quoting, on-chain execution, settlement, and accounting.
+
+One payment request, three kinds of payer: a human at a checkout, an application paying on their behalf, or an autonomous agent paying per call over x402 with no account of any kind.
+
+## Get started
+
+Here's a quick guide to help you find what you need:
+
+<Cards>
+  <Card
+    title="Quickstart"
+    description="Take your first payment with the TypeScript SDK, in about ten minutes."
+    to="/quickstart"
+  />
+  <Card
+    title="Guides"
+    description="Authentication, subscriptions, webhooks, selling an endpoint to an agent, and WooCommerce."
+    to="/guides/api-quickstart"
+  />
+  <Card
+    title="TypeScript SDK"
+    description="The server and browser clients, the modules they carry, and the x402 gate."
+    to="/sdk/typescript"
+  />
+  <Card
+    title="API Reference"
+    description="Every endpoint with its request and response schemas, and a live playground."
+    to="/api-reference"
+  />
+  <Card
+    title="Concepts"
+    description="Exact money, the payment lifecycle, the three execution paths, and the rails."
+    to="/concepts/money"
+  />
+  <Card
+    title="Changelog"
+    description="What the /v1 revision covers, and what shipped additively since."
+    to="/changelog"
+  />
+</Cards>
+
+Reading a finished integration is often faster than any of the above: [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) is a complete storefront — thin server, webhook endpoint, and all.
+
+## The model
+
+```text
+Merchant prices       its own currency (SGD, MYR, THB, USD, IDR…)
+Customer pays         ETH, USDC, USDT, or EURC
+Mayarin executes      quote → pay → swap if needed → settle
+Merchant receives     configured stablecoin
+```
+
+The merchant does not need to reconcile the payer's asset. The customer does not need to acquire the merchant's settlement asset first. See [rails](/concepts/rails) for the currencies, assets and chains this covers.
+
+## Three execution paths
+
+Chosen per payer, not per deployment — none is a fallback for another:
+
+- **On-chain contract** — the payer connects a wallet. `PaymentRouter` atomically receives, swaps when needed, and settles. A hard `minOut` protects the merchant.
+- **Deposit match** — the payer can only send a plain transfer, from a wallet or an exchange. Mayarin gives them a per-intent address, watches the chain, and matches the transfer to the payment.
+- **x402** — the payer is a program. It signs one authorization for an exact amount, a facilitator broadcasts it, and the settlement is read back off the chain before anything is served.
+
+All three use the same payment intent, status model, ledger, and merchant-facing API. See [execution paths](/concepts/execution-paths).
+
+## Core guarantees
+
+- Money is represented as exact minor units, never floating-point values.
+- Every write is idempotent.
+- Every clearing transition is persisted and auditable.
+- A webhook is a signal; Mayarin verifies authoritative state before settlement.
+- Secret keys stay on the server. Browser integrations use publishable keys with a deliberately smaller surface.

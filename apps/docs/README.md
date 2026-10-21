@@ -2,10 +2,10 @@
 
 Public API and TypeScript SDK documentation for `docs.mayarin.xyz`.
 
-The application uses Astro with Fumadocs React islands. Authored guides live in
-`content/docs`; API reference pages are generated from the canonical OpenAPI 3.1
-document in `src/lib/openapi.json`; SDK type tables are derived from
-`packages/sdk/src` with `fumadocs-typescript`.
+The application is [Vocs](https://vocs.dev) (Waku). Authored guides are MDX
+under `src/pages`, and the sidebar is written by hand in `vocs.config.ts`. The
+API reference is generated from the canonical OpenAPI 3.1 document in
+`src/lib/openapi.json`, and SDK type tables are derived from `packages/sdk/src`.
 
 The OpenAPI document is **generated**, not hand-maintained. Request bodies are
 single-sourced from the live API Zod schemas in `apps/api/src/dto`; response
@@ -25,33 +25,28 @@ bun run docs:openapi:check    # fail if the checked-in artifact is stale
 bun run dev
 bun run typecheck
 bun run build
-bun run generate
+bun run generate              # openapi.json
+bun run generate:api-pages    # src/pages/api-reference/<tag>.mdx
+bun run generate:types        # type tables on sdk/typescript/reference.mdx
 bun run openapi:check
+bun run api-pages:check
+bun run types:check
 ```
 
-## Ask AI
+## Generated files
 
-The **Ask AI** button opens a chat that answers from these docs.
-`POST /api/ask` runs a small agent (`src/lib/ask-ai.ts`, Vercel AI SDK) with
-three tools: `search_docs` (the same Orama index as the search dialog),
-`read_page` (a page's MDX, cut at 8,000 characters) and `get_api_operation`
-(`src/lib/openapi.json`).
+- `src/lib/openapi.json` — from `scripts/generate-openapi.ts`.
+- `src/pages/api-reference/<tag>.mdx` — one page per OpenAPI tag, from
+  `scripts/generate-api-pages.ts`. Vocs would mount these itself from the
+  `openapi` entry in `vocs.config.ts`, but 2.10 drops `openapi` from its runtime
+  config, so the pages are written out and embed `<OpenApi.Operation>`. Run
+  `generate:api-pages` after a new tag or operation. `index.mdx` there is
+  authored.
+- The tables between `{/* types: … */}` and `{/* /types */}` in
+  `src/pages/sdk/typescript/reference.mdx` — from `scripts/generate-type-tables.ts`.
 
-The model is gpt-oss-120b on Cloudflare Workers AI, through its
-OpenAI-compatible endpoint, with reasoning effort set to `low`. Set on the docs server:
-
-| Variable                | Required | Meaning                                                    |
-| ----------------------- | -------- | ---------------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID` | yes      | The Cloudflare account that runs Workers AI                |
-| `CLOUDFLARE_AI_TOKEN`   | yes      | An API token with **Workers AI: Read**                     |
-| `DOCS_AI_MODEL`         | no       | Defaults to `@cf/openai/gpt-oss-120b`                      |
-| `DOCS_AI_BASE_URL`      | no       | Any other OpenAI-compatible server, such as Ollama or Groq |
-
-Without the first two, `/api/ask` answers `503` and the rest of the site is
-unaffected. The free Workers AI allowance is 10,000 neurons a day, roughly 25
-questions on gpt-oss-120b, so the route allows 10 questions per IP every 10
-minutes and sends only the last 6 messages of a conversation. Those limits
-keep each question cheap.
+The API playground is the Vocs **Try** modal on each operation. It takes its
+servers and `sk_`/`pk_` bearer schemes from the OpenAPI document.
 
 ## Content rules
 
@@ -59,12 +54,6 @@ keep each question cheap.
 - Add or update OpenAPI operations in the same change as a public API route.
 - Add TSDoc to public SDK exports so the source-derived tables stay useful.
 - Use `sk_` keys only in server examples and `pk_` keys only in browser examples.
+- A new page needs an entry in the sidebar in `vocs.config.ts`.
 - Keep architecture and implementation design records in the repository-level
   `docs/` directory. This application is the external integration surface.
-
-## Visual system
-
-The docs inherit the landing site's design language: white paper, near-black
-ink, Mayarin green, Instrument Serif headings, Geist body copy, JetBrains
-Mono code, and Clash Display only for the wordmark. Update the landing and docs
-tokens together when the brand changes.

@@ -58,7 +58,7 @@ give an integration the dispute case file the dashboard shows: read with
 `payments:read`, answer with `disputes:manage`. Three webhooks announce each step
 (`escrow.disputed`, `escrow.dispute.message`, `escrow.dispute.resolved`). The
 design, the permission split and the event ids are in [escrow.md](./escrow.md#disputes-313);
-the public guide is `apps/docs/content/docs/guides/disputes.mdx`, and the routes
+the public guide is `apps/docs/src/pages/guides/disputes.mdx`, and the routes
 are in the generated OpenAPI (`bun run --cwd apps/docs generate`).
 
 ## Dashboard API (`apps/dashboard-api`)
