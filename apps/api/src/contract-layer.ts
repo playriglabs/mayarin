@@ -80,6 +80,7 @@ import {
   type Clock,
   ConfigurationError,
   ConflictError,
+  fromDecimalString,
   isEvmNativeAsset,
   isPositive,
   type Money,
@@ -112,6 +113,12 @@ export interface ContractLayerOptions {
   readonly fees: FeePolicy;
   /** Reimburses successful relayed submissions; payer-submitted calls skip it. */
   readonly relayerGasFees: FeePolicy;
+  /**
+   * The least a relayed submission reimburses, per chain, in whole units of the
+   * settlement asset. The percentage alone loses money on a small payment and on
+   * an expensive chain; this is the floor under it.
+   */
+  readonly relayerGasFeeMinimums: Readonly<Partial<Record<ChainId, string>>>;
   readonly stablecoins: StablecoinRegistry;
   /**
    * Where each merchant is paid. Read per lock rather than configured once:
@@ -159,6 +166,18 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
 
   constructor(options: ContractLayerOptions) {
     this.#options = options;
+  }
+
+  /** The percentage, or the chain's floor when that is more: gas is not a percentage. */
+  #relayerGasFee(chain: ChainId, settlementAmount: Money, merchantId: string): Money {
+    const byRate = this.#options.relayerGasFees.feeFor(settlementAmount, {
+      merchantId,
+      provider: "payment-router-gas",
+    });
+    const minimum = this.#options.relayerGasFeeMinimums[chain];
+    if (minimum === undefined) return byRate;
+    const floor = fromDecimalString(minimum, settlementAmount.asset);
+    return floor.amount > byRate.amount ? floor : byRate;
   }
 
   async lock(request: ContractLockRequest): Promise<ContractLock> {
@@ -228,10 +247,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     });
     const gasFee =
       request.submission === "relayer"
-        ? this.#options.relayerGasFees.feeFor(settlementAmount, {
-            merchantId: request.merchantId,
-            provider: "payment-router-gas",
-          })
+        ? this.#relayerGasFee(request.chain, settlementAmount, request.merchantId)
         : money(0n, settlementAmount.asset);
     const fee = add(protocolFee, gasFee);
     // The router refuses an order that leaves the merchant nothing, but only on

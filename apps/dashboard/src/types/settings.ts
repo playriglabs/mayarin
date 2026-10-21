@@ -218,7 +218,9 @@ export interface WalletWithdrawalDto {
   readonly chain: string;
   readonly walletAddress: string;
   readonly destinationAddress: string;
+  /** What left the wallet; the destination received this less `networkFee`. */
   readonly amount: MoneyDto;
+  readonly networkFee: MoneyDto;
   readonly transactionHash: string;
   readonly completedAt: string;
 }

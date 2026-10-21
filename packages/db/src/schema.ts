@@ -1027,6 +1027,8 @@ export const walletWithdrawals = pgTable(
     walletAddress: text("wallet_address").notNull(),
     destinationAddress: text("destination_address").notNull(),
     amount: minorUnits("amount").notNull(),
+    /** The gas the merchant paid, in `asset`, taken out of `amount`. */
+    networkFee: minorUnits("network_fee").notNull().default("0"),
     asset: text("asset").notNull(),
     transactionHash: text("transaction_hash").notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }).notNull(),

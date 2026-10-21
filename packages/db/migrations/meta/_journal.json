@@ -456,6 +456,13 @@
       "when": 1792800000000,
       "tag": "0064_fraud_detection",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0065_withdrawal_network_fee",
+      "breakpoints": true
     }
   ]
 }

@@ -66,6 +66,7 @@ import { type ChainId, evmChainIdOf } from "@mayarin/chain";
 import {
   type AssetCode,
   ConfigurationError,
+  type Money,
   ProviderError,
   ValidationError,
 } from "@mayarin/shared";
@@ -117,6 +118,31 @@ const SAFE_ABI = parseAbi([
 
 const ERC20_ABI = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
 
+const MULTI_SEND_ABI = parseAbi(["function multiSend(bytes transactions)"]);
+
+/**
+ * OP-stack chains (Base, OP) charge a second fee for posting the transaction to
+ * L1, on top of `gas × price`, and a node refuses a transaction whose sender
+ * cannot cover both. This predeploy prices it for a given transaction.
+ */
+const FUNDING_POLLS = 20;
+const FUNDING_POLL_MS = 500;
+
+const GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F" as const;
+const GAS_PRICE_ORACLE_ABI = parseAbi(["function getL1Fee(bytes data) view returns (uint256)"]);
+
+/**
+ * Safe's `MultiSendCallOnly` 1.4.1, the deterministic deployment. A Safe batches
+ * through it with a DELEGATECALL, so the address is the one thing that call may
+ * not get wrong: it is read off the chain and matched to this hash before every
+ * use rather than trusted. The `CallOnly` variant can only issue CALLs, so a
+ * batch cannot itself delegate into something that rewrites the Safe.
+ */
+const MULTI_SEND_CALL_ONLY: { readonly address: Address; readonly codeHash: Hex } = {
+  address: "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
+  codeHash: "0xecd5bd14a08c5d2122379900b2f272bdf107a7e92423c10dd5fe3254386c9939",
+};
+
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 /** The non-root user the settlement path signs as. Bounded by policy. */
@@ -159,6 +185,12 @@ export interface TurnkeyWalletProviderOptions {
    */
   readonly safe?: SafeDeployment;
   /**
+   * The batching contract a withdrawal delegates to. Defaults to Safe's
+   * canonical `MultiSendCallOnly`, matched against the chain before use; a test
+   * supplies its own for the same reason it supplies `safe`.
+   */
+  readonly multiSend?: { readonly address: Address; readonly codeHash: Hex };
+  /**
    * How the chain is reached. Defaults to `http(rpcUrl)`; a test supplies its
    * own so the address derivation can be exercised without a node, since that
    * derivation — not the transport — is what resumability depends on.
@@ -196,6 +228,15 @@ export interface TurnkeyWalletProviderOptions {
    * 0.002 USDC — below the cost of every withdrawal, so every one is refused.
    */
   readonly maxGasTopUpWei?: bigint;
+  /**
+   * Prices a withdrawal's gas in the token being withdrawn.
+   *
+   * `cost` is the native gas the withdrawal will spend, in wei. Returns that
+   * cost in `asset`'s minor units. Throws when it cannot be priced: a
+   * withdrawal that cannot name its fee does not run for free, it does not run.
+   * Not consulted for the chain's own currency, where the fee is the cost.
+   */
+  readonly gasFee: (input: { readonly cost: bigint; readonly asset: AssetCode }) => Promise<bigint>;
 }
 
 /**
@@ -208,12 +249,14 @@ const DEFAULT_MAX_GAS_TOP_UP_WEI = 2_000_000_000_000_000n;
 export class TurnkeyWalletProvider implements WalletProvider {
   readonly #options: TurnkeyWalletProviderOptions;
   readonly #safe: SafeDeployment;
+  readonly #multiSend: { readonly address: Address; readonly codeHash: Hex };
   /** Set once the Safe contracts have been read off this chain and matched. */
   #safeVerified = false;
 
   constructor(options: TurnkeyWalletProviderOptions) {
     this.#options = options;
     this.#safe = options.safe ?? SAFE_1_4_1;
+    this.#multiSend = options.multiSend ?? MULTI_SEND_CALL_ONLY;
   }
 
   /**
@@ -399,11 +442,16 @@ export class TurnkeyWalletProvider implements WalletProvider {
    * ## Gas
    *
    * The sub-org key is a fresh EOA and holds nothing, so the deployer tops it up
-   * to the cost of this one submission. That is Mayarin paying the merchant's
-   * gas — narrower than the general sponsorship in #9, and bounded twice: only
-   * to this signer, and only up to `maxGasTopUpWei`.
+   * to the cost of this one submission, bounded twice: only to this signer, and
+   * only up to `maxGasTopUpWei`. The deployer is then repaid out of the amount
+   * withdrawn: one batched transaction pays the destination the amount less the
+   * network fee and pays the deployer the fee, so the merchant bears the gas and
+   * Mayarin only fronts it.
    */
-  async propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ txHash: string }> {
+  async propose(
+    wallet: MerchantWallet,
+    intent: WalletIntent,
+  ): Promise<{ txHash: string; networkFee: Money }> {
     this.#assertChain(wallet.chain);
     const managed = wallet.managed;
     if (managed === undefined) {
@@ -419,47 +467,74 @@ export class TurnkeyWalletProvider implements WalletProvider {
 
     const safe = getAddress(wallet.address);
     const signer = getAddress(managed.address);
-    const inner = this.#innerCall(intent);
     const client = this.#publicClient();
+    await this.#assertMultiSend(client);
 
-    const data = encodeFunctionData({
-      abi: SAFE_ABI,
-      functionName: "execTransaction",
-      args: [
-        inner.to,
-        inner.value,
-        inner.data,
-        0, // CALL, never DELEGATECALL: a delegate call rewrites the Safe itself.
-        0n,
-        0n,
-        0n,
-        ZERO_ADDRESS,
-        ZERO_ADDRESS,
-        prevalidatedSignature(signer),
-      ],
-    });
+    // Mayarin fronts the gas, so it is repaid in what the merchant is moving:
+    // the destination gets the amount less the fee, the deployer that funded
+    // the signer gets the fee, and the Safe is debited exactly the amount. Both
+    // legs ride one transaction, so the merchant pays for one submission.
+    const feeTo = privateKeyToAccount(this.#options.deployerPrivateKey).address;
+    const asset = intent.amount.asset;
+    const isNative = asset === this.#options.nativeAsset;
+    const execution = (fee: bigint) =>
+      this.#execution(this.#batch(intent, feeTo, fee), prevalidatedSignature(signer));
 
-    const gas = await client.estimateGas({ account: signer, to: safe, data });
+    // The fee depends on the gas and the gas on the fee, but only through a few
+    // bytes of calldata: size it with a placeholder, price the real one after.
+    const gas = await client.estimateGas({ account: signer, to: safe, data: execution(1n) });
     // 20% over the estimate: the estimate is taken before the top-up lands, and
     // a submission that runs out of gas costs the fee and moves nothing.
     const gasLimit = (gas * 12n) / 10n;
     const fees = await client.estimateFeesPerGas();
     const maxFeePerGas = fees.maxFeePerGas;
     const maxPriorityFeePerGas = fees.maxPriorityFeePerGas;
+    const nonce = await client.getTransactionCount({ address: signer, blockTag: "pending" });
+    const serialize = (data: Hex) =>
+      serializeTransaction({
+        type: "eip1559",
+        chainId: this.#chain().id,
+        nonce,
+        to: safe,
+        value: 0n,
+        data,
+        gas: gasLimit,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      });
+    // The L1 fee is part of what the signer must hold and part of what the
+    // merchant repays; the placeholder is the same size as the real calldata.
+    // Doubled: the oracle prices the compressed bytes at the L1 base fee of this
+    // moment, and a node checks the balance at the base fee of the next.
+    const l1Fee = await this.#l1DataFee(client, serialize(execution(1n)));
+    const cost = gasLimit * maxFeePerGas + l1Fee * 2n;
 
-    await this.#fundGas(client, signer, gasLimit * maxFeePerGas);
+    // Mayarin spends no more than it is repaid. The signer is funded by a
+    // transaction of the deployer's, which costs gas too, so that is part of
+    // the fee whenever the signer is short and a top-up will be sent.
+    const owed =
+      cost +
+      ((await client.getBalance({ address: signer })) >= cost
+        ? 0n
+        : await this.#topUpCost(client, signer, maxFeePerGas, maxPriorityFeePerGas));
 
-    const unsigned = serializeTransaction({
-      type: "eip1559",
-      chainId: this.#chain().id,
-      nonce: await client.getTransactionCount({ address: signer, blockTag: "pending" }),
-      to: safe,
-      value: 0n,
-      data,
-      gas: gasLimit,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-    });
+    const fee = isNative ? owed : await this.#options.gasFee({ cost: owed, asset });
+    if (fee <= 0n) {
+      throw new ProviderError("The network fee for this withdrawal could not be priced", {
+        asset,
+        chain: this.#options.chain,
+      });
+    }
+    if (fee >= intent.amount.amount) {
+      throw new ValidationError("This amount does not cover the network fee", {
+        amount: intent.amount.amount.toString(),
+        networkFee: fee.toString(),
+        asset,
+      });
+    }
+    await this.#fundGas(client, signer, cost);
+
+    const unsigned = serialize(execution(fee));
 
     const signed = await this.#signTransaction(managed.ref, signer, unsigned);
     const hash = await client.sendRawTransaction({ serializedTransaction: signed });
@@ -468,7 +543,97 @@ export class TurnkeyWalletProvider implements WalletProvider {
       throw new ProviderError("The withdrawal transaction reverted", { hash, safe });
     }
 
-    return { txHash: hash };
+    return { txHash: hash, networkFee: { amount: fee, asset } };
+  }
+
+  /**
+   * The gas the deployer spends sending the signer its top-up: a plain value
+   * transfer, 21,000 gas, plus the OP-stack L1 fee for posting it.
+   */
+  async #topUpCost(
+    client: PublicClient,
+    signer: Address,
+    maxFeePerGas: bigint,
+    maxPriorityFeePerGas: bigint,
+  ): Promise<bigint> {
+    const gas = 21_000n;
+    const transfer = serializeTransaction({
+      type: "eip1559",
+      chainId: this.#chain().id,
+      nonce: 0,
+      to: signer,
+      value: 1n,
+      gas,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    });
+    return gas * maxFeePerGas + (await this.#l1DataFee(client, transfer)) * 2n;
+  }
+
+  /** What an OP-stack chain charges to post `serialized` to L1; zero on a chain that has no such fee. */
+  async #l1DataFee(client: PublicClient, serialized: Hex): Promise<bigint> {
+    const code = await client.getCode({ address: GAS_PRICE_ORACLE });
+    if (code === undefined || code === "0x") return 0n;
+    return client.readContract({
+      address: GAS_PRICE_ORACLE,
+      abi: GAS_PRICE_ORACLE_ABI,
+      functionName: "getL1Fee",
+      args: [serialized],
+    });
+  }
+
+  /** `execTransaction` as the owner-sent call: one DELEGATECALL into `MultiSendCallOnly`. */
+  #execution(transactions: Hex, signature: Hex): Hex {
+    return encodeFunctionData({
+      abi: SAFE_ABI,
+      functionName: "execTransaction",
+      args: [
+        this.#multiSend.address,
+        0n,
+        encodeFunctionData({
+          abi: MULTI_SEND_ABI,
+          functionName: "multiSend",
+          args: [transactions],
+        }),
+        1, // DELEGATECALL, to the one address `#assertMultiSend` has just matched.
+        0n,
+        0n,
+        0n,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        signature,
+      ],
+    });
+  }
+
+  /** The two transfers, packed the way `MultiSendCallOnly` reads them. */
+  #batch(intent: WalletIntent, feeTo: Address, fee: bigint): Hex {
+    const net = { ...intent, amount: { ...intent.amount, amount: intent.amount.amount - fee } };
+    const feeLeg = { ...intent, to: feeTo, amount: { ...intent.amount, amount: fee } };
+    return concatHex(
+      [net, feeLeg].map((leg) => {
+        const call = this.#innerCall(leg);
+        return concatHex([
+          "0x00", // CALL
+          call.to,
+          pad(toHex(call.value), { size: 32 }),
+          pad(toHex(BigInt((call.data.length - 2) / 2)), { size: 32 }),
+          call.data,
+        ]);
+      }),
+    );
+  }
+
+  /** The batching contract on this chain is Safe's, byte for byte, before a Safe delegates to it. */
+  async #assertMultiSend(client: PublicClient): Promise<void> {
+    const { address, codeHash } = this.#multiSend;
+    const code = await client.getCode({ address });
+    if (code === undefined || code === "0x" || keccak256(code) !== codeHash) {
+      throw new ConfigurationError(
+        `${this.#options.chain} has no canonical Safe MultiSendCallOnly at ${address}, so a withdrawal cannot be batched there`,
+        { chain: this.#options.chain, address },
+      );
+    }
   }
 
   /** What the Safe is asked to do: a plain transfer, native or ERC-20. */
@@ -529,6 +694,29 @@ export class TurnkeyWalletProvider implements WalletProvider {
     if (receipt.status !== "success") {
       throw new ProviderError("Funding the signer's gas reverted", { hash });
     }
+    await this.#untilFunded(client, signer, cost);
+  }
+
+  /**
+   * Waits until the RPC shows the signer holding `cost`.
+   *
+   * The top-up's receipt comes from one node and the withdrawal is broadcast
+   * through another; a provider that load-balances can answer the second with a
+   * balance from before the first, and that node refuses the transaction as
+   * underfunded. Sending only once the balance is visible closes that gap.
+   */
+  async #untilFunded(client: PublicClient, signer: Address, cost: bigint): Promise<void> {
+    for (let attempt = 0; attempt < FUNDING_POLLS; attempt += 1) {
+      if ((await client.getBalance({ address: signer })) >= cost) return;
+      await new Promise((resolve) => setTimeout(resolve, FUNDING_POLL_MS));
+    }
+    throw new ProviderError(
+      "The signer's gas top-up was mined but its balance is not visible yet",
+      {
+        signer,
+        chain: this.#options.chain,
+      },
+    );
   }
 
   /**

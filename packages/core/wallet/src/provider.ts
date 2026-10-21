@@ -110,8 +110,15 @@ export interface WalletProvider {
    * Returns the submitted transaction's hash, never a signature — a signature
    * handed back to the backend is a signature the backend could have used for
    * something else.
+   *
+   * `networkFee` is the gas the merchant paid, in the asset moved. It is taken
+   * out of `intent.amount`, so the destination receives the amount minus the
+   * fee and the wallet is debited exactly the amount.
    */
-  propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ readonly txHash: string }>;
+  propose(
+    wallet: MerchantWallet,
+    intent: WalletIntent,
+  ): Promise<{ readonly txHash: string; readonly networkFee: Money }>;
 }
 
 export interface DeployResult {

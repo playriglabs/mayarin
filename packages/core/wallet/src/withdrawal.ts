@@ -17,7 +17,10 @@ export interface WalletWithdrawal {
   readonly walletAddress: string;
   /** The merchant-controlled destination funds moved to. */
   readonly destinationAddress: string;
+  /** What left the Safe. The destination received this less `networkFee`. */
   readonly amount: Money;
+  /** The gas the merchant paid, in the same asset, taken out of `amount`. */
+  readonly networkFee: Money;
   readonly transactionHash: string;
   readonly completedAt: Date;
 }

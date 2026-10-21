@@ -289,6 +289,8 @@ describe("contract path configuration", () => {
     CHAIN_ASSETS: '{"base":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
     // `base` is a mainnet, and a mainnet will not boot without a payment cap.
     MAX_PAYMENT_SETTLEMENT: '{"USDC":"500"}',
+    // ...and a mainnet router will not boot without a gas floor for its chain.
+    RELAYER_GAS_FEE_MINIMUMS: '{"base":"0.02"}',
     WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
     PAYER_TOKEN_KEY: "p".repeat(32),
     INTERNAL_API_TOKEN: "i".repeat(32),
@@ -301,6 +303,21 @@ describe("contract path configuration", () => {
   test("resolves with a router and a route-capable venue", () => {
     const config = loadConfig({ ...BASE, ...QUOTE, ...CONTRACT });
     expect(config.contract?.paymentRouters.base).toBe("0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0");
+  });
+
+  test("a mainnet router without a gas floor for its chain will not boot", () => {
+    const { RELAYER_GAS_FEE_MINIMUMS: _floor, ...withoutFloor } = CONTRACT;
+    expect(() => loadConfig({ ...BASE, ...QUOTE, ...withoutFloor })).toThrow(
+      /RELAYER_GAS_FEE_MINIMUMS has no entry for base/,
+    );
+  });
+
+  test("refuses a gas floor that is not a positive decimal or names an unknown chain", () => {
+    const floor = (value: string) =>
+      loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, RELAYER_GAS_FEE_MINIMUMS: value });
+    expect(() => floor('{"base":"0"}')).toThrow(/must be a positive decimal/);
+    expect(() => floor('{"base":"cheap"}')).toThrow(/must be a positive decimal/);
+    expect(() => floor('{"base":"0.02","nope":"1"}')).toThrow(/unknown chain "nope"/);
   });
 
   test("resolves a Solana router with its signer, domain, fee recipient, and mint", () => {

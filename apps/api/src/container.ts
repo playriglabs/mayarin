@@ -1038,6 +1038,7 @@ export function createContainer({
           quote: resolveQuote,
           fees,
           relayerGasFees,
+          relayerGasFeeMinimums: config.relayerGasFeeMinimums,
           stablecoins: registry,
           merchantPolicies,
           wallets: walletGuard,

@@ -102,6 +102,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { fromEditableDecimalString } from "@/lib/decimal-input";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { PAGE_SIZE } from "@/lib/pagination";
 import {
   discoverSolanaWallet,
   discoverWallets,
@@ -1359,7 +1360,7 @@ function Wallets() {
         <Tabs.Panel value="history" className="flex flex-col gap-3 pt-6 focus-visible:outline-none">
           <SectionHeader title="Withdrawal history" />
           {match(withdrawalHistory)
-            .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+            .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
             .with({ isError: true }, ({ error }) => (
               <QueryError
                 message={withdrawalReasonOf(error)}
@@ -1393,6 +1394,7 @@ function Wallets() {
                             balance moved. */}
                         <TableHead>Network</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Network fee</TableHead>
                         <TableHead>To</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Transaction</TableHead>
@@ -1412,6 +1414,12 @@ function Wallets() {
                             </TableCell>
                             <TableCell className="text-right">
                               <AssetAmount asset={row.amount.asset} display={row.amount.display} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <AssetAmount
+                                asset={row.networkFee.asset}
+                                display={row.networkFee.display}
+                              />
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {row.destinationAddress}

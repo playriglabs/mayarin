@@ -61,6 +61,10 @@ const provider = new TurnkeyWalletProvider({
   rpcUrl,
   rootApiPublicKey: requireEnv("TURNKEY_API_PUBLIC_KEY"),
   signerApiPublicKey: requireEnv("TURNKEY_SIGNER_API_PUBLIC_KEY"),
+  // This script provisions and never withdraws, so nothing here prices gas.
+  gasFee: async () => {
+    throw new Error("this script does not withdraw");
+  },
 });
 
 // A merchant id unique to this run: provisioning is deterministic per merchant,

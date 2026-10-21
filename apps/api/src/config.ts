@@ -72,6 +72,13 @@ const configSchema = z.object({
     .default("0"),
   /** Successful relayed PaymentRouter calls reimburse gas from settlement. */
   relayerGasFeeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(10),
+  /**
+   * The least a relayed submission reimburses, per chain, in whole units of the
+   * settlement asset: `{"ethereum":"1.50","base":"0.02"}`. The percentage above
+   * loses money on a small payment and wherever gas runs dear; this is the floor
+   * under it, and a chain not listed has none.
+   */
+  relayerGasFeeMinimums: jsonObject<Record<string, string>>("RELAYER_GAS_FEE_MINIMUMS", "{}"),
   defaultProvider: z.string().min(1).default("mock"),
   paymentIntentTtlSeconds: z.coerce.number().int().positive().default(900),
   /**
@@ -1206,6 +1213,27 @@ function assertPaymentLimit(data: RawConfig): void {
       "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
     );
   }
+  for (const [chain, value] of Object.entries(data.relayerGasFeeMinimums)) {
+    if (!isChainId(chain)) {
+      issues.push(`RELAYER_GAS_FEE_MINIMUMS names an unknown chain "${chain}"`);
+    } else if (!/^\d+(\.\d+)?$/.test(value) || Number(value) <= 0) {
+      issues.push(`RELAYER_GAS_FEE_MINIMUMS ${chain} must be a positive decimal, got "${value}"`);
+    }
+  }
+  // The operator fronts gas on a relayed payment, and the percentage alone does
+  // not cover it on a small payment or a dear chain: no mainnet chain goes live
+  // without the floor that makes the payer, not Mayarin, pay for it.
+  for (const chain of Object.keys(data.paymentRouters)) {
+    if (
+      isChainId(chain) &&
+      isMainnetChain(chain) &&
+      data.relayerGasFeeMinimums[chain] === undefined
+    ) {
+      issues.push(
+        `RELAYER_GAS_FEE_MINIMUMS has no entry for ${chain}: a mainnet chain needs the least a relayed payment reimburses in gas`,
+      );
+    }
+  }
   if (onMainnet && data.operatorSigner === "local" && data.operatorPrivateKey !== undefined) {
     issues.push(
       "OPERATOR_SIGNER=local holds the operator key in this process and is refused when a mainnet chain is configured: use OPERATOR_SIGNER=turnkey or aws-kms",
@@ -1351,6 +1379,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     feeBasisPoints: env.FEE_BASIS_POINTS,
     feeMinimum: env.FEE_MINIMUM,
     relayerGasFeeBasisPoints: env.RELAYER_GAS_FEE_BASIS_POINTS,
+    relayerGasFeeMinimums: env.RELAYER_GAS_FEE_MINIMUMS,
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,
     assetReceiptMode: env.ASSET_RECEIPT_MODE,

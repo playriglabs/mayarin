@@ -153,6 +153,7 @@ export class DrizzleWalletWithdrawalRepository implements WalletWithdrawalReposi
       walletAddress: withdrawal.walletAddress.toLowerCase(),
       destinationAddress: withdrawal.destinationAddress.toLowerCase(),
       amount: withdrawal.amount.amount.toString(),
+      networkFee: withdrawal.networkFee.amount.toString(),
       asset: withdrawal.amount.asset,
       transactionHash: withdrawal.transactionHash.toLowerCase(),
       completedAt: withdrawal.completedAt,
@@ -252,6 +253,10 @@ function toWithdrawal(row: WithdrawalRow): WalletWithdrawal {
     walletAddress: row.walletAddress,
     destinationAddress: row.destinationAddress,
     amount: { amount: BigInt(row.amount), asset: row.asset as WalletWithdrawal["amount"]["asset"] },
+    networkFee: {
+      amount: BigInt(row.networkFee),
+      asset: row.asset as WalletWithdrawal["amount"]["asset"],
+    },
     transactionHash: row.transactionHash,
     completedAt: row.completedAt,
   };

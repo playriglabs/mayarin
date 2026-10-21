@@ -1790,6 +1790,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         walletAddress: "0x1111111111111111111111111111111111111111",
         destinationAddress: "0x2222222222222222222222222222222222222222",
         amount: money(BigInt(offset + 1), "USDC"),
+        networkFee: money(0n, "USDC"),
         transactionHash: `0x${(offset + 1).toString(16).padStart(64, "0")}`,
         completedAt: new Date(now.getTime() + offset),
       });

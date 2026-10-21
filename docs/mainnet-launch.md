@@ -230,10 +230,12 @@ knows (`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its
 Ethereum is the dearest chain to be wrong on and, at 0.05 gwei, the cheapest it has been:
 the whole first deploy costs under a dollar and one deposit-match payment about five
 cents, but at 30 times that gas a payment costs about $1.50. The operator pays those gas
-fees and recovers them with `RELAYER_GAS_FEE_BASIS_POINTS` (0.1 %), which covers a
-$100 payment at today's gas and loses money past about five times it. A gas-aware fee,
-or a minimum payment per chain, does not exist yet: set `MAX_PAYMENT_SETTLEMENT` and the
-merchants you onboard with that in mind. Finality takes about 13 minutes; the starting
+fees and recovers them from the payer's payment with `RELAYER_GAS_FEE_BASIS_POINTS`
+(0.1 %), floored per chain by `RELAYER_GAS_FEE_MINIMUMS`. The percentage alone covers a
+$100 payment at today's gas and loses money past about five times it; the floor is what
+keeps a small payment, or a dear hour, from costing Mayarin. A mainnet router chain
+without a floor will not boot. The floor is a fixed number you set, not the live gas
+price, so re-read it against the chain's gas before launch and when gas moves. Finality takes about 13 minutes; the starting
 `CHAIN_CONFIRMATIONS` is 12 (about 2.5 minutes).
 
 Polygon's USDT address now answers as **USDT0**, a LayerZero OFT that is Tether's

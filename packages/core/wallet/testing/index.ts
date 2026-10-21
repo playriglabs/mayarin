@@ -8,7 +8,13 @@
  */
 
 import { type ChainId, normaliseChainAddress } from "@mayarin/chain";
-import { type AssetCode, ConfigurationError, ConflictError, type Money } from "@mayarin/shared";
+import {
+  type AssetCode,
+  ConfigurationError,
+  ConflictError,
+  type Money,
+  money,
+} from "@mayarin/shared";
 import type {
   CreateMerchantKeyRequest,
   DeployResult,
@@ -227,13 +233,19 @@ export class FakeWalletProvider implements WalletProvider {
    * reached the provider are the ones the merchant asked for, which a return
    * value alone cannot show.
    */
-  async propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ txHash: string }> {
+  async propose(
+    wallet: MerchantWallet,
+    intent: WalletIntent,
+  ): Promise<{ txHash: string; networkFee: Money }> {
     if (this.failOn === "propose") {
       this.failOn = undefined;
       throw new ConfigurationError("fake provider refused the movement", {});
     }
     this.proposals.push({ wallet, intent });
-    return { txHash: `0x${(this.proposals.length + 0xf000).toString(16).padStart(64, "b")}` };
+    return {
+      txHash: `0x${(this.proposals.length + 0xf000).toString(16).padStart(64, "b")}`,
+      networkFee: money(0n, intent.amount.asset),
+    };
   }
 
   #crashIf(step: NonNullable<FakeWalletProvider["failOn"]>): void {

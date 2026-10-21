@@ -275,9 +275,30 @@ bounded by `maxGasTopUpWei`. A top-up that would exceed the bound is refused
 rather than sent short — a partial one submits a transaction that runs out of
 gas, which spends the fee and moves nothing.
 
+**The merchant bears the gas; Mayarin only fronts it.** The deployer's top-up is
+repaid out of the amount withdrawn. The withdrawal is one Safe call that
+DELEGATECALLs Safe's `MultiSendCallOnly` and batches two transfers: the amount
+less the network fee to the destination, and the fee to the deployer. The Safe is
+debited exactly the amount asked for. The fee is the gas of that submission
+(`gasLimit × maxFeePerGas`, which already carries the 20 % buffer, plus twice the L1
+data fee an OP-stack chain such as Base charges on top, the doubling absorbing a
+base-fee shift before inclusion, plus the gas of the deployer's own top-up
+transaction whenever one is sent) priced in the
+token moved, through the payment API's own quote for the chain's gas currency
+(`WALLET_GAS_ASSETS`), and rounded up. A chain that burns a dollar stablecoin for
+gas, Arc, converts by decimals alone.
+Moving the chain's own currency needs no price: the fee is the gas itself. A
+withdrawal whose fee cannot be priced is refused, never run free, and so is an
+amount that does not cover its fee.
+
+`MultiSendCallOnly` is the one DELEGATECALL target, and the provider matches its
+runtime code hash against Safe's on the chain before every use, as it does for the
+Safe contracts. A chain without it cannot withdraw. The Turnkey policy is
+unchanged: the signed transaction is still addressed to the merchant's Safe.
+
 Every successfully confirmed withdrawal is appended to `wallet_withdrawals`.
 `GET /wallets/withdrawals` returns the caller's twenty most recent records,
-newest first: exact minor-unit amount, asset, source Safe, verified destination,
+newest first: exact minor-unit amount, network fee, asset, source Safe, verified destination,
 chain, transaction hash and completion time. Failed signing, gas and reverted
 attempts never enter the history.
 
@@ -359,10 +380,10 @@ pair: no RPC, no deployer key, no Safe addresses.
 
 ## Not here
 
-**General gas abstraction (#9).** Withdrawal pays its own way — the deployer
-funds the signer for one submission — but that is one path, sponsored by
-Mayarin's key, chain by chain. A merchant paying their own gas, or a paymaster,
-is still #9.
+**General gas abstraction (#9).** Withdrawal pays its own way: the deployer
+funds the signer for one submission and is repaid from the amount withdrawn. A
+merchant who holds no native gas can still withdraw; what #9 would add is a
+paymaster or ERC-4337 for paths other than this one.
 
 **The browser half of the passkey path.** The API is complete — create the
 credential, `POST /wallets/passkey`, challenge, verify — and the dashboard has no

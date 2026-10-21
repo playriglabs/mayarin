@@ -104,6 +104,7 @@ import {
   type Clock,
   ConfigurationError,
   getAsset,
+  isAssetCode,
   systemClock,
 } from "@mayarin/shared";
 import type { SubscriptionRepository } from "@mayarin/subscriptions";
@@ -121,6 +122,7 @@ import {
 import { AssetCapabilities } from "@mayarin/x402";
 import { createPublicClient, http } from "viem";
 import type { Config } from "./config.ts";
+import { gasFeePricer } from "./gas-fee.ts";
 import { chainReceipts, PaymentApiPricingSource, settlementChains } from "./rails.ts";
 import {
   ApiKeyService,
@@ -562,7 +564,13 @@ export function createContainer(options: CreateContainerOptions): Container {
   const walletRepository =
     options.merchantWallets ?? new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle());
   const treasuryAddresses = config.treasuryAddress === undefined ? [] : [config.treasuryAddress];
-  const walletProvider = options.walletProvider ?? createWalletProvider(config);
+  const paymentApi =
+    options.paymentApi ??
+    new PaymentApiClient({
+      baseUrl: config.paymentApiUrl,
+      internalToken: config.internalApiToken,
+    });
+  const walletProvider = options.walletProvider ?? createWalletProvider(config, paymentApi);
   const keyProvider = options.merchantKeyProvider ?? createMerchantKeyProvider(config);
   const settlementAddresses = new SettlementAddressResolver({ wallets: walletRepository });
   const balanceReader = options.walletBalances ?? createBalanceReader(config);
@@ -628,13 +636,6 @@ export function createContainer(options: CreateContainerOptions): Container {
     tokens: config.chainAssets,
     clock,
   });
-
-  const paymentApi =
-    options.paymentApi ??
-    new PaymentApiClient({
-      baseUrl: config.paymentApiUrl,
-      internalToken: config.internalApiToken,
-    });
 
   const contractCode =
     Object.keys(config.chainRpcUrls).length === 0
@@ -828,11 +829,14 @@ function createSignatureVerifier(): SignatureVerifier {
  * canonical Safe contracts — so the merchant's Safe has the same address on each,
  * and a chain added to the list later needs no code here.
  */
-function createWalletProvider(config: Config): WalletProvider | undefined {
+function createWalletProvider(
+  config: Config,
+  paymentApi: PaymentApiClient,
+): WalletProvider | undefined {
   if (!config.walletProvisioningEnabled) return undefined;
 
   const providers = new Map<ChainId, WalletProvider>(
-    config.walletProvisionChains.map((chain) => [chain, providerFor(config, chain)]),
+    config.walletProvisionChains.map((chain) => [chain, providerFor(config, chain, paymentApi)]),
   );
 
   const providerOn = (chain: ChainId): WalletProvider => {
@@ -862,7 +866,7 @@ function createWalletProvider(config: Config): WalletProvider | undefined {
   };
 }
 
-function providerFor(config: Config, chain: ChainId): WalletProvider {
+function providerFor(config: Config, chain: ChainId, paymentApi: PaymentApiClient): WalletProvider {
   const tokens = config.chainAssets[chain];
   const nativeAsset = config.chainNativeAssets[chain];
   const rpcUrl = config.chainRpcUrls[chain] ?? config.walletProvisionRpcUrl;
@@ -882,6 +886,8 @@ function providerFor(config: Config, chain: ChainId): WalletProvider {
     ...(tokens === undefined ? {} : { tokens }),
     ...(nativeAsset === undefined ? {} : { nativeAsset }),
     ...(gasTopUpBound === undefined ? {} : { maxGasTopUpWei: BigInt(gasTopUpBound) }),
+    // A withdrawal pays its own gas, so the chain's currency has to be named to price it.
+    gasFee: gasFeePricer(paymentApi, chain, gasAssetOf(config, chain)),
     organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
     stamper: new ApiKeyStamper({
       apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
@@ -917,6 +923,17 @@ function createMerchantKeyProvider(config: Config): MerchantKeyProvider | undefi
       apiPrivateKey: required(config.turnkeyApiPrivateKey, "TURNKEY_API_PRIVATE_KEY"),
     }),
   });
+}
+
+function gasAssetOf(config: Config, chain: ChainId): AssetCode {
+  const asset = config.walletGasAssets[chain];
+  if (asset === undefined || !isAssetCode(asset)) {
+    throw new ConfigurationError(
+      `WALLET_GAS_ASSETS has no valid entry for ${chain}, so its withdrawal gas cannot be priced`,
+      { chain, asset: asset ?? null },
+    );
+  }
+  return asset;
 }
 
 function required(value: string | undefined, name: string): string {

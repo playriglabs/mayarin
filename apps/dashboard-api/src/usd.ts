@@ -24,7 +24,7 @@ export const USD_RATE_SCALE = 1_000_000n;
  * dashboard leaves it out of the total rather than guessing.
  */
 export async function usdRates(
-  container: Container,
+  container: Pick<Container, "paymentApi">,
   assets: readonly AssetCode[],
 ): Promise<Record<string, string>> {
   const rates: Record<string, string> = {};

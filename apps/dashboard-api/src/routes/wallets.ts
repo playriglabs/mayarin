@@ -111,6 +111,7 @@ function toWithdrawalDto(withdrawal: WalletWithdrawal) {
     walletAddress: withdrawal.walletAddress,
     destinationAddress: withdrawal.destinationAddress,
     amount: toMoneyDto(withdrawal.amount),
+    networkFee: toMoneyDto(withdrawal.networkFee),
     transactionHash: withdrawal.transactionHash,
     completedAt: withdrawal.completedAt.toISOString(),
   };

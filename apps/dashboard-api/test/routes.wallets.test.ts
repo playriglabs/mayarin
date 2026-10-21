@@ -684,6 +684,12 @@ describe("withdrawing", () => {
           formatted: "2.500000",
           display: "2,50 USDC",
         },
+        networkFee: {
+          amount: "0",
+          asset: "USDC",
+          formatted: "0.000000",
+          display: "0,00 USDC",
+        },
         transactionHash: res.body?.txHash,
         completedAt: "2026-01-01T00:00:00.000Z",
       },
@@ -774,6 +780,7 @@ describe("withdrawing", () => {
       walletAddress: "0x1111111111111111111111111111111111111111",
       destinationAddress: destination,
       amount: { amount: 4_000_000n, asset: "USDC" },
+      networkFee: { amount: 0n, asset: "USDC" },
       transactionHash: `0x${"ab".repeat(32)}`,
       completedAt: longAgo,
     });

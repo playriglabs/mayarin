@@ -239,6 +239,16 @@ const configSchema = z.object({
   ),
   /** The chain's own currency, which has no contract to read a balance from. */
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
+  /**
+   * The currency each chain's gas is paid in: `{"base-sepolia":"ETH","arc-testnet":"USDC"}`.
+   *
+   * A withdrawal repays the gas out of the amount moved, so the gas has to be
+   * priced and this names what it is priced from. Separate from
+   * `CHAIN_NATIVE_ASSETS`, which is about what a chain's *balance* scanner reads
+   * and must not name Arc, whose native USDC has 18 decimals against the token's
+   * six. Every chain in `WALLET_PROVISION_CHAINS` needs an entry.
+   */
+  walletGasAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("WALLET_GAS_ASSETS", "{}"),
   /** One RPC per chain, the same map the payment API reads. */
   chainRpcUrls: jsonObject<Partial<Record<ChainId, string>>>("CHAIN_RPC_URLS", "{}"),
   /**
@@ -345,6 +355,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     walletGasTopUpBounds: env.WALLET_GAS_TOP_UP_BOUNDS,
+    walletGasAssets: env.WALLET_GAS_ASSETS,
     r2AccountId: env.R2_ACCOUNT_ID,
     r2AccessKeyId: env.R2_ACCESS_KEY_ID,
     r2SecretAccessKey: env.R2_SECRET_ACCESS_KEY,

@@ -341,7 +341,7 @@ export class WalletService {
 
     const amount = money(request.amount, request.asset);
     await this.#assertWithinDailyLimit(scope, amount, now);
-    const { txHash } = await provider.propose(managed, {
+    const { txHash, networkFee } = await provider.propose(managed, {
       kind: "withdraw",
       amount,
       to: destination.address,
@@ -355,6 +355,7 @@ export class WalletService {
       walletAddress: managed.address,
       destinationAddress: destination.address,
       amount,
+      networkFee,
       transactionHash: txHash,
       completedAt,
     };

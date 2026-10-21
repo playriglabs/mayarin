@@ -11,7 +11,7 @@
 
 import { describe, expect, test } from "bun:test";
 import type { ChainId } from "@mayarin/chain";
-import { ConfigurationError, ValidationError } from "@mayarin/shared";
+import { ConfigurationError, ProviderError, ValidationError } from "@mayarin/shared";
 import type { MerchantWallet, ProvisionRequest } from "@mayarin/wallet";
 import {
   custom,
@@ -47,6 +47,17 @@ const STUB_SAFE: SafeDeployment = {
   },
 };
 
+const STUB_MULTI_SEND = {
+  address: "0x6666666666666666666666666666666666666666",
+  codeHash: keccak256(STUB_CODE),
+} as const;
+
+/** What the fake pricing charges for gas, in the token's minor units. */
+const FEE = 1_000n;
+const gasFee = async () => FEE;
+/** The deployer key `provider()` is built with, which is where the fee goes. */
+const DEPLOYER = privateKeyToAccount(`0x${"11".repeat(32)}`).address;
+
 const MERCHANT_SIGNER = "0x1111111111111111111111111111111111111111";
 const MANAGED_SIGNER = {
   ref: "sub-org-1",
@@ -72,6 +83,32 @@ const SAFE_EXEC_ABI = parseAbi([
   "function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool success)",
 ]);
 const ERC20_ABI = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
+const MULTI_SEND_ABI = parseAbi(["function multiSend(bytes transactions)"]);
+
+interface Leg {
+  readonly to: string;
+  readonly value: bigint;
+  readonly data: Hex;
+}
+
+/** The legs of a broadcast withdrawal, unpacked from `MultiSendCallOnly`'s packed encoding. */
+function legsOf(broadcast: Hex | undefined) {
+  const sent = parseTransaction(broadcast ?? "0x");
+  const exec = decodeFunctionData({ abi: SAFE_EXEC_ABI, data: sent.data ?? "0x" });
+  const batch = decodeFunctionData({ abi: MULTI_SEND_ABI, data: exec.args[2] });
+  const packed = batch.args[0];
+  const legs: Leg[] = [];
+  let at = 2;
+  while (at < packed.length) {
+    const to = `0x${packed.slice(at + 2, at + 42)}`;
+    const value = BigInt(`0x${packed.slice(at + 42, at + 106)}`);
+    const size = Number(BigInt(`0x${packed.slice(at + 106, at + 170)}`)) * 2;
+    const data = `0x${packed.slice(at + 170, at + 170 + size)}` as Hex;
+    legs.push({ to, value, data });
+    at += 170 + size;
+  }
+  return { sent, exec, legs };
+}
 
 function wallet(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
   return {
@@ -107,7 +144,7 @@ function merchantHeldWallet(): MerchantWallet {
  * accept. `broadcast` is what a test decodes to see where the money was
  * actually addressed.
  */
-function fakeChain() {
+function fakeChain(l1Fee = 0n, balance = "0xde0b6b3a7640000") {
   const account = privateKeyToAccount(SUB_ORG_KEY);
   const state: {
     broadcast: Hex | undefined;
@@ -122,6 +159,11 @@ function fakeChain() {
         switch (method) {
           case "eth_chainId":
             return "0x14a34";
+          case "eth_getCode":
+            return STUB_CODE;
+          case "eth_call":
+            // The only call a withdrawal makes: the OP-stack oracle's `getL1Fee`.
+            return encodeAbiParameters([{ type: "uint256" }], [l1Fee]);
           case "eth_estimateGas":
             return "0x186a0";
           case "eth_getBlockByNumber":
@@ -129,8 +171,10 @@ function fakeChain() {
           case "eth_maxPriorityFeePerGas":
             return "0x3b9aca00";
           case "eth_getBalance":
-            // Funded already, so the top-up path is not what these assert.
-            return "0xde0b6b3a7640000";
+            // Funded already unless a test says otherwise, so the top-up path is
+            // not what most of these assert. Once anything has been broadcast
+            // (the top-up), the signer holds plenty.
+            return state.broadcast === undefined ? balance : "0xde0b6b3a7640000";
           case "eth_getTransactionCount":
             return "0x0";
           case "eth_sendRawTransaction":
@@ -189,6 +233,8 @@ function provider(
     fetchFn?: typeof fetch;
     chain?: ChainId;
     safeCode?: Hex;
+    gasFee?: (input: { cost: bigint; asset: string }) => Promise<bigint>;
+    multiSend?: { address: `0x${string}`; codeHash: Hex };
   } = {},
 ) {
   const transport = custom({
@@ -210,6 +256,8 @@ function provider(
     deployerPrivateKey: `0x${"11".repeat(32)}`,
     rpcUrl: "http://rpc.invalid",
     safe: STUB_SAFE,
+    multiSend: overrides.multiSend ?? STUB_MULTI_SEND,
+    gasFee: overrides.gasFee ?? gasFee,
     transport: overrides.transport ?? transport,
     rootApiPublicKey: "root-public-key",
     signerApiPublicKey: "signer-public-key",
@@ -352,24 +400,142 @@ describe("propose", () => {
     ).rejects.toBeInstanceOf(ConfigurationError);
   });
 
-  test("sends the Safe an execTransaction carrying the ERC-20 transfer", async () => {
+  test("sends the Safe one batched call: the amount less the fee to the destination, the fee to the deployer", async () => {
     // The whole custody argument rests on this shape: the transaction goes *to*
     // the merchant's Safe, which is the condition the Turnkey policy checks, and
-    // the token transfer rides inside it rather than being signed on its own.
+    // the transfers ride inside it rather than being signed on their own.
     const chain = fakeChain();
-    const signed = await provider({ transport: chain.transport, fetchFn: chain.fetchFn }).propose(
+    const result = await provider({ transport: chain.transport, fetchFn: chain.fetchFn }).propose(
       wallet(),
       { kind: "withdraw", amount: { amount: 2_500_000n, asset: "USDC" }, to: DESTINATION },
     );
 
-    expect(signed.txHash).toMatch(/^0x[0-9a-f]{64}$/);
-    const sent = parseTransaction(chain.broadcast ?? "0x");
+    expect(result.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(result.networkFee).toEqual({ amount: FEE, asset: "USDC" });
+    const { sent, exec, legs } = legsOf(chain.broadcast);
     expect(sent.to?.toLowerCase()).toBe(SAFE_ADDRESS);
-    const call = decodeFunctionData({ abi: SAFE_EXEC_ABI, data: sent.data ?? "0x" });
-    expect(call.args[0].toLowerCase()).toBe(USDC);
-    expect(call.args[1]).toBe(0n);
-    const transfer = decodeFunctionData({ abi: ERC20_ABI, data: call.args[2] });
-    expect(transfer.args).toEqual([getAddress(DESTINATION), 2_500_000n]);
+    // A DELEGATECALL into the matched MultiSend, and nowhere else.
+    expect(exec.args[0].toLowerCase()).toBe(STUB_MULTI_SEND.address);
+    expect(exec.args[3]).toBe(1);
+
+    expect(legs).toHaveLength(2);
+    const [net, fee] = legs as [Leg, Leg];
+    expect(net.to.toLowerCase()).toBe(USDC);
+    expect(decodeFunctionData({ abi: ERC20_ABI, data: net.data }).args).toEqual([
+      getAddress(DESTINATION),
+      2_500_000n - FEE,
+    ]);
+    expect(fee.to.toLowerCase()).toBe(USDC);
+    expect(decodeFunctionData({ abi: ERC20_ABI, data: fee.data }).args).toEqual([DEPLOYER, FEE]);
+  });
+
+  test("the L1 data fee of an OP-stack chain is part of what the merchant repays", async () => {
+    // A node refuses a transaction whose sender cannot cover gas * price *and*
+    // the L1 fee, so the signer is funded for both, and both are in the fee.
+    const l1Fee = 1_000_000n;
+    const chain = fakeChain(l1Fee);
+    const costs: bigint[] = [];
+    await provider({
+      transport: chain.transport,
+      fetchFn: chain.fetchFn,
+      gasFee: async ({ cost }) => {
+        costs.push(cost);
+        return FEE;
+      },
+    }).propose(wallet(), {
+      kind: "withdraw",
+      amount: { amount: 2_500_000n, asset: "USDC" },
+      to: DESTINATION,
+    });
+
+    const withoutL1 = fakeChain(0n);
+    const baseline: bigint[] = [];
+    await provider({
+      transport: withoutL1.transport,
+      fetchFn: withoutL1.fetchFn,
+      gasFee: async ({ cost }) => {
+        baseline.push(cost);
+        return FEE;
+      },
+    }).propose(wallet(), {
+      kind: "withdraw",
+      amount: { amount: 2_500_000n, asset: "USDC" },
+      to: DESTINATION,
+    });
+
+    // Twice the oracle's figure, on top of the L2 cost.
+    expect((costs[0] ?? 0n) - (baseline[0] ?? 0n)).toBe(l1Fee * 2n);
+  });
+
+  test("the gas of the signer's top-up is repaid too, when one is sent", async () => {
+    // Mayarin does not eat the deployer's own transaction: funded signer pays
+    // nothing extra, an empty one adds 21,000 gas to what the merchant owes.
+    const owed = async (balance: string) => {
+      const chain = fakeChain(0n, balance);
+      const costs: bigint[] = [];
+      await provider({
+        transport: chain.transport,
+        fetchFn: chain.fetchFn,
+        gasFee: async ({ cost }) => {
+          costs.push(cost);
+          return FEE;
+        },
+      }).propose(wallet(), {
+        kind: "withdraw",
+        amount: { amount: 2_500_000n, asset: "USDC" },
+        to: DESTINATION,
+      });
+      return costs[0] ?? 0n;
+    };
+
+    const funded = await owed("0xde0b6b3a7640000");
+    const empty = await owed("0x0");
+
+    // viem's maxFeePerGas here: 1.2 x the 1 gwei base fee + the 1 gwei tip.
+    expect(empty - funded).toBe(21_000n * 2_200_000_000n);
+  });
+
+  test("refuses an amount the network fee would consume", async () => {
+    const chain = fakeChain();
+    await expect(
+      provider({ transport: chain.transport, fetchFn: chain.fetchFn }).propose(wallet(), {
+        kind: "withdraw",
+        amount: { amount: FEE, asset: "USDC" },
+        to: DESTINATION,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("refuses to run free when the fee cannot be priced", async () => {
+    const chain = fakeChain();
+    await expect(
+      provider({
+        transport: chain.transport,
+        fetchFn: chain.fetchFn,
+        gasFee: async () => 0n,
+      }).propose(wallet(), {
+        kind: "withdraw",
+        amount: { amount: 2_500_000n, asset: "USDC" },
+        to: DESTINATION,
+      }),
+    ).rejects.toBeInstanceOf(ProviderError);
+    expect(chain.broadcast).toBeUndefined();
+  });
+
+  test("refuses a chain whose MultiSendCallOnly is not Safe's", async () => {
+    const chain = fakeChain();
+    await expect(
+      provider({
+        transport: chain.transport,
+        fetchFn: chain.fetchFn,
+        multiSend: { ...STUB_MULTI_SEND, codeHash: keccak256("0xdead") },
+      }).propose(wallet(), {
+        kind: "withdraw",
+        amount: { amount: 2_500_000n, asset: "USDC" },
+        to: DESTINATION,
+      }),
+    ).rejects.toBeInstanceOf(ConfigurationError);
+    expect(chain.broadcast).toBeUndefined();
   });
 
   test("signs with the merchant's sub-organization, not Mayarin's", async () => {
@@ -378,7 +544,7 @@ describe("propose", () => {
     const chain = fakeChain();
     await provider({ transport: chain.transport, fetchFn: chain.fetchFn }).propose(wallet(), {
       kind: "withdraw",
-      amount: { amount: 1n, asset: "USDC" },
+      amount: { amount: 2_500_000n, asset: "USDC" },
       to: DESTINATION,
     });
 
@@ -387,19 +553,25 @@ describe("propose", () => {
     expect(parameters?.signWith.toLowerCase()).toBe(MANAGED_SIGNER.address);
   });
 
-  test("moves the chain's own currency by value rather than by a token call", async () => {
+  test("moves the chain's own currency by value, the fee being the gas itself", async () => {
     const chain = fakeChain();
-    await provider({ transport: chain.transport, fetchFn: chain.fetchFn }).propose(wallet(), {
+    const result = await provider({
+      transport: chain.transport,
+      fetchFn: chain.fetchFn,
+    }).propose(wallet(), {
       kind: "withdraw",
       amount: { amount: 10n ** 15n, asset: "ETH" },
       to: DESTINATION,
     });
 
-    const sent = parseTransaction(chain.broadcast ?? "0x");
-    const call = decodeFunctionData({ abi: SAFE_EXEC_ABI, data: sent.data ?? "0x" });
-    expect(call.args[0].toLowerCase()).toBe(DESTINATION);
-    expect(call.args[1]).toBe(10n ** 15n);
-    expect(call.args[2]).toBe("0x");
+    const { legs } = legsOf(chain.broadcast);
+    const [net, fee] = legs as [Leg, Leg];
+    expect(result.networkFee.asset).toBe("ETH");
+    expect(net.to.toLowerCase()).toBe(DESTINATION);
+    expect(net.data).toBe("0x");
+    expect(net.value).toBe(10n ** 15n - result.networkFee.amount);
+    expect(fee.to.toLowerCase()).toBe(DEPLOYER.toLowerCase());
+    expect(fee.value).toBe(result.networkFee.amount);
   });
 });
 

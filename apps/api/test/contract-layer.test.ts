@@ -41,6 +41,7 @@ function createPlanner(
     readonly domain: Uint8Array;
     readonly signer: LocalSolanaOrderSigner;
   },
+  relayerGasFeeMinimums: Readonly<Record<string, string>> = {},
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
@@ -96,6 +97,7 @@ function createPlanner(
     quote: async () => quote,
     fees: new BasisPointsFeePolicy(50, feeMinimum),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
+    relayerGasFeeMinimums,
     stablecoins: new InMemoryStablecoinRegistry([
       {
         asset: "USDC",
@@ -202,6 +204,50 @@ describe("ApiContractPlanner", () => {
     expect(payer.fee).toEqual(money(25_000n, "USDC"));
     expect(relayed.fee).toEqual(money(30_000n, "USDC"));
     expect(relayed.order.fee).toBe(30_000n);
+  });
+
+  test("a chain's gas floor lifts a relayed fee the percentage would leave short", async () => {
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      undefined,
+      undefined,
+      10,
+      "0",
+      undefined,
+      undefined,
+      {
+        base: "0.50",
+      },
+    );
+    const relayed = { ...lockRequest("USDC"), submission: "relayer" } as const;
+
+    // 0.1% of $5.00 is 0.005 USDC: far under the 0.50 floor on this chain. The
+    // 0.5% protocol fee (0.025) still comes first, so the floor is on the gas.
+    const onBase = await planner.lock(relayed);
+    expect(onBase.fee).toEqual(money(25_000n + 500_000n, "USDC"));
+
+    // A chain with no floor keeps the percentage alone.
+    const elsewhere = await planner.lock({ ...relayed, chain: "arbitrum-sepolia" });
+    expect(elsewhere.fee).toEqual(money(25_000n + 5_000n, "USDC"));
+  });
+
+  test("a gas floor is not charged when the payer submits and pays the gas", async () => {
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      undefined,
+      undefined,
+      10,
+      "0",
+      undefined,
+      undefined,
+      {
+        base: "0.50",
+      },
+    );
+
+    const lock = await planner.lock(lockRequest("USDC"));
+
+    expect(lock.fee).toEqual(money(25_000n, "USDC"));
   });
 
   test("a fee floor lifts the signed fee on a small payment", async () => {
