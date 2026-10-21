@@ -98,3 +98,5 @@ settlement and payer asset, and additional chains including Arc testnet. See
 
 None of these require a client change. A client pinned to `2026-08-11` keeps
 working and simply does not see the new fields.
+
+**Analytics.** `GET /v1/analytics` returns revenue, orders, settlements and payment performance for a date range, with a total, a change against the previous range and a point per bucket for each metric. The SDK exposes it as `analytics.get`. See [the guide](/guides/analytics).

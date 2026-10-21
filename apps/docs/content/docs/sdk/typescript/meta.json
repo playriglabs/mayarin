@@ -7,6 +7,7 @@
     "react",
     "payments",
     "commerce",
+    "analytics",
     "disputes",
     "webhooks",
     "x402",

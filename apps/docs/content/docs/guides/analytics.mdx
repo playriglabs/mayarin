@@ -1,0 +1,102 @@
+---
+title: Analytics
+description: Read revenue, orders, settlements and payment performance for any date range, the same figures the dashboard's Analytics page shows.
+---
+
+`GET /v1/analytics` returns every figure the dashboard's Analytics page draws, for a range you choose. Use it for your own reporting, a finance export, or a BI tool, without scraping the dashboard.
+
+It is scoped to the merchant of the key and needs `payments:read`. It is read-only and takes a secret key (`sk_…`).
+
+```bash
+curl "https://api.mayarin.xyz/v1/analytics?from=2026-10-01&to=2026-10-31&interval=week" \
+  -H "Authorization: Bearer $MAYARIN_SECRET_KEY"
+```
+
+```ts
+const report = await mayarin.analytics.get({
+  from: "2026-10-01",
+  to: "2026-10-31",
+  interval: "week",
+});
+
+const revenue = report.metrics.find((metric) => metric.key === "revenue");
+console.log(revenue?.total, revenue?.change); // 1250000, 18.4  → $12,500.00, up 18.4%
+```
+
+## Parameters
+
+| Parameter  | Meaning                                                                  |
+| ---------- | ------------------------------------------------------------------------ |
+| `from`     | First UTC day, `YYYY-MM-DD`, inclusive. Default: 29 days before `to`.    |
+| `to`       | Last UTC day, inclusive. Default: today.                                 |
+| `interval` | Bucket size of each metric's points: `day` (default), `week` or `month`. |
+| `chain`    | Only payments paid on this network, e.g. `base-sepolia`.                 |
+| `asset`    | Only payments the payer sent in this asset, e.g. `USDC`.                 |
+| `metrics`  | Comma-separated metric keys. Default: all of them.                       |
+
+The range is 1 to 366 days. Weeks start on Monday. A malformed day, an unknown metric, or a longer range is a `400`.
+
+## Response
+
+```json
+{
+  "currency": "USD",
+  "range": { "from": "2026-10-01", "to": "2026-10-31" },
+  "interval": "week",
+  "metrics": [
+    {
+      "key": "revenue",
+      "label": "Revenue",
+      "unit": "usd_cents",
+      "total": 1250000,
+      "change": 18.4,
+      "points": [{ "date": "2026-09-28", "value": 310000 }]
+    }
+  ],
+  "breakdowns": { "networks": [], "assets": [], "countries": [] },
+  "performance": { "networks": [], "assets": [] }
+}
+```
+
+Every metric has a `total` for the whole range, a `change` (percent against the range of the same length just before, `null` when there is nothing to compare), and a `point` for every bucket, the empty ones included. A `value` is `null` when the bucket gives the figure no meaning, such as a conversion rate with no checkouts.
+
+Money is **USD cents**. `ratio` is 0 to 1. `seconds` is a duration.
+
+## Metrics
+
+| Key                   | Unit        | What it is                                                                                                 |
+| --------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `revenue`             | `usd_cents` | Gross value of completed payments, dated by when each was created.                                         |
+| `net_revenue`         | `usd_cents` | What reached you after fees, dated by when it settled.                                                     |
+| `average_order_value` | `usd_cents` | Revenue divided by orders.                                                                                 |
+| `fees`                | `usd_cents` | Fees split off at settlement.                                                                              |
+| `orders`              | `count`     | Completed payments.                                                                                        |
+| `checkouts`           | `count`     | Every payment created, paid or not.                                                                        |
+| `conversion_rate`     | `ratio`     | Completed orders out of checkouts created.                                                                 |
+| `failed_checkouts`    | `count`     | Payments that failed or expired before being paid.                                                         |
+| `time_to_pay`         | `seconds`   | Median time from created to completed.                                                                     |
+| `time_to_pay_p90`     | `seconds`   | Nine in ten payments completed within this long.                                                           |
+| `success_rate`        | `ratio`     | Completed out of those that finished (completed, failed or expired). A checkout still open is not counted. |
+| `settled_volume`      | `usd_cents` | Net amount settled to you, dated by when it settled.                                                       |
+| `settlements`         | `count`     | Completed settlements.                                                                                     |
+| `settlement_time`     | `seconds`   | Median time from the clearing record to completion.                                                        |
+
+Pay ins (`revenue`, `orders`, `checkouts`, rates and times) are dated by creation: an order belongs to the day it was placed. Pay outs (`net_revenue`, `fees`, `settled_volume`, `settlements`) are dated by arrival. Charting one as the other would hide the fee and every payment that was taken and never settled.
+
+A payment priced in a currency other than USD counts toward `revenue` at the gross dollar amount locked when it was priced. A settlement in an asset that is not a dollar stablecoin has no USD rate here, so it is left out of money figures rather than guessed.
+
+## Breakdowns and performance
+
+`breakdowns` covers the completed payments created in the range, largest first: `networks`, `assets` (what the payer sent) and `countries` (ISO 3166 alpha-2, or `Unknown`). Each row is `{ key, count, share }`.
+
+`performance` shows how reliably each network and each payer asset finishes: `{ key, finished, successRate, medianSeconds }`, busiest first. `finished` counts completed, failed and expired payments; `medianSeconds` is `null` when none completed.
+
+## Errors
+
+| Code               | When                                                                  |
+| ------------------ | --------------------------------------------------------------------- |
+| `VALIDATION_ERROR` | An unknown metric, a malformed day, or a range of more than 366 days. |
+| `FORBIDDEN`        | The key lacks `payments:read`, or is publishable.                     |
+| `UNAUTHORIZED`     | No key, or one that does not exist.                                   |
+
+See [Errors](/errors) for the shape of the body. The full request and response schema is in the [API reference](/api-reference).

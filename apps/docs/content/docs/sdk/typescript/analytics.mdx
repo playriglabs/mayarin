@@ -1,0 +1,48 @@
+---
+title: Analytics
+description: Read revenue, orders, settlements and payment performance for a date range from the SDK.
+---
+
+`mayarin.analytics` returns the figures the dashboard's Analytics page draws. See the [analytics guide](/guides/analytics) for what each metric means.
+
+Server-side only: it needs a secret key with `payments:read`.
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: process.env.MAYARIN_SECRET_KEY ?? "",
+});
+```
+
+## `analytics.get(options?)`
+
+`GET /v1/analytics`. Every metric, the payer mix and per-network performance for a range of up to 366 days.
+
+```ts
+const report = await mayarin.analytics.get({
+  from: "2026-10-01",
+  to: "2026-10-31",
+  interval: "week",
+  chain: "base-sepolia",
+  metrics: ["revenue", "success_rate"],
+});
+
+for (const metric of report.metrics) {
+  console.log(metric.label, metric.total, metric.unit);
+}
+```
+
+| Option     | Meaning                                                               |
+| ---------- | --------------------------------------------------------------------- |
+| `from`     | First UTC day, `2026-10-01`, inclusive. Default: 29 days before `to`. |
+| `to`       | Last UTC day, inclusive. Default: today.                              |
+| `interval` | `day` (default), `week` or `month`.                                   |
+| `chain`    | Only payments paid on this network.                                   |
+| `asset`    | Only payments the payer sent in this asset.                           |
+| `metrics`  | Only these `AnalyticsMetricKey`s. Default: all.                       |
+
+Money is USD cents and a ratio is 0 to 1; each metric carries its `unit`. Errors arrive as `MayarinApiError`: `VALIDATION_ERROR` for an unknown metric or a range over 366 days, `FORBIDDEN` when the key lacks `payments:read`.
+
+Types are exported from the package: `AnalyticsDto`, `AnalyticsMetricDto`, `AnalyticsMetricKey`, `AnalyticsInterval`, `AnalyticsUnit`, `AnalyticsPointDto`, `AnalyticsShareDto`, `AnalyticsPerformanceDto`.
