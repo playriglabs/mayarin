@@ -115,7 +115,7 @@ export function CodeInput({
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       disabled={disabled}
-      className="m-0 flex min-w-0 items-center gap-2 border-0 p-0"
+      className="m-0 flex min-w-0 items-center gap-1 border-0 p-0"
     >
       {digits.map((digit, index) => (
         <input
