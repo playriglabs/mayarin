@@ -24,6 +24,20 @@ describe("loginFailureOf", () => {
   });
 });
 
+describe("loginFailureOf on the code step", () => {
+  test("a wrong 2FA code is not reported as a wrong password", () => {
+    expect(
+      loginFailureOf(
+        new ApiError({
+          status: 401,
+          message: "That code is not valid. Check the app and try again.",
+          reason: "mfa_code_invalid",
+        }),
+      ),
+    ).toEqual({ type: "error", reason: "That code is not valid. Check the app and try again." });
+  });
+});
+
 describe("formatRetryAfter", () => {
   test("formats the remaining cooldown without hiding seconds", () => {
     expect(formatRetryAfter(286)).toBe("4m 46s");

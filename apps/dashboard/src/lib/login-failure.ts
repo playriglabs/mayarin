@@ -35,6 +35,13 @@ export function loginFailureOf(error: unknown): LoginFailure {
           value.reason === "email_not_verified",
         (value) => ({ type: "unverified" as const, reason: value.message }),
       )
+      // The code step shares the 401 status with a bad password, but the
+      // password was right here; telling them otherwise sends them back to retype it.
+      .when(
+        (value): value is ApiError =>
+          value instanceof ApiError && value.status === 401 && value.reason === "mfa_code_invalid",
+        (value) => ({ type: "error" as const, reason: value.message }),
+      )
       .when(
         (value): value is ApiError => value instanceof ApiError && value.status === 401,
         () => ({ type: "error" as const, reason: "Invalid email or password" }),
