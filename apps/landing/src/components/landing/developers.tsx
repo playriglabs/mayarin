@@ -1,141 +1,198 @@
 import { type Snippet, snippets } from "virtual:code-snippets";
-import { useEffect, useRef, useState } from "preact/hooks";
-import { gsap, registerGsap } from "../../lib/gsap.ts";
 import { Reveal } from "../reveal.tsx";
-import { ArrowRight } from "../ui.tsx";
-import { CopyIcon } from "./capabilities.tsx";
 import { LanguageMark } from "./language-mark.tsx";
 import { SectionIntro } from "./ui.tsx";
 
 const DOCS_URL = "https://docs.mayarin.xyz";
+const DASHBOARD_URL = "https://dashboard-testnet.mayarin.xyz/login";
 
-const SNIPPETS = new Map(snippets.map((snippet) => [snippet.id, snippet]));
+const SDK_SNIPPET = snippets.find((snippet) => snippet.id === "sdk-intent");
 
-const DEVELOPER_CARDS = [
+interface Link {
+  readonly label: string;
+  readonly href: string;
+}
+
+interface Tile {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly description: string;
+  readonly primary: Link;
+  readonly secondary: Link;
+  readonly surface: string;
+  readonly visual:
+    | { readonly kind: "code" }
+    | {
+        readonly kind: "screen";
+        readonly src: string;
+        readonly alt: string;
+        /** A charcoal bezel, for a screenshot that is itself dark: black would vanish into it. */
+        readonly darkScreen?: true;
+        /** A second image laid over the frame's bottom right corner. */
+        readonly overlay?: { readonly src: string; readonly alt: string };
+      };
+}
+
+const TILES: readonly Tile[] = [
   {
     eyebrow: "APIs & SDKs",
-    title: "Start taking payments from one API",
+    title: "Developer Toolkit",
     description:
-      "Create payments, links and invoices from the typed TypeScript SDK or plain HTTP. Signed webhooks tell your server the moment money lands, and every step is on the event log.",
-    cta: "Read the API quickstart",
-    href: `${DOCS_URL}/guides/api-quickstart`,
-    snippet: SNIPPETS.get("sdk-intent"),
+      "A typed TypeScript SDK or plain HTTP to create payments, links and invoices, with signed webhooks when money lands.",
+    primary: { label: "Read docs", href: `${DOCS_URL}/guides/api-quickstart` },
+    secondary: { label: "Learn more", href: `${DOCS_URL}/sdk/typescript` },
+    surface: "bg-v2-mist",
+    visual: { kind: "code" },
   },
   {
-    eyebrow: "x402",
-    title: "Charge for any request with x402",
+    eyebrow: "Self-serve",
+    title: "Dashboard",
     description:
-      "Register a URL, set its price, and close the gate with one middleware. Mayarin verifies the signature, settles on-chain and credits you, no key and no chain code on your server.",
-    cta: "Sell an endpoint to an agent",
-    href: `${DOCS_URL}/guides/x402`,
-    snippet: SNIPPETS.get("x402-gate"),
+      "Take payments, track settlements and manage your business from one portal. No code required.",
+    primary: { label: "Get access", href: DASHBOARD_URL },
+    secondary: { label: "Learn more", href: DOCS_URL },
+    surface: "bg-paper",
+    visual: {
+      kind: "screen",
+      src: "/images/product/dashboard-overview.png",
+      alt: "The Mayarin dashboard overview",
+    },
   },
   {
-    eyebrow: "Webhooks",
-    title: "Know the moment money lands",
+    eyebrow: "Insights",
+    title: "Analytics",
     description:
-      "Every state change posts a signed webhook to your server, verify the signature, then fetch the payment before you fulfil. The same event log keeps every step, so any payment can be replayed or audited later.",
-    cta: "Read the webhooks guide",
-    href: `${DOCS_URL}/guides/webhooks`,
-    snippet: SNIPPETS.get("webhook"),
+      "Revenue, conversion, time to pay and success rate per network, in the dashboard and from the API.",
+    primary: { label: "Read the guide", href: `${DOCS_URL}/guides/analytics` },
+    secondary: { label: "API reference", href: `${DOCS_URL}/api-reference` },
+    surface: "bg-paper",
+    visual: {
+      kind: "screen",
+      src: "/images/product/analytics-overview.png",
+      alt: "The Mayarin analytics page",
+    },
   },
-] as const;
+  {
+    eyebrow: "Hosted checkout",
+    title: "Checkout",
+    description:
+      "A hosted page and a QR for every payment, priced in your currency and paid with whatever the payer brings.",
+    primary: { label: "Get access", href: DASHBOARD_URL },
+    secondary: { label: "Learn more", href: `${DOCS_URL}/sdk/typescript/payments` },
+    surface: "bg-paper",
+    visual: {
+      kind: "screen",
+      src: "/images/product/checkout-preview.png",
+      alt: "The Mayarin hosted checkout",
+      darkScreen: true,
+      overlay: { src: "/images/product/qr-overview.png", alt: "A Mayarin payment QR code" },
+    },
+  },
+];
 
-/** The whole example, highlighted at build time, with a copy button. */
-function CodePreview({ snippet }: { readonly snippet: Snippet }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    void navigator.clipboard?.writeText(snippet.code).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    });
-  };
-
+/** The example in a window that the tile clips at its bottom edge. */
+function CodeWindow({ snippet }: { readonly snippet: Snippet }) {
   return (
-    // On a phone the panel fills the card it sits in, square, so the card's
-    // corner is the only corner. A dark inset rectangle floating inside a light
-    // card reads as two cards at 400px, and the code inside it loses the 56px
-    // the side gutters were taking on the narrowest screen.
-    //
-    // The sides are cancelled here with a negative margin; the bottom is
-    // removed from the card instead (`pb-0` until `md`). A negative *block*
-    // margin on a grid item is undone by the row sizing — the row shrinks by it
-    // and `stretch` hands the height straight back — so it nets to nothing,
-    // while the inline one works. From `md` the card has room for both and the
-    // panel goes back to being a panel.
-    <div class="-mx-7 flex max-h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden bg-code-panel md:mx-0 md:self-center md:rounded-2xl">
-      <div class="flex items-center justify-between gap-3 border-b border-line-inverse px-5 py-3.5">
-        <div class="flex items-center gap-3">
-          <LanguageMark lang={snippet.lang} />
-          <span class="font-sans text-[13px] text-slate-inverse">{snippet.filename}</span>
-        </div>
-        <button
-          type="button"
-          onClick={copy}
-          aria-label={copied ? "Copied" : "Copy code"}
-          class="inline-flex cursor-pointer items-center text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
-        >
-          <CopyIcon copied={copied} />
-        </button>
+    <div class="mx-auto mt-12 flex min-h-80 w-full max-w-3xl flex-1 flex-col overflow-hidden rounded-t-2xl bg-code-panel text-left md:w-[72%]">
+      <div class="flex items-center gap-3 border-b border-line-inverse px-5 py-3.5">
+        <LanguageMark lang={snippet.lang} />
+        <span class="font-sans text-[13px] text-slate-inverse">{snippet.filename}</span>
       </div>
-      <div
-        class="code-surface min-h-0 min-w-0 flex-1 overflow-auto scrollbar-none [&::-webkit-scrollbar]:hidden [&_pre]:scrollbar-none [&_pre::-webkit-scrollbar]:hidden"
-        dangerouslySetInnerHTML={{ __html: snippet.html }}
-      />
+      {/* The code is laid out absolutely so its length never sets the row's height:
+          the screenshot beside it does, and the code is cropped to fit. */}
+      <div class="relative min-h-0 flex-1">
+        <div
+          class="code-surface absolute inset-0 overflow-hidden"
+          dangerouslySetInnerHTML={{ __html: snippet.html }}
+        />
+      </div>
     </div>
   );
 }
 
-/**
- * Cards stack on scroll: each one is sticky under the navigation, so the next
- * card rises over it. GSAP only shrinks and dims the card being covered — the
- * stacking itself is CSS, so a reduced-motion or small-screen visitor still
- * gets a plain readable list.
- */
-export function Developers() {
-  const stack = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = stack.current;
-    if (!root) return;
-    registerGsap();
-
-    const media = gsap.matchMedia();
-    media.add("(min-width: 64rem) and (prefers-reduced-motion: no-preference)", () => {
-      const cards = gsap.utils.toArray<HTMLElement>("[data-developer-card]", root);
-      // Where a card sits in the stack, measured off the stack rather than the
-      // card: a sticky card that is stuck when ScrollTrigger refreshes reports
-      // where it is pinned, which would shift every start and end below it.
-      const offset = (index: number) => {
-        const gap = Number.parseFloat(getComputedStyle(root).rowGap) || 0;
-        return cards.slice(0, index).reduce((sum, card) => sum + card.offsetHeight + gap, 0);
-      };
-
-      cards.forEach((card, index) => {
-        if (index === cards.length - 1) return;
-        gsap.to(card, {
-          scale: 0.92,
-          opacity: 0.4,
-          ease: "none",
-          scrollTrigger: {
-            trigger: root,
-            start: () => `top+=${offset(index + 1)} bottom`,
-            // Matches the card's `lg:top-24` sticky offset.
-            end: () => `top+=${offset(index + 1)} top+=96`,
-            scrub: true,
-            invalidateOnRefresh: true,
-          },
-        });
-      });
-    });
-
-    return () => media.revert();
-  }, []);
-
+function ScreenVisual({
+  src,
+  alt,
+  overlay,
+  darkScreen,
+}: {
+  readonly src: string;
+  readonly alt: string;
+  readonly darkScreen?: true | undefined;
+  readonly overlay?: { readonly src: string; readonly alt: string } | undefined;
+}) {
   return (
-    <section id="developers" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
-      <Reveal>
+    <div class="relative mx-auto mt-12 w-full max-w-3xl md:w-[86%]">
+      <div
+        class={`overflow-hidden rounded-t-3xl border-x-8 border-t-8 bg-paper ${darkScreen ? "border-[#9ca3af]" : "border-ink"}`}
+      >
+        <img
+          src={src}
+          alt={alt}
+          width="1440"
+          height="900"
+          loading="lazy"
+          decoding="async"
+          class="block h-auto w-full"
+        />
+      </div>
+      {overlay && (
+        <img
+          src={overlay.src}
+          alt={overlay.alt}
+          width="176"
+          height="176"
+          loading="lazy"
+          decoding="async"
+          class="absolute right-4 bottom-0 w-28 rounded-t-2xl bg-paper p-3 shadow-xl md:right-8 md:w-44"
+        />
+      )}
+    </div>
+  );
+}
+
+function TileCard({ tile }: { readonly tile: Tile }) {
+  return (
+    <article
+      class={`flex flex-col overflow-hidden px-7 pt-14 text-center ${tile.surface} text-ink`}
+    >
+      <p class={`text-sm font-medium uppercase text-slate-600`}>{tile.eyebrow}</p>
+      <h4 class="mt-4 font-sans text-[clamp(2rem,2.8vw,2.5rem)] leading-tight">{tile.title}</h4>
+      <p class={`mx-auto mt-4 max-w-[44ch] text-base leading-relaxed md:text-lg text-slate-600`}>
+        {tile.description}
+      </p>
+      <div class="mt-7 flex items-center justify-center gap-3">
+        <a
+          href={tile.primary.href}
+          class="inline-flex min-h-11 items-center rounded-lg bg-brand px-5 text-base font-medium text-white transition-colors hover:bg-brand/85"
+        >
+          {tile.primary.label}
+        </a>
+        <a
+          href={tile.secondary.href}
+          class="inline-flex min-h-11 items-center rounded-lg border border-line bg-paper px-5 text-base font-medium text-ink transition-colors hover:border-brand hover:text-brand"
+        >
+          {tile.secondary.label}
+        </a>
+      </div>
+      {tile.visual.kind === "code" && SDK_SNIPPET && <CodeWindow snippet={SDK_SNIPPET} />}
+      {tile.visual.kind === "screen" && (
+        <ScreenVisual
+          src={tile.visual.src}
+          alt={tile.visual.alt}
+          overlay={tile.visual.overlay}
+          darkScreen={tile.visual.darkScreen}
+        />
+      )}
+    </article>
+  );
+}
+
+/** Four products in a 2 by 2 grid; each tile clips its visual at the bottom edge. */
+export function Developers() {
+  return (
+    <section id="developers" class="w-full py-20 md:py-28">
+      <Reveal class="mx-auto max-w-300 px-5 md:px-10">
         <SectionIntro
           label="For developers"
           title={
@@ -155,31 +212,9 @@ export function Developers() {
         </SectionIntro>
       </Reveal>
 
-      <div ref={stack} class="mt-14 flex flex-col gap-6 md:mt-20">
-        {DEVELOPER_CARDS.map((card) => (
-          // `overflow-hidden` is what lets the snippet run to the card's edge
-          // on a phone: the panel is square and the card's radius clips it.
-          <article
-            key={card.eyebrow}
-            data-developer-card
-            class="grid origin-top gap-10 overflow-hidden rounded-3xl border border-line bg-v2-mist px-7 pt-7 pb-0 md:p-12 lg:sticky lg:top-24 lg:h-[min(36rem,calc(100svh-8rem))] lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:p-14"
-          >
-            <div class="flex flex-col">
-              <p class="text-[15px] font-medium text-forest">{card.eyebrow}</p>
-              <h4 class="mt-5 font-sans text-[clamp(2rem,3.4vw,2.4rem)]">{card.title}</h4>
-              <p class="mt-6 max-w-[48ch] text-base leading-relaxed text-slate-600 md:text-lg">
-                {card.description}
-              </p>
-              <a
-                href={card.href}
-                class="mt-8 inline-flex w-fit items-center gap-2 text-[15px] font-medium text-ink transition-colors hover:text-forest"
-              >
-                {card.cta}
-                <ArrowRight />
-              </a>
-            </div>
-            {card.snippet && <CodePreview snippet={card.snippet} />}
-          </article>
+      <div class="mt-14 grid gap-px bg-line md:mt-20 md:grid-cols-2">
+        {TILES.map((tile) => (
+          <TileCard key={tile.title} tile={tile} />
         ))}
       </div>
     </section>
