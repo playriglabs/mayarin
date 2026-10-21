@@ -1,10 +1,8 @@
 import clsx from "clsx";
+import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-const LINKS = [
-  { label: "Capabilities", href: "#capabilities" },
-  { label: "Use cases", href: "#use-cases" },
-] as const;
+const HELP_URL = "https://help.mayarin.xyz";
 
 /**
  * Both point at testnet for now. Sandbox stays on testnet for good; Log in
@@ -13,27 +11,84 @@ const LINKS = [
 const LOGIN_URL = "https://dashboard-testnet.mayarin.xyz/login";
 const SANDBOX_URL = "https://dashboard-testnet.mayarin.xyz/login";
 
+interface MenuItem {
+  readonly label: string;
+  readonly description: string;
+  readonly href: string;
+  readonly icon: JSX.Element;
+  /** Opens in a new tab and shows the arrow; in-page anchors do neither. */
+  readonly external?: true;
+}
+
+const PRODUCT_LINKS: readonly MenuItem[] = [
+  {
+    label: "Capabilities",
+    description: "Pricing, clearing and settlement in one layer.",
+    href: "#capabilities",
+    icon: <CapabilitiesIcon />,
+  },
+  {
+    label: "Use cases",
+    description: "How merchants, apps and agents get paid.",
+    href: "#use-cases",
+    icon: <UseCasesIcon />,
+  },
+];
+
 /** Every destination is a real docs page; nothing here is a placeholder. */
-const DEVELOPER_LINKS = [
+const DEVELOPER_LINKS: readonly MenuItem[] = [
   {
     label: "Documentation",
     description: "Quickstart, guides and concepts.",
     href: "https://docs.mayarin.xyz",
     icon: <DocsIcon />,
+    external: true,
   },
   {
     label: "API reference",
     description: "Every endpoint and request shape.",
     href: "https://docs.mayarin.xyz/api-reference",
     icon: <ApiIcon />,
+    external: true,
   },
   {
     label: "TypeScript SDK",
     description: "Build with the typed client.",
     href: "https://docs.mayarin.xyz/sdk/typescript",
     icon: <SdkIcon />,
+    external: true,
   },
-] as const;
+];
+
+function CapabilitiesIcon() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.25"
+      stroke-linecap="square"
+      aria-hidden="true"
+    >
+      <path d="M5 5h9v9H5zM18 5h9v9h-9zM5 18h9v9H5zM18 18h9v9h-9z" />
+    </svg>
+  );
+}
+
+function UseCasesIcon() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.25"
+      stroke-linecap="square"
+      aria-hidden="true"
+    >
+      <path d="m16 5 11 6-11 6-11-6zM5 17l11 6 11-6M5 22l11 6 11-6" />
+    </svg>
+  );
+}
 
 function DocsIcon() {
   return (
@@ -130,9 +185,139 @@ function ExternalArrow() {
   );
 }
 
+type MenuId = "products" | "developers";
+
+function DesktopMenu({
+  id,
+  label,
+  items,
+  open,
+  onToggle,
+  onClose,
+}: {
+  readonly id: MenuId;
+  readonly label: string;
+  readonly items: readonly MenuItem[];
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <div class="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`v2-${id}-menu`}
+        onClick={onToggle}
+        class="inline-flex cursor-pointer items-center gap-1.5 transition-colors hover:text-brand"
+      >
+        {label}
+        <ChevronDown open={open} />
+      </button>
+
+      <div
+        id={`v2-${id}-menu`}
+        aria-hidden={!open}
+        inert={!open}
+        class={clsx(
+          "absolute top-full left-1/2 mt-5 w-96 -translate-x-1/2 rounded-2xl border border-line bg-paper p-3 shadow-[0_20px_60px_#1111111f] transition-[opacity,transform,visibility] duration-200",
+          open ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0",
+        )}
+      >
+        <p class="px-3 pt-2 pb-3 text-slate-600">{label}</p>
+        <div class="grid gap-1">
+          {items.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
+              onClick={onClose}
+              class="group flex items-center gap-4 rounded-xl p-3 transition-colors hover:bg-v2-mist"
+            >
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-line text-slate-600 transition-colors group-hover:border-ink group-hover:text-ink [&>svg]:size-6">
+                {item.icon}
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2 text-sm font-medium text-ink">
+                  {item.label}
+                  {item.external && <ExternalArrow />}
+                </span>
+                <span class="mt-0.5 block text-xs leading-5 text-slate-600">
+                  {item.description}
+                </span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileMenu({
+  id,
+  label,
+  items,
+  open,
+  onToggle,
+  onClose,
+}: {
+  readonly id: MenuId;
+  readonly label: string;
+  readonly items: readonly MenuItem[];
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`v2-${id}-menu-mobile`}
+        onClick={onToggle}
+        class="flex w-full cursor-pointer items-center justify-between py-3 text-left"
+      >
+        {label}
+        <ChevronDown open={open} />
+      </button>
+      <div
+        id={`v2-${id}-menu-mobile`}
+        aria-hidden={!open}
+        inert={!open}
+        class={clsx(
+          "grid overflow-hidden transition-[grid-template-rows,opacity] duration-200",
+          open ? "grid-rows-[1fr] pb-2 opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div class="min-h-0">
+          {items.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
+              onClick={onClose}
+              class="flex items-center gap-3 py-3 pl-4 text-sm text-slate-600 transition-colors hover:text-ink"
+            >
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-line [&>svg]:size-5">
+                {item.icon}
+              </span>
+              <span class="flex flex-1 items-center justify-between gap-3">
+                {item.label}
+                {item.external && <ExternalArrow />}
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Navigation() {
   const [open, setOpen] = useState(false);
-  const [developersOpen, setDevelopersOpen] = useState(false);
+  const [menu, setMenu] = useState<MenuId | null>(null);
+  const toggleMenu = (id: MenuId) => setMenu(menu === id ? null : id);
   const toggle = useRef<HTMLButtonElement>(null);
   const desktopMenu = useRef<HTMLDivElement>(null);
   const mobileMenu = useRef<HTMLDivElement>(null);
@@ -153,15 +338,15 @@ export function Navigation() {
   }, [open]);
 
   useEffect(() => {
-    if (!developersOpen) return;
+    if (menu === null) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (desktopMenu.current?.contains(target) || mobileMenu.current?.contains(target)) return;
-      setDevelopersOpen(false);
+      setMenu(null);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDevelopersOpen(false);
+      if (event.key === "Escape") setMenu(null);
     };
     document.addEventListener("pointerdown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
@@ -169,13 +354,13 @@ export function Navigation() {
       document.removeEventListener("pointerdown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [developersOpen]);
+  }, [menu]);
 
   // In-page anchors close the sheet themselves, so the links stay plain anchors.
   useEffect(() => {
     const close = () => {
       setOpen(false);
-      setDevelopersOpen(false);
+      setMenu(null);
     };
     window.addEventListener("hashchange", close);
     return () => window.removeEventListener("hashchange", close);
@@ -198,71 +383,36 @@ export function Navigation() {
           class="ml-10 hidden items-center gap-8 mt-px text-sm xl:flex"
           aria-label="Main navigation"
         >
-          {LINKS.map((link) => (
-            <a key={link.href} href={link.href} class="transition-colors hover:text-forest">
-              {link.label}
-            </a>
-          ))}
-
-          <div ref={desktopMenu} class="relative">
-            <button
-              type="button"
-              aria-expanded={developersOpen}
-              aria-controls="v2-developers-menu"
-              onClick={() => setDevelopersOpen(!developersOpen)}
-              class="inline-flex cursor-pointer items-center gap-1.5 transition-colors hover:text-forest"
-            >
-              Developers
-              <ChevronDown open={developersOpen} />
-            </button>
-
-            <div
-              id="v2-developers-menu"
-              aria-hidden={!developersOpen}
-              inert={!developersOpen}
-              class={clsx(
-                "absolute top-full left-1/2 mt-5 w-96 -translate-x-1/2 rounded-2xl border border-line bg-paper p-3 shadow-[0_20px_60px_#1111111f] transition-[opacity,transform,visibility] duration-200",
-                developersOpen
-                  ? "visible translate-y-0 opacity-100"
-                  : "invisible -translate-y-2 opacity-0",
-              )}
-            >
-              <p class="px-3 pt-2 pb-3 text-slate-600">Developers</p>
-              <div class="grid gap-1">
-                {DEVELOPER_LINKS.map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => setDevelopersOpen(false)}
-                    class="group flex items-center gap-4 rounded-xl p-3 transition-colors hover:bg-v2-mist"
-                  >
-                    <span class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-line text-slate-600 transition-colors group-hover:border-ink group-hover:text-ink [&>svg]:size-6">
-                      {item.icon}
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="flex items-center gap-2 text-sm font-medium text-ink">
-                        {item.label}
-                        <ExternalArrow />
-                      </span>
-                      <span class="mt-0.5 block text-xs leading-5 text-slate-600">
-                        {item.description}
-                      </span>
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
+          <div ref={desktopMenu} class="flex items-center gap-8">
+            <DesktopMenu
+              id="products"
+              label="Products"
+              items={PRODUCT_LINKS}
+              open={menu === "products"}
+              onToggle={() => toggleMenu("products")}
+              onClose={() => setMenu(null)}
+            />
+            <DesktopMenu
+              id="developers"
+              label="Developers"
+              items={DEVELOPER_LINKS}
+              open={menu === "developers"}
+              onToggle={() => toggleMenu("developers")}
+              onClose={() => setMenu(null)}
+            />
           </div>
 
-          <a href={SANDBOX_URL} class="transition-colors hover:text-forest">
+          <a href={HELP_URL} class="transition-colors hover:text-brand">
+            Help Center
+          </a>
+
+          <a href={SANDBOX_URL} class="transition-colors hover:text-brand">
             Sandbox
           </a>
         </nav>
 
         <div class="ml-auto hidden items-center gap-6 text-sm xl:flex mt-px">
-          <a class="transition-colors hover:text-forest" href={LOGIN_URL}>
+          <a class="transition-colors hover:text-brand" href={LOGIN_URL}>
             Log in
           </a>
           <a
@@ -325,63 +475,37 @@ export function Navigation() {
             id="v2-mobile-menu"
             inert={!open}
             class={clsx(
-              "bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none [&>a]:block [&>a]:py-3 [&>a:hover]:text-forest",
+              "bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none [&>a]:block [&>a]:py-3 [&>a:hover]:text-brand",
               open ? "translate-y-0" : "-translate-y-3",
             )}
             aria-label="Mobile navigation"
           >
-            {LINKS.map((link) => (
-              <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
-                {link.label}
-              </a>
-            ))}
-
             <div ref={mobileMenu}>
-              <button
-                type="button"
-                aria-expanded={developersOpen}
-                aria-controls="v2-developers-menu-mobile"
-                onClick={() => setDevelopersOpen(!developersOpen)}
-                class="flex w-full cursor-pointer items-center justify-between py-3 text-left"
-              >
-                Developers
-                <ChevronDown open={developersOpen} />
-              </button>
-              <div
-                id="v2-developers-menu-mobile"
-                aria-hidden={!developersOpen}
-                inert={!developersOpen}
-                class={clsx(
-                  "grid overflow-hidden transition-[grid-template-rows,opacity] duration-200",
-                  developersOpen ? "grid-rows-[1fr] pb-2 opacity-100" : "grid-rows-[0fr] opacity-0",
-                )}
-              >
-                <div class="min-h-0">
-                  {DEVELOPER_LINKS.map((item) => (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => {
-                        setDevelopersOpen(false);
-                        setOpen(false);
-                      }}
-                      class="flex items-center gap-3 py-3 pl-4 text-sm text-slate-600 transition-colors hover:text-ink"
-                    >
-                      <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-line [&>svg]:size-5">
-                        {item.icon}
-                      </span>
-                      <span class="flex flex-1 items-center justify-between gap-3">
-                        {item.label}
-                        <ExternalArrow />
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              </div>
+              <MobileMenu
+                id="products"
+                label="Products"
+                items={PRODUCT_LINKS}
+                open={menu === "products"}
+                onToggle={() => toggleMenu("products")}
+                onClose={() => {
+                  setMenu(null);
+                  setOpen(false);
+                }}
+              />
+              <MobileMenu
+                id="developers"
+                label="Developers"
+                items={DEVELOPER_LINKS}
+                open={menu === "developers"}
+                onToggle={() => toggleMenu("developers")}
+                onClose={() => {
+                  setMenu(null);
+                  setOpen(false);
+                }}
+              />
             </div>
 
+            <a href={HELP_URL}>Help Center</a>
             <a href={SANDBOX_URL}>Sandbox</a>
             <a href={LOGIN_URL}>Log in</a>
             {/* biome-ignore lint/a11y/useValidAnchor: This anchor navigates to the access form and also closes the mobile menu. */}
