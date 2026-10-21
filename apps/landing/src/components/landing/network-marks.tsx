@@ -2,7 +2,7 @@ import { chainLogoUrl } from "@mayarin/chain";
 import clsx from "clsx";
 
 /**
- * The networks a payment can arrive on. Solana, Base, Arbitrum and Arc
+ * The networks a payment can arrive on. Solana, Base, Arbitrum and BNB Smart Chain
  * resolve through `chainLogoUrl`, the same function the hosted
  * checkout renders from.
  *
@@ -18,7 +18,7 @@ export const NETWORKS = [
   { name: "Base", src: chainLogoUrl("base") },
   { name: "Arbitrum", src: chainLogoUrl("arbitrum") },
   { name: "Polygon", src: "/chains/polygon.svg" },
-  { name: "Arc", src: chainLogoUrl("arc-testnet") },
+  { name: "BNB Smart Chain", src: chainLogoUrl("bsc") },
 ] as const;
 
 export interface Mark {

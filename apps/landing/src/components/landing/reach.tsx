@@ -33,19 +33,23 @@ const PAID_WITH: readonly { readonly name: string; readonly kind: PaymentMethodK
 
 const PRICED_IN_REGIONS: readonly City[] = Object.values(REGION_MARKERS);
 
-const FEATURED_CURRENCY_CODES: readonly AssetCode[] = ["SGD", "MYR", "THB", "PHP", "USD"];
+const FEATURED_CURRENCY_CODES: readonly AssetCode[] = ["SGD", "MYR", "THB", "PHP", "JPY"];
 
 const FEATURED_CURRENCIES = CURRENCY_MARKETS.filter(({ code }) =>
   FEATURED_CURRENCY_CODES.includes(code),
 ).map((currency) => ({
   ...currency,
-  detail: getAsset(currency.code).name.split(" ").at(-1) ?? currency.code,
+  // The last word of the name ("Dollar"), except Yen, which reads better in full.
+  detail:
+    currency.code === "JPY"
+      ? getAsset(currency.code).name
+      : (getAsset(currency.code).name.split(" ").at(-1) ?? currency.code),
 }));
 
 /** The stablecoins a merchant can choose to settle in; which one is offered depends on the chain. */
-const SETTLEMENT_MARKS = (
-  ["USDC", "USDT", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
-).map((code) => ({ name: `${code} · ${getAsset(code).name}`, src: assetLogoUrl(code) }));
+const SETTLEMENT_MARKS = (["USDC", "USDT", "EURC"] as const satisfies readonly AssetCode[]).map(
+  (code) => ({ name: `${code} · ${getAsset(code).name}`, src: assetLogoUrl(code) }),
+);
 
 const OTHER_CURRENCY_COUNT = CURRENCY_MARKETS.length - FEATURED_CURRENCIES.length;
 
@@ -54,7 +58,7 @@ export function Reach() {
     <section id="reach" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
       <Reveal class="mx-auto max-w-155 text-center">
         <h2>
-          <span class="text-forest">One clearing layer.</span>
+          <span class="text-brand">One clearing layer.</span>
           <br />
           Wherever the payer is.
         </h2>
@@ -97,7 +101,7 @@ export function Reach() {
                 key={method.name}
                 class="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5"
               >
-                <PaymentMethodIcon kind={method.kind} class="size-3.5 text-forest" />
+                <PaymentMethodIcon kind={method.kind} class="size-3.5 text-brand" />
                 {method.name}
               </li>
             ))}
