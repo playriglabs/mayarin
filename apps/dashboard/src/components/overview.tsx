@@ -64,7 +64,7 @@ function volumeOf(settlements: readonly SettlementDto[]): {
     .map((settlement) => settlement.settlementAmount)
     .filter((amount) => amount !== null);
   const asset = dominantAsset(amounts);
-  if (asset === undefined) return { value: "—", hint: "No completed payments yet." };
+  if (asset === undefined) return { value: formatUsdCents(0n), hint: "No completed payments yet." };
 
   const counted = amounts.filter((a) => a.asset === asset).length;
   const skipped = amounts.length - counted;
