@@ -53,6 +53,7 @@ import { useWallets } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
+import { PAGE_SIZE } from "@/lib/pagination";
 import {
   discoverWallets,
   type InjectedWallet,
@@ -392,7 +393,7 @@ function History() {
     <section className="flex flex-col gap-3">
       <SectionHeader title="Past batches" />
       {match(history)
-        .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={messageOf(error)}
