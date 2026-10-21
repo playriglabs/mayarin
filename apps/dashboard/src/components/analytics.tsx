@@ -10,6 +10,7 @@
  * - **Revenue** — how much came in, before and after fees.
  * - **Orders** — how many checkouts became payments, and how fast.
  * - **Settlements** — what reached the merchant, and in what state.
+ * - **Performance** — how reliably and how fast payments finish.
  * - **Payment mix** — what payers sent, from where, on which network.
  *
  * Pay ins are dated by creation (an order belongs to the day it was placed),
@@ -55,13 +56,17 @@ import {
   type Filters,
   filterPayments,
   filterSettlements,
+  formatDuration,
   type Interval,
   isSettled,
   lastDays,
   type Metric,
   metricsOf,
   ORDERS,
+  PERFORMANCE,
+  type PerformanceRow,
   paymentsInRange,
+  performanceBy,
   type Range,
   REVENUE,
   SETTLEMENTS,
@@ -85,6 +90,7 @@ const DASHBOARDS = [
   { value: "revenue", label: "Revenue" },
   { value: "orders", label: "Orders" },
   { value: "settlements", label: "Settlements" },
+  { value: "performance", label: "Performance" },
   { value: "mix", label: "Payment mix" },
 ] as const;
 
@@ -452,6 +458,53 @@ function StatusBox({ settlements }: { readonly settlements: readonly SettlementD
   );
 }
 
+/** Success and speed per group, one row each. */
+function PerformanceTable({
+  rows,
+  labelOf = (value) => value,
+  markOf,
+}: {
+  readonly rows: readonly PerformanceRow[];
+  readonly labelOf?: (value: string) => string;
+  readonly markOf?: (value: string) => React.ReactNode;
+}) {
+  if (rows.length === 0) {
+    return <p className="px-6 py-14 text-center text-base text-subtle-foreground">Nothing yet.</p>;
+  }
+
+  return (
+    <table className="mx-6 mt-4 text-base">
+      <thead className="text-left text-sm text-muted-foreground">
+        <tr>
+          <th className="pb-3 font-normal">Name</th>
+          <th className="pb-3 text-right font-normal">Success</th>
+          <th className="pb-3 text-right font-normal">Median time</th>
+          <th className="pb-3 text-right font-normal">Finished</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.key}>
+            <td className="py-2 pr-3">
+              <span className="flex min-w-0 items-center gap-2.5">
+                {markOf?.(row.key)}
+                <span className="truncate text-foreground">{labelOf(row.key)}</span>
+              </span>
+            </td>
+            <td className="py-2 text-right tabular-nums">
+              {row.successRate === undefined ? "—" : `${Math.round(row.successRate * 100)}%`}
+            </td>
+            <td className="py-2 text-right text-muted-foreground tabular-nums">
+              {row.medianSeconds === undefined ? "—" : formatDuration(row.medianSeconds)}
+            </td>
+            <td className="py-2 text-right text-muted-foreground tabular-nums">{row.finished}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function MixGrid({ payments }: { readonly payments: readonly PaymentIntentDto[] }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
@@ -597,6 +650,39 @@ function Dashboards({ data }: { readonly data: AnalyticsResponse }) {
         .with("settlements", () => (
           <MetricGrid metrics={metricsOf(SETTLEMENTS, input)} range={range} interval={interval}>
             <StatusBox settlements={settlementsInRange(settlements, range)} />
+          </MetricGrid>
+        ))
+        .with("performance", () => (
+          <MetricGrid metrics={metricsOf(PERFORMANCE, input)} range={range} interval={interval}>
+            <Box
+              title="By network"
+              hint="Success rate and median time to pay for payments that finished on each network."
+            >
+              <PerformanceTable
+                rows={performanceBy(
+                  paymentsInRange(payments, range),
+                  (payment) => payment.payment?.chain ?? "Unknown",
+                )}
+                labelOf={(chain) => (chain === "Unknown" ? chain : chainLabel(chain))}
+                markOf={(chain) =>
+                  chain === "Unknown" ? null : <ChainLogo chain={chain} size={18} />
+                }
+              />
+            </Box>
+            <Box
+              title="By payer asset"
+              hint="Success rate and median time to pay for payments that finished, by what the payer sent."
+            >
+              <PerformanceTable
+                rows={performanceBy(
+                  paymentsInRange(payments, range),
+                  (payment) => payment.payment?.asset ?? "Unknown",
+                )}
+                markOf={(asset) =>
+                  asset === "Unknown" ? null : <AssetLogo symbol={asset} size={18} />
+                }
+              />
+            </Box>
           </MetricGrid>
         ))
         .with("mix", () => <MixGrid payments={paymentsInRange(payments, range)} />)

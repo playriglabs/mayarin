@@ -171,6 +171,13 @@ function median(samples: readonly number[]): number {
   return sorted.length % 2 === 1 ? upper : ((sorted[middle - 1] ?? upper) + upper) / 2;
 }
 
+/** Nearest-rank 90th percentile: the wait nine payers in ten stayed under. */
+function p90(samples: readonly number[]): number {
+  if (samples.length === 0) return 0;
+  const sorted = [...samples].sort((a, b) => a - b);
+  return sorted[Math.ceil(sorted.length * 0.9) - 1] ?? 0;
+}
+
 export function formatUsd(cents: bigint): string {
   return formatUsdCents(cents, { trimZeroFraction: true });
 }
@@ -298,6 +305,10 @@ const durationPoint = (samples: readonly number[]) => {
   const seconds = median(samples);
   return { value: seconds, display: samples.length === 0 ? "—" : formatDuration(seconds) };
 };
+const p90Point = (samples: readonly number[]) => {
+  const seconds = p90(samples);
+  return { value: seconds, display: samples.length === 0 ? "—" : formatDuration(seconds) };
+};
 const averagePoint = (bucket: Bucket) =>
   moneyPoint(bucket.orders === 0 ? 0n : bucket.revenue / BigInt(bucket.orders));
 
@@ -382,6 +393,59 @@ export const SETTLEMENTS: readonly Definition[] = [
     point: (bucket) => durationPoint(bucket.settlementTime),
   },
 ];
+
+export const PERFORMANCE: readonly Definition[] = [
+  {
+    key: "success-rate",
+    label: "Success rate",
+    hint: "Completed payments out of those that finished, paid or failed or expired. A checkout still waiting is left out.",
+    point: (bucket) => ratioPoint(bucket.orders, bucket.orders + bucket.failed),
+  },
+  {
+    key: "time-p90",
+    label: "Time to pay (p90)",
+    hint: "Nine in ten payments completed within this long of the checkout being created.",
+    point: (bucket) => p90Point(bucket.completion),
+  },
+];
+
+export interface PerformanceRow {
+  readonly key: string;
+  /** Payments that finished: completed, failed or expired. */
+  readonly finished: number;
+  /** `undefined` when nothing finished, so the row shows a dash rather than 0%. */
+  readonly successRate: number | undefined;
+  /** Median seconds from created to completed; `undefined` with no completed payment. */
+  readonly medianSeconds: number | undefined;
+}
+
+/** Success and speed per group, busiest group first. */
+export function performanceBy(
+  payments: readonly PaymentIntentDto[],
+  keyOf: (payment: PaymentIntentDto) => string,
+): readonly PerformanceRow[] {
+  const groups = new Map<string, { ok: number; bad: number; seconds: number[] }>();
+  for (const payment of payments) {
+    const done = payment.status === "COMPLETED";
+    if (!done && payment.status !== "FAILED" && payment.status !== "EXPIRED") continue;
+    const key = keyOf(payment);
+    const group = groups.get(key) ?? { ok: 0, bad: 0, seconds: [] };
+    if (done) {
+      group.ok += 1;
+      const seconds = secondsBetween(payment.createdAt, payment.completedAt);
+      if (seconds !== undefined) group.seconds.push(seconds);
+    } else group.bad += 1;
+    groups.set(key, group);
+  }
+  return [...groups]
+    .map(([key, group]) => ({
+      key,
+      finished: group.ok + group.bad,
+      successRate: group.ok / (group.ok + group.bad),
+      medianSeconds: group.seconds.length === 0 ? undefined : median(group.seconds),
+    }))
+    .sort((a, b) => b.finished - a.finished || a.key.localeCompare(b.key));
+}
 
 /**
  * One group of metrics over a range, with the change against the range before.

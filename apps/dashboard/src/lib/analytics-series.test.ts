@@ -5,6 +5,8 @@ import {
   filterPayments,
   metricsOf,
   ORDERS,
+  PERFORMANCE,
+  performanceBy,
   previousRange,
   REVENUE,
 } from "@/lib/analytics-series";
@@ -102,5 +104,38 @@ describe("metrics", () => {
       { chain: "base-sepolia" },
     );
     expect(filtered.map((row) => row.id)).toEqual(["a"]);
+  });
+});
+
+describe("performance", () => {
+  const at = (day: number) => `2026-10-0${day}T10:00:00Z`;
+  const done = (id: string, seconds: number, chain: string) =>
+    payment(id, at(2), {
+      payment: { asset: "USDC", chain },
+      completedAt: new Date(new Date(at(2)).getTime() + seconds * 1000).toISOString(),
+    });
+  const payments = [
+    done("a", 10, "base-sepolia"),
+    done("b", 30, "base-sepolia"),
+    payment("c", at(3), { status: "FAILED", completedAt: null }),
+    payment("d", at(3), { status: "CREATED", completedAt: null }),
+  ];
+  const input = { payments, settlements: [], range: RANGE, interval: "day" as const, rates: {} };
+
+  test("success rate leaves a checkout still waiting out of the count", () => {
+    const rate = metricsOf(PERFORMANCE, input).find((metric) => metric.key === "success-rate");
+    expect(rate?.total).toBe("66.7%");
+  });
+
+  test("p90 is the wait nine payers in ten stayed under", () => {
+    const p90 = metricsOf(PERFORMANCE, input).find((metric) => metric.key === "time-p90");
+    expect(p90?.total).toBe("30s");
+  });
+
+  test("rows are grouped by network and ranked by finished payments", () => {
+    const rows = performanceBy(payments, (row) => row.payment?.chain ?? "Unknown");
+    expect(rows).toEqual([
+      { key: "base-sepolia", finished: 3, successRate: 2 / 3, medianSeconds: 20 },
+    ]);
   });
 });
