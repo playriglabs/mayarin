@@ -39,6 +39,10 @@ export function errorHandler(error: Error, c: Context): Response {
   }
 
   if (isMayarinError(error)) {
+    // A 5xx is ours to explain, and an edge in front of the dashboard replaces
+    // a 502 body with its own page, so the log is the only place the reason survives.
+    if (error.httpStatus >= 500)
+      console.error(`[dashboard-api] ${error.code}: ${error.message}`, error.details);
     return c.json<ErrorBody>(
       {
         error: {
