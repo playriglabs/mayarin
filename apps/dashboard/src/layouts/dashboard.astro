@@ -7,6 +7,7 @@
 import { Avatar, Style } from "@dicebear/core";
 import loopsDefinition from "@dicebear/styles/loops.json" with { type: "json" };
 import {
+  BuildingsIcon,
   InfoIcon,
   SignpostIcon,
   UserIcon,
@@ -24,6 +25,7 @@ import SocialMeta from "../components/social-meta.astro";
 import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
 import { getApiBase, originAuthHeaders } from "../lib/api/origin";
+import type { SettingsResponse } from "../types/settings";
 import type { UserDto } from "../types/user";
 
 interface Props {
@@ -50,6 +52,26 @@ if (user.permissions.includes("payments:read")) {
   } catch {
     openDisputes = 0;
   }
+}
+
+// The company mark and name at the top of the sidebar. A failed read falls back
+// to a neutral label, so the shell still renders.
+let merchantName = "Your business";
+let merchantLogo: string | null = null;
+try {
+  const res = await fetch(`${getApiBase()}/settings`, {
+    headers: {
+      cookie: `mayarin_session=${Astro.cookies.get("mayarin_session")?.value ?? ""}`,
+      ...originAuthHeaders(),
+    },
+  });
+  if (res.ok) {
+    const { settings } = (await res.json()) as SettingsResponse;
+    merchantName = settings.name;
+    merchantLogo = settings.logoUrl;
+  }
+} catch {
+  merchantLogo = null;
 }
 
 const isAdmin = user.permissions.includes("admin:access");
@@ -162,36 +184,28 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           data-sidebar-header
           class="flex h-16 items-center justify-between gap-1 px-3"
         >
-          <a
-            href="/"
-            data-sidebar-logo
-            aria-label="Mayarin dashboard"
-            class="flex min-h-11 shrink-0 items-center px-2"
-          >
-            <!-- Two marks, one per theme. The white one was drawn for the void
-                 sidebar and disappears entirely on the light one, so the theme
-                 picks rather than a filter inverting a logo into something the
-                 brand kit never approved. -->
-            <img
-              src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
-              alt=""
-              aria-hidden="true"
-              width="44"
-              height="44"
-              class="size-11 dark:hidden"
-            />
-            <img
-              src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
-              alt=""
-              aria-hidden="true"
-              width="44"
-              height="44"
-              class="hidden size-11 dark:block"
-            />
-            <span class="-ml-1 font-sans text-[24px] font-medium leading-none tracking-[-0.055em]">
-              mayarin
+          <div data-sidebar-logo class="flex min-h-11 min-w-0 flex-1 items-center gap-x-3 gap-y-4 px-2">
+            {
+              merchantLogo === null ? (
+                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-muted-foreground">
+                  <BuildingsIcon size={20} weight="regular" aria-hidden="true" />
+                </span>
+              ) : (
+                <img
+                  src={merchantLogo}
+                  alt="merchant-logo"
+                  aria-hidden="true"
+                  width="36"
+                  height="36"
+                  class="size-9 shrink-0 rounded-lg object-cover"
+                />
+              )
+            }
+            <span class="flex min-w-0 flex-1 flex-col leading-tight">
+              <span class="truncate text-[14px] font-medium">{merchantName}</span>
+              <span class="truncate text-xs text-sidebar-muted-foreground">Enterprise</span>
             </span>
-          </a>
+          </div>
           <button
             type="button"
             data-sidebar-close
@@ -214,7 +228,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
         <nav
           aria-label="Dashboard utilities"
           data-sidebar-utilities
-          class="grid grid-cols-4 gap-1 border-t border-sidebar-border px-3 py-2 [&_button]:border-0 [&_button]:text-sidebar-muted-foreground [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground"
+          class="grid grid-cols-4 justify-items-center gap-1 border-t border-sidebar-border px-3 py-2 [&_button]:border-0 [&_button]:text-sidebar-muted-foreground [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground"
         >
           <ThemeToggle client:load />
           <a
@@ -242,7 +256,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
         >
           <img
             src={avatarUrl}
-            alt=""
+            alt="avatar-url"
             aria-hidden="true"
             width="44"
             height="44"
@@ -305,7 +319,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           </nav>
         </header>
 
-        <div class="mx-auto w-full max-w-[106rem] p-4 md:px-8 md:py-7 lg:px-16 lg:py-8 xl:px-20">
+        <div class="mx-auto w-full max-w-[106rem] p-4 md:px-8 md:py-7 lg:px-12 lg:py-8 xl:px-14">
           <slot />
         </div>
       </main>
