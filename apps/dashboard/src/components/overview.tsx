@@ -591,7 +591,7 @@ function Overview() {
         data.settlements,
         withdrawals.data?.withdrawals ?? [],
       );
-      const recent = all.slice(0, 6);
+      const recent = all.slice(0, 7);
 
       const payInDaily = dailyTotals(
         all
