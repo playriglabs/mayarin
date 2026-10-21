@@ -13,6 +13,7 @@
 
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
+import { symbolOf } from "@/lib/pricing";
 
 /** A rate has six decimals: the finest unit a rate is carried in. */
 const RATE_SCALE = 1_000_000n;
@@ -48,9 +49,13 @@ export function formatUsdCents(cents: bigint, options?: { trimZeroFraction?: boo
   const converted = (cents * perUsd) / RATE_SCALE;
   const fraction = converted % 100n;
   const amount = `${converted / 100n}.${fraction.toString().padStart(2, "0")}` as `${number}`;
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency,
-    ...(options?.trimZeroFraction === true && fraction === 0n ? { minimumFractionDigits: 0 } : {}),
+  // The id-ID locale only knows its own symbol and writes every other currency
+  // as its code ("SGD 50,00"), so the symbol comes from the asset registry.
+  const minor = new Intl.NumberFormat("id-ID", { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits;
+  const digits = new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: options?.trimZeroFraction === true && fraction === 0n ? 0 : minor,
+    maximumFractionDigits: minor,
   }).format(amount);
+  return `${symbolOf(currency)} ${digits}`;
 }
