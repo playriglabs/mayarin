@@ -62,6 +62,7 @@ import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { DEFAULT_DISPUTE_STANDING, RuntimeMarket } from "../src/market.ts";
 import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
+import { AnalyticsService } from "../src/services/analytics.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { EscrowService } from "../src/services/escrow.ts";
 import { PayerStanding } from "../src/services/payer-standing.ts";
@@ -340,6 +341,11 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     rates,
     paymentApp,
+    analytics: new AnalyticsService({
+      intents: intentRepository,
+      clearing: clearingRepository,
+      clock,
+    }),
     escrow: new EscrowService(paymentApp, {}, escrowDisputes, clock, {
       opened: async () => {},
       message: async (dispute, message) => {

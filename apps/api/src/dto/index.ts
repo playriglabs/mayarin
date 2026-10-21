@@ -11,6 +11,7 @@
  * beside the DTO in a `*-mapper.ts` file that is not re-exported.
  */
 
+export * from "./analytics.ts";
 export * from "./catalog.ts";
 export * from "./clearing.ts";
 export * from "./contract-call.ts";

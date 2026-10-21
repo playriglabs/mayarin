@@ -155,6 +155,7 @@ import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import { operatorAccount } from "./operator-account.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
+import { AnalyticsService } from "./services/analytics.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { disputeNotifier } from "./services/dispute-notifier.ts";
 import { EscrowService } from "./services/escrow.ts";
@@ -207,6 +208,8 @@ export interface Container {
    */
   readonly rates: RateProvider;
   readonly paymentApp: PaymentAppService;
+  /** The dashboard's analytics figures, for the merchant API. */
+  readonly analytics: AnalyticsService;
   /** Refunds against settled payments (#12). */
   readonly refunds: RefundService;
   /** Closes the operator key's sent-transaction rows once the chain settles them (SEC-04). */
@@ -1490,6 +1493,11 @@ export function createContainer({
     engine,
     rates,
     paymentApp,
+    analytics: new AnalyticsService({
+      intents: intentRepository,
+      clearing: clearingRepository,
+      clock,
+    }),
     escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock, disputeNotices),
     payerStanding,
     riskAssessments,
