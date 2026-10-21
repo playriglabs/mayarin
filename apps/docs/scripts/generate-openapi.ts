@@ -24,6 +24,7 @@ import {
 import { assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
 import { INVALID_REASONS } from "@mayarin/x402";
 import { z } from "zod";
+import { ANALYTICS_INTERVALS, ANALYTICS_METRICS } from "../../api/src/dto/analytics.ts";
 import {
   checkoutCartBodySchema,
   checkoutLinkBodySchema,
@@ -324,6 +325,58 @@ const disputeMessageSchema = z
     createdAt: z.string(),
   })
   .openapi("DisputeMessage");
+
+const analyticsMetricSchema = z
+  .object({
+    key: z.enum(ANALYTICS_METRICS),
+    label: z.string(),
+    unit: z
+      .enum(["usd_cents", "count", "ratio", "seconds"])
+      .describe("`ratio` is 0 to 1. Money is USD cents."),
+    total: z.number().nullable().describe("The figure for the whole range."),
+    change: z
+      .number()
+      .nullable()
+      .describe("Percent change against the range of the same length just before."),
+    points: z.array(
+      z.object({
+        date: z.string().describe("The bucket's first UTC day. Weeks start on Monday."),
+        value: z.number().nullable().describe("`null` when the bucket gives the figure no value."),
+      }),
+    ),
+  })
+  .openapi("AnalyticsMetric");
+
+const analyticsShareSchema = z.object({
+  key: z.string(),
+  count: z.number().int(),
+  share: z.number().describe("0 to 1."),
+});
+
+const analyticsPerformanceSchema = z.object({
+  key: z.string(),
+  finished: z.number().int().describe("Completed, failed or expired payments."),
+  successRate: z.number().describe("0 to 1."),
+  medianSeconds: z.number().nullable().describe("Median created-to-completed time."),
+});
+
+const analyticsSchema = z
+  .object({
+    currency: z.literal("USD"),
+    range: z.object({ from: z.string(), to: z.string() }),
+    interval: z.enum(ANALYTICS_INTERVALS),
+    metrics: z.array(analyticsMetricSchema),
+    breakdowns: z.object({
+      networks: z.array(analyticsShareSchema),
+      assets: z.array(analyticsShareSchema),
+      countries: z.array(analyticsShareSchema).describe("ISO 3166 alpha-2, or `Unknown`."),
+    }),
+    performance: z.object({
+      networks: z.array(analyticsPerformanceSchema),
+      assets: z.array(analyticsPerformanceSchema),
+    }),
+  })
+  .openapi("Analytics");
 
 const disputeSchema = z
   .object({
@@ -814,6 +867,35 @@ registry.registerPath({
   responses: {
     "200": jsonResponse(z.object({ escrow: escrowSchema }), "The escrow."),
     "404": errorResponse("No such payment, or it is not held in escrow."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/analytics",
+  tags: ["Analytics"],
+  operationId: "getAnalytics",
+  summary: "Get analytics",
+  description:
+    "The figures the dashboard's Analytics page draws, for a range of up to 366 days: revenue, orders, settlements and payment performance as a total, a change against the range before and a point per bucket, plus what payers sent and how reliably each network and asset finishes. Money is USD cents; an asset with no USD rate is left out of a money figure. Needs `payments:read`.",
+  security: secretKey,
+  request: {
+    query: z.object({
+      from: z
+        .string()
+        .optional()
+        .describe("First UTC day, `YYYY-MM-DD`. Default: 29 days before `to`."),
+      to: z.string().optional().describe("Last UTC day, inclusive. Default: today."),
+      interval: z.enum(ANALYTICS_INTERVALS).optional().describe("Default `day`."),
+      chain: z.string().optional().describe("Only payments paid on this network."),
+      asset: z.string().optional().describe("Only payments the payer sent in this asset."),
+      metrics: z.string().optional().describe("Comma-separated metric keys. Default: all."),
+    }),
+  },
+  responses: {
+    "200": jsonResponse(analyticsSchema, "The analytics."),
+    "400": errorResponse("An unknown metric, a malformed day, or a range over 366 days."),
+    "403": errorResponse("The key lacks `payments:read`, or is publishable."),
   },
 });
 
@@ -1755,6 +1837,10 @@ const document = generator.generateDocument({
     { name: "Payment links", description: "Shareable hosted checkout links." },
     { name: "Invoices", description: "Numbered requests with buyers and due dates." },
     { name: "Subscriptions", description: "Recurring plans, billed as one invoice per cycle." },
+    {
+      name: "Analytics",
+      description: "Revenue, orders, settlements and payment performance for a date range.",
+    },
     { name: "Risk", description: "Payments the fraud rules flagged or blocked." },
     {
       name: "Disputes",

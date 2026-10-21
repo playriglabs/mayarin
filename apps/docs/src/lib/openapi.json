@@ -49,6 +49,10 @@
       "description": "Recurring plans, billed as one invoice per cycle."
     },
     {
+      "name": "Analytics",
+      "description": "Revenue, orders, settlements and payment performance for a date range."
+    },
+    {
       "name": "Risk",
       "description": "Payments the fraud rules flagged or blocked."
     },
@@ -815,6 +819,289 @@
           "disputed",
           "balance",
           "calls"
+        ]
+      },
+      "AnalyticsMetric": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "revenue",
+              "net_revenue",
+              "average_order_value",
+              "fees",
+              "orders",
+              "checkouts",
+              "conversion_rate",
+              "failed_checkouts",
+              "time_to_pay",
+              "time_to_pay_p90",
+              "success_rate",
+              "settled_volume",
+              "settlements",
+              "settlement_time"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "usd_cents",
+              "count",
+              "ratio",
+              "seconds"
+            ],
+            "description": "`ratio` is 0 to 1. Money is USD cents."
+          },
+          "total": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The figure for the whole range."
+          },
+          "change": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Percent change against the range of the same length just before."
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "description": "The bucket's first UTC day. Weeks start on Monday."
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "`null` when the bucket gives the figure no value."
+                }
+              },
+              "required": [
+                "date",
+                "value"
+              ]
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "total",
+          "change",
+          "points"
+        ]
+      },
+      "Analytics": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsMetric"
+            }
+          },
+          "breakdowns": {
+            "type": "object",
+            "properties": {
+              "networks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "share": {
+                      "type": "number",
+                      "description": "0 to 1."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count",
+                    "share"
+                  ]
+                }
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "share": {
+                      "type": "number",
+                      "description": "0 to 1."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count",
+                    "share"
+                  ]
+                }
+              },
+              "countries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "share": {
+                      "type": "number",
+                      "description": "0 to 1."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count",
+                    "share"
+                  ]
+                },
+                "description": "ISO 3166 alpha-2, or `Unknown`."
+              }
+            },
+            "required": [
+              "networks",
+              "assets",
+              "countries"
+            ]
+          },
+          "performance": {
+            "type": "object",
+            "properties": {
+              "networks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "finished": {
+                      "type": "integer",
+                      "description": "Completed, failed or expired payments."
+                    },
+                    "successRate": {
+                      "type": "number",
+                      "description": "0 to 1."
+                    },
+                    "medianSeconds": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "description": "Median created-to-completed time."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "finished",
+                    "successRate",
+                    "medianSeconds"
+                  ]
+                }
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "finished": {
+                      "type": "integer",
+                      "description": "Completed, failed or expired payments."
+                    },
+                    "successRate": {
+                      "type": "number",
+                      "description": "0 to 1."
+                    },
+                    "medianSeconds": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "description": "Median created-to-completed time."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "finished",
+                    "successRate",
+                    "medianSeconds"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "networks",
+              "assets"
+            ]
+          }
+        },
+        "required": [
+          "currency",
+          "range",
+          "interval",
+          "metrics",
+          "breakdowns",
+          "performance"
         ]
       },
       "Dispute": {
@@ -2057,7 +2344,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -2101,7 +2402,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -2164,7 +2479,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -2741,6 +3070,120 @@
         }
       }
     },
+    "/v1/analytics": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "getAnalytics",
+        "summary": "Get analytics",
+        "description": "The figures the dashboard's Analytics page draws, for a range of up to 366 days: revenue, orders, settlements and payment performance as a total, a change against the range before and a point per bucket, plus what payers sent and how reliably each network and asset finishes. Money is USD cents; an asset with no USD rate is left out of a money figure. Needs `payments:read`.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "First UTC day, `YYYY-MM-DD`. Default: 29 days before `to`."
+            },
+            "required": false,
+            "description": "First UTC day, `YYYY-MM-DD`. Default: 29 days before `to`.",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Last UTC day, inclusive. Default: today."
+            },
+            "required": false,
+            "description": "Last UTC day, inclusive. Default: today.",
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "description": "Default `day`."
+            },
+            "required": false,
+            "description": "Default `day`.",
+            "name": "interval",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Only payments paid on this network."
+            },
+            "required": false,
+            "description": "Only payments paid on this network.",
+            "name": "chain",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Only payments the payer sent in this asset."
+            },
+            "required": false,
+            "description": "Only payments the payer sent in this asset.",
+            "name": "asset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated metric keys. Default: all."
+            },
+            "required": false,
+            "description": "Comma-separated metric keys. Default: all.",
+            "name": "metrics",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The analytics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analytics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown metric, a malformed day, or a range over 366 days.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key lacks `payments:read`, or is publishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/disputes": {
       "get": {
         "tags": [
@@ -3212,7 +3655,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -3333,7 +3790,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -3376,7 +3847,21 @@
                         "EURC",
                         "PYUSD",
                         "USDG",
+                        "DAI",
+                        "FDUSD",
                         "ETH",
+                        "POL",
+                        "BNB",
+                        "WETH",
+                        "WBTC",
+                        "CBBTC",
+                        "WBNB",
+                        "BTCB",
+                        "LINK",
+                        "UNI",
+                        "AAVE",
+                        "ARB",
+                        "CAKE",
                         "SOL",
                         "BTC"
                       ]
@@ -3553,7 +4038,21 @@
                             "EURC",
                             "PYUSD",
                             "USDG",
+                            "DAI",
+                            "FDUSD",
                             "ETH",
+                            "POL",
+                            "BNB",
+                            "WETH",
+                            "WBTC",
+                            "CBBTC",
+                            "WBNB",
+                            "BTCB",
+                            "LINK",
+                            "UNI",
+                            "AAVE",
+                            "ARB",
+                            "CAKE",
                             "SOL",
                             "BTC"
                           ]
@@ -3747,7 +4246,21 @@
                             "EURC",
                             "PYUSD",
                             "USDG",
+                            "DAI",
+                            "FDUSD",
                             "ETH",
+                            "POL",
+                            "BNB",
+                            "WETH",
+                            "WBTC",
+                            "CBBTC",
+                            "WBNB",
+                            "BTCB",
+                            "LINK",
+                            "UNI",
+                            "AAVE",
+                            "ARB",
+                            "CAKE",
                             "SOL",
                             "BTC"
                           ]
@@ -3860,7 +4373,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -3902,7 +4429,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -4013,7 +4554,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -4083,7 +4638,21 @@
                                     "EURC",
                                     "PYUSD",
                                     "USDG",
+                                    "DAI",
+                                    "FDUSD",
                                     "ETH",
+                                    "POL",
+                                    "BNB",
+                                    "WETH",
+                                    "WBTC",
+                                    "CBBTC",
+                                    "WBNB",
+                                    "BTCB",
+                                    "LINK",
+                                    "UNI",
+                                    "AAVE",
+                                    "ARB",
+                                    "CAKE",
                                     "SOL",
                                     "BTC"
                                   ]
@@ -4306,7 +4875,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -4347,7 +4930,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -4449,7 +5046,21 @@
                             "EURC",
                             "PYUSD",
                             "USDG",
+                            "DAI",
+                            "FDUSD",
                             "ETH",
+                            "POL",
+                            "BNB",
+                            "WETH",
+                            "WBTC",
+                            "CBBTC",
+                            "WBNB",
+                            "BTCB",
+                            "LINK",
+                            "UNI",
+                            "AAVE",
+                            "ARB",
+                            "CAKE",
                             "SOL",
                             "BTC"
                           ]
@@ -4765,7 +5376,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -4807,7 +5432,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -4899,7 +5538,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -5111,7 +5764,21 @@
                       "EURC",
                       "PYUSD",
                       "USDG",
+                      "DAI",
+                      "FDUSD",
                       "ETH",
+                      "POL",
+                      "BNB",
+                      "WETH",
+                      "WBTC",
+                      "CBBTC",
+                      "WBNB",
+                      "BTCB",
+                      "LINK",
+                      "UNI",
+                      "AAVE",
+                      "ARB",
+                      "CAKE",
                       "SOL",
                       "BTC"
                     ]
@@ -5166,7 +5833,21 @@
                                 "EURC",
                                 "PYUSD",
                                 "USDG",
+                                "DAI",
+                                "FDUSD",
                                 "ETH",
+                                "POL",
+                                "BNB",
+                                "WETH",
+                                "WBTC",
+                                "CBBTC",
+                                "WBNB",
+                                "BTCB",
+                                "LINK",
+                                "UNI",
+                                "AAVE",
+                                "ARB",
+                                "CAKE",
                                 "SOL",
                                 "BTC"
                               ]
@@ -5405,7 +6086,21 @@
                                 "EURC",
                                 "PYUSD",
                                 "USDG",
+                                "DAI",
+                                "FDUSD",
                                 "ETH",
+                                "POL",
+                                "BNB",
+                                "WETH",
+                                "WBTC",
+                                "CBBTC",
+                                "WBNB",
+                                "BTCB",
+                                "LINK",
+                                "UNI",
+                                "AAVE",
+                                "ARB",
+                                "CAKE",
                                 "SOL",
                                 "BTC"
                               ]
@@ -5774,7 +6469,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -5851,7 +6560,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -5972,7 +6695,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -6483,7 +7220,21 @@
                           "EURC",
                           "PYUSD",
                           "USDG",
+                          "DAI",
+                          "FDUSD",
                           "ETH",
+                          "POL",
+                          "BNB",
+                          "WETH",
+                          "WBTC",
+                          "CBBTC",
+                          "WBNB",
+                          "BTCB",
+                          "LINK",
+                          "UNI",
+                          "AAVE",
+                          "ARB",
+                          "CAKE",
                           "SOL",
                           "BTC"
                         ]
@@ -6547,7 +7298,21 @@
                             "EURC",
                             "PYUSD",
                             "USDG",
+                            "DAI",
+                            "FDUSD",
                             "ETH",
+                            "POL",
+                            "BNB",
+                            "WETH",
+                            "WBTC",
+                            "CBBTC",
+                            "WBNB",
+                            "BTCB",
+                            "LINK",
+                            "UNI",
+                            "AAVE",
+                            "ARB",
+                            "CAKE",
                             "SOL",
                             "BTC"
                           ]
