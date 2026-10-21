@@ -24,8 +24,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Ink that wipes to forest on hover — the landing's primary button.
-        default: "bg-primary text-primary-foreground hover:bg-brand",
+        // Ink that wipes to electric blue on hover — the landing's primary
+        // button. Electric rather than `brand`, which lightens in dark mode and
+        // would not carry white text. The text goes white with it: the ink's own
+        // foreground is dark in dark mode.
+        default: "bg-primary text-primary-foreground hover:bg-electric hover:text-white",
         secondary: "border border-input bg-card text-foreground hover:bg-muted",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
         destructive: "border border-input bg-card text-destructive hover:bg-destructive-muted",

@@ -199,7 +199,7 @@ function RegisterForm() {
           <Button
             type="submit"
             disabled={tooShort}
-            className="login-submit h-12 w-full rounded-full px-6 text-base"
+            className="h-12 w-full rounded-full px-6 text-base"
           >
             Continue
           </Button>
@@ -237,7 +237,7 @@ function RegisterForm() {
             type="submit"
             form="register-business"
             disabled={submitting || countryCode === ""}
-            className="login-submit h-11 rounded-full px-5 text-base"
+            className="h-11 rounded-full px-5 text-base"
           >
             {submitting ? <ButtonLoader label="Processing" /> : "Create account"}
           </Button>

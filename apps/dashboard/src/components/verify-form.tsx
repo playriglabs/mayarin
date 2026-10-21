@@ -125,7 +125,7 @@ function VerifyForm() {
           </div>
           <a
             href="/register"
-            className="login-submit inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-base text-primary-foreground"
+            className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-base text-primary-foreground"
           >
             Create an account
           </a>
@@ -191,7 +191,7 @@ function VerifyForm() {
         <Button
           type="submit"
           disabled={submitting || code.length !== CODE_LENGTH}
-          className="login-submit h-12 w-full mt-2 rounded-full px-6 text-base"
+          className="h-12 w-full mt-2 rounded-full px-6 text-base"
         >
           {submitting ? <ButtonLoader label="Processing" /> : "Confirm email"}
         </Button>

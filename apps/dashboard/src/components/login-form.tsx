@@ -236,7 +236,7 @@ function LoginForm() {
             disabled={
               submitting || code.length !== (useRecovery ? RECOVERY_CODE_LENGTH : MFA_CODE_LENGTH)
             }
-            className="login-submit mt-2 h-12 w-full rounded-full px-6 text-base"
+            className="mt-2 h-12 w-full rounded-full px-6 text-base"
           >
             {submitting ? <ButtonLoader label="Processing" /> : "Verify and sign in"}
           </Button>
@@ -368,7 +368,7 @@ function LoginForm() {
         <Button
           type="submit"
           disabled={submitting || blocked}
-          className="login-submit h-12 w-full rounded-full px-6 text-base"
+          className="h-12 w-full rounded-full px-6 text-base"
         >
           {submitting ? (
             <ButtonLoader label="Processing" />
