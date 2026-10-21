@@ -79,7 +79,7 @@ function EarlyAccessCapture() {
       <label for="footer-early-access-email" class="text-sm text-slate-600">
         Get early access
       </label>
-      <div class="mt-5 flex h-12 items-center border border-line bg-paper transition-colors duration-200 focus-within:border-forest">
+      <div class="mt-5 flex h-12 items-center border border-line bg-paper transition-colors duration-200 focus-within:border-brand">
         <input
           id="footer-early-access-email"
           name="email"
@@ -94,13 +94,13 @@ function EarlyAccessCapture() {
           type="submit"
           disabled={disabled}
           aria-label={submitting ? "Joining the early-access list" : "Request early access"}
-          class="inline-flex size-12 shrink-0 cursor-pointer items-center justify-center text-ink transition-colors duration-200 hover:text-forest disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex size-12 shrink-0 cursor-pointer items-center justify-center text-ink transition-colors duration-200 hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
         >
           <ArrowRight />
         </button>
       </div>
       <p
-        class={state.status === "error" ? "mt-3 text-xs text-red-700" : "mt-3 text-xs text-forest"}
+        class={state.status === "error" ? "mt-3 text-xs text-red-700" : "mt-3 text-xs text-brand"}
         aria-live="polite"
       >
         {state.status === "success" || state.status === "error" ? state.message : ""}
@@ -136,7 +136,7 @@ export function Footer() {
                       <li key={link.label}>
                         <a
                           href={link.href}
-                          class="text-[15px] leading-6 font-medium text-ink transition-colors duration-200 hover:text-forest"
+                          class="text-[15px] leading-6 font-medium text-ink transition-colors duration-200 hover:text-brand"
                         >
                           <ScrambleText text={link.label} trigger="a" />
                         </a>

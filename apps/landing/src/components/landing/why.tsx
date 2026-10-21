@@ -31,7 +31,7 @@ export function Why() {
         </p>
         <h2 class="mt-6 max-w-240 text-balance">
           Built to be trusted with every payment. Merchants choose Mayarin for{" "}
-          <span class="text-forest">non-custodial, flexible, multi-chain and auditable</span>{" "}
+          <span class="text-brand">non-custodial, flexible, multi-chain and auditable</span>{" "}
           stablecoin payments.
         </h2>
       </Reveal>
@@ -104,7 +104,7 @@ function WhyCard({
       class="h-full w-[82%] shrink-0 snap-start md:w-[calc(50%-6px)] lg:w-[calc(25%-9px)]"
     >
       <article class="flex h-full flex-col rounded-2xl border border-line bg-paper p-6 md:p-8">
-        <span class="text-forest [&>svg]:size-7">{icon}</span>
+        <span class="text-brand [&>svg]:size-7">{icon}</span>
         <h3 class="mt-4 text-[clamp(1.6rem,2.4vw,2rem)]">{title}</h3>
         <p class="mt-16 text-base leading-relaxed text-slate-600">{body}</p>
       </article>
@@ -118,7 +118,7 @@ function ArrowButton({ label, onClick }: { readonly label: string; readonly onCl
       type="button"
       aria-label={label}
       onClick={onClick}
-      class="grid size-10 place-items-center rounded-full border border-line bg-paper text-ink transition-colors hover:border-forest hover:text-forest"
+      class="grid size-10 place-items-center rounded-full border border-line bg-paper text-ink transition-colors hover:border-brand hover:text-brand"
     >
       <svg {...ICON} class="size-5" aria-hidden="true">
         <path d={label === "Next" ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />

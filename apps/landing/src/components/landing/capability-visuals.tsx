@@ -45,7 +45,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
             </div>
 
             <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate-600 [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
-              <span class="mx-auto flex size-9 items-center justify-center rounded-full bg-v2-sage text-sm font-medium text-forest">
+              <span class="mx-auto flex size-9 items-center justify-center rounded-full bg-v2-sky text-sm font-medium text-brand">
                 S
               </span>
               <strong>Studio Supply</strong>
@@ -53,8 +53,8 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
             </div>
           </div>
 
-          <div class="mt-6 rounded-xl bg-v2-sage/60 px-5 py-6 text-center">
-            <span class="mx-auto flex size-8 items-center justify-center rounded-full bg-v2-sage text-forest">
+          <div class="mt-6 rounded-xl bg-v2-sky/60 px-5 py-6 text-center">
+            <span class="mx-auto flex size-8 items-center justify-center rounded-full bg-v2-sky text-brand">
               <Check />
             </span>
             <p class="mt-3 text-xs font-medium text-ink">Equivalent in local currency</p>
@@ -89,7 +89,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <span
                 class={clsx(
                   "ml-auto size-3 rounded-full",
-                  rail.selected ? "border-[3px] border-forest" : "border border-slate/40",
+                  rail.selected ? "border-[3px] border-brand" : "border border-slate/40",
                 )}
               />
             </div>
@@ -109,10 +109,10 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <p class="text-[11px] text-slate-600">Studio Supply · inv-2026-014</p>
               <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
             </div>
-            <span class="rounded-full bg-v2-sage px-3 py-1 text-[11px] text-forest">Settled</span>
+            <span class="rounded-full bg-v2-sky px-3 py-1 text-[11px] text-brand">Settled</span>
           </div>
           <div class="my-5 h-px bg-line" />
-          <ol class="relative flex flex-1 flex-col justify-between gap-4 text-xs before:absolute before:top-2.5 before:bottom-2.5 before:left-[9.5px] before:w-px before:bg-forest/20">
+          <ol class="relative flex flex-1 flex-col justify-between gap-4 text-xs before:absolute before:top-2.5 before:bottom-2.5 before:left-[9.5px] before:w-px before:bg-brand/20">
             {[
               { step: "Price locked", time: "10:02" },
               { step: "Asset received", time: "10:03" },
@@ -120,7 +120,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               { step: "Settled to wallet", time: "10:04" },
             ].map((item) => (
               <li key={item.step} class="flex items-center gap-3">
-                <span class="relative flex size-5 items-center justify-center rounded-full bg-v2-sage text-forest [&_svg]:size-3">
+                <span class="relative flex size-5 items-center justify-center rounded-full bg-v2-sky text-brand [&_svg]:size-3">
                   <Check />
                 </span>
                 <span>{item.step}</span>
@@ -152,7 +152,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
             <strong>1,500.00</strong>
           </div>
         </div>
-        <div class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-v2-sage p-2.5 text-[11px] text-forest">
+        <div class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-v2-sky p-2.5 text-[11px] text-brand">
           <Check /> Ledger balanced
         </div>
       </div>

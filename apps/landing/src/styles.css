@@ -16,8 +16,8 @@
 
 @theme {
   /* Product landing V2: soft illustration surfaces, paired with accessible ink. */
-  --color-v2-mist: #f6f7f6;
-  --color-v2-sage: #e4eee6;
+  --color-v2-mist: #f6f7f9;
+  --color-v2-sky: #eaf1ff;
   --color-v2-peach: #f3e8dd;
   --color-v2-clay: #755136;
   --color-v2-lilac: #eeecf6;
@@ -28,10 +28,10 @@
   --color-line: #eaeaea;
   --color-void: #050505;
   --color-code-panel: #141414;
-  --color-accent: #0eeb2e;
-  --color-forest: #1f6f54;
-  /* The illustration plate on dark sections: forest pushed almost to the void. */
-  --color-plate: #0b2016;
+  --color-accent: #60a5fa;
+  --color-brand: #2563eb;
+  /* The illustration plate on dark sections: brand blue pushed almost to the void. */
+  --color-plate: #0b1730;
 
   /* On #050505 the hairline has to lift rather than sit at #eaeaea. */
   --color-line-inverse: #1e1e1e;
@@ -123,7 +123,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-forest);
+    outline: 2px solid var(--color-brand);
     outline-offset: 3px;
     border-radius: 2px;
   }
@@ -216,7 +216,7 @@ h3 {
   /* Lifts with `translate`, not `transform`. They are separate animatable
      properties, so hover never inherits the 900ms rise the entrance needs. */
   .wordmark-letter:hover {
-    color: var(--color-forest);
+    color: var(--color-brand);
     translate: 0 -0.03em;
   }
 }

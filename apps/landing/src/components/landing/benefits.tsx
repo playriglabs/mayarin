@@ -18,7 +18,7 @@ export function Benefits() {
       <div class="grid items-end gap-6 lg:grid-cols-[1.6fr_1fr] lg:gap-16">
         <Reveal>
           <h2 class="text-balance">
-            <span class="text-forest">Let customers pay their way,</span> settle in the stablecoin
+            <span class="text-brand">Let customers pay their way,</span> settle in the stablecoin
             you choose.
           </h2>
         </Reveal>
@@ -121,7 +121,7 @@ function TrendUp() {
     <svg
       aria-hidden="true"
       viewBox="0 0 16 16"
-      class="size-4 text-forest"
+      class="size-4 text-brand"
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
@@ -215,8 +215,8 @@ function GrowthVisual() {
       >
         <defs>
           <linearGradient id="benefit-growth" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--color-forest)" stop-opacity="0.22" />
-            <stop offset="1" stop-color="var(--color-forest)" stop-opacity="0" />
+            <stop offset="0" stop-color="var(--color-brand)" stop-opacity="0.22" />
+            <stop offset="1" stop-color="var(--color-brand)" stop-opacity="0" />
           </linearGradient>
         </defs>
         <path
@@ -233,7 +233,7 @@ function GrowthVisual() {
           pathLength={1}
           stroke-dasharray="1"
           fill="none"
-          stroke="var(--color-forest)"
+          stroke="var(--color-brand)"
           stroke-width="1.5"
         />
       </svg>
@@ -245,15 +245,15 @@ function GrowthVisual() {
       </div>
       <div data-marker class="absolute left-[36%] top-[58%] flex flex-col items-center">
         <Chip>Mayarin added</Chip>
-        <span class="h-14 border-l border-dashed border-forest/40" />
-        <span class="size-2.5 rounded-full border border-forest bg-paper" />
+        <span class="h-14 border-l border-dashed border-brand/40" />
+        <span class="size-2.5 rounded-full border border-brand bg-paper" />
       </div>
       <div data-marker class="absolute left-[72%] top-[22%] flex flex-col items-center">
         <Chip>New payers</Chip>
-        <span class="h-16 border-l border-dashed border-forest/40" />
+        <span class="h-16 border-l border-dashed border-brand/40" />
         <span class="relative flex size-3">
-          <span class="absolute inset-0 rounded-full bg-forest/40 motion-safe:animate-ping" />
-          <span class="relative size-3 rounded-full bg-forest" />
+          <span class="absolute inset-0 rounded-full bg-brand/40 motion-safe:animate-ping" />
+          <span class="relative size-3 rounded-full bg-brand" />
         </span>
       </div>
     </div>
@@ -283,7 +283,7 @@ function SettlementVisual() {
     <div ref={root} class="relative h-44 w-full max-w-80 text-left">
       <div
         data-minutes
-        class="absolute left-0 top-2 z-10 -rotate-2 rounded-lg bg-forest px-4 py-3 text-paper shadow-md"
+        class="absolute left-0 top-2 z-10 -rotate-2 rounded-lg bg-brand px-4 py-3 text-paper shadow-md"
       >
         <p class="text-xs text-paper/80">Settled in</p>
         <p class="mt-1 text-xl font-medium">minutes</p>
@@ -310,7 +310,7 @@ function SettlementVisual() {
           $1,250.00
           <span
             data-settled
-            class="rounded-full bg-v2-sage px-2 py-0.5 text-xs font-normal text-forest"
+            class="rounded-full bg-v2-sky px-2 py-0.5 text-xs font-normal text-brand"
           >
             Settled
           </span>
@@ -354,7 +354,7 @@ function MarketsVisual() {
     <div ref={root} class="relative h-64 w-full">
       <div
         data-dots
-        class="absolute inset-0 bg-[radial-gradient(var(--color-forest)_1px,transparent_1.2px)] bg-size-[10px_10px] opacity-20 mask-[radial-gradient(ellipse_at_center,black_35%,transparent_75%)]"
+        class="absolute inset-0 bg-[radial-gradient(var(--color-brand)_1px,transparent_1.2px)] bg-size-[10px_10px] opacity-20 mask-[radial-gradient(ellipse_at_center,black_35%,transparent_75%)]"
       />
       <svg
         data-wires
@@ -366,7 +366,7 @@ function MarketsVisual() {
       >
         <path
           d="M18 20 L50 50 M22 82 L50 50 M84 16 L50 50 M86 74 L50 50 M50 12 L50 50 M50 88 L50 50"
-          stroke="var(--color-forest)"
+          stroke="var(--color-brand)"
           stroke-opacity="0.35"
           stroke-dasharray="2 2"
           vector-effect="non-scaling-stroke"
@@ -374,7 +374,7 @@ function MarketsVisual() {
       </svg>
       <span
         data-hub
-        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-forest px-3 py-1.5 text-xs font-medium text-paper shadow-md"
+        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand px-3 py-1.5 text-xs font-medium text-paper shadow-md"
       >
         One integration
       </span>
@@ -452,7 +452,7 @@ function ChargebackVisual() {
               </span>
               <span
                 class={clsx(
-                  "rounded bg-v2-sage px-2 py-0.5 text-forest",
+                  "rounded bg-v2-sky px-2 py-0.5 text-brand",
                   index === 0 && "motion-safe:animate-[fade-in_400ms_300ms_both]",
                 )}
               >

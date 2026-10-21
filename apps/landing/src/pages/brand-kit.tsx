@@ -51,7 +51,7 @@ function DownloadLink({ file }: { file: string }) {
     <a
       href={`${BRAND_KIT_PATH}/${file}`}
       download
-      class="label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-600 transition-colors duration-200 hover:text-forest"
+      class="label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-600 transition-colors duration-200 hover:text-brand"
     >
       <span>Download PNG</span>
       <DownloadIcon />
@@ -170,7 +170,7 @@ export function BrandKit() {
 
       <footer class="shell flex flex-col gap-4 py-8 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <span>© {new Date().getFullYear()} Mayarin</span>
-        <a href="/" class="text-slate-600 transition-colors hover:text-forest">
+        <a href="/" class="text-slate-600 transition-colors hover:text-brand">
           mayarin.xyz
         </a>
       </footer>

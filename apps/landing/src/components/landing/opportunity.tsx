@@ -3,7 +3,7 @@ export function Opportunity() {
     <section id="opportunity" aria-labelledby="opportunity-title" class="bg-v2-mist">
       <div class="mx-auto w-full max-w-300 border-x border-line px-6 py-20 md:px-10 md:py-28">
         <div class="mx-auto max-w-250">
-          <p class="flex items-center gap-3 text-sm font-semibold text-forest">
+          <p class="flex items-center gap-3 text-sm font-semibold text-brand">
             <svg
               width="20"
               height="20"

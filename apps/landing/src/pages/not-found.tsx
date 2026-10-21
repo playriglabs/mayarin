@@ -12,7 +12,7 @@ export function NotFound() {
           </p>
           <a
             href="/"
-            class="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest"
+            class="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
           >
             Back to home
           </a>

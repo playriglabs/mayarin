@@ -13,7 +13,7 @@ export function Action({
   return (
     <a
       href={href}
-      class="inline-flex size-12 shrink-0 items-center justify-center gap-3 rounded-full bg-ink p-0 text-sm font-medium text-white transition-colors duration-200 hover:bg-forest sm:size-auto sm:min-h-12 sm:px-6 sm:py-3"
+      class="inline-flex size-12 shrink-0 items-center justify-center gap-3 rounded-full bg-ink p-0 text-sm font-medium text-white transition-colors duration-200 hover:bg-brand sm:size-auto sm:min-h-12 sm:px-6 sm:py-3"
     >
       <span class="sr-only sm:not-sr-only">{children}</span>
       <ArrowRight />
@@ -34,11 +34,11 @@ export function SectionIntro({
 }) {
   return (
     <div
-      class={clsx("max-w-180 [&.text-center]:mx-auto [&_h2_span]:text-forest", {
+      class={clsx("max-w-180 [&.text-center]:mx-auto [&_h2_span]:text-brand", {
         "text-center": centered,
       })}
     >
-      <p class="mb-3 text-[15px] font-medium font-sans text-forest">{label}</p>
+      <p class="mb-3 text-[15px] font-medium font-sans text-brand">{label}</p>
       <h2>{title}</h2>
       {children && (
         <div
@@ -83,14 +83,14 @@ export function DashboardPreview({
   };
 
   return (
-    <div class="overflow-hidden rounded-t-xl border border-line bg-paper shadow-[0_0_0_8px_#ffffff66,0_0_60px_#1f6f5410] md:rounded-t-2xl">
+    <div class="overflow-hidden rounded-t-xl border border-line bg-paper shadow-[0_0_0_8px_#ffffff66,0_0_60px_#2563eb10] md:rounded-t-2xl">
       <div
         class="flex h-9 items-center gap-1.5 border-b border-line/60 bg-v2-mist/40 px-4 [&>span]:size-1.5 [&>span]:rounded-full [&>i]:mx-auto [&>i]:h-3 [&>i]:w-32 [&>i]:rounded-sm [&>i]:bg-ink/3"
         aria-hidden="true"
       >
         <span class="bg-red-400/80" />
         <span class="bg-ink/25" />
-        <span class="bg-forest/60" />
+        <span class="bg-brand/60" />
         <i />
       </div>
       {src ? (

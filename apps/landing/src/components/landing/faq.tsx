@@ -67,7 +67,7 @@ function PlusIcon({ open }: { readonly open: boolean }) {
       stroke-linecap="round"
       aria-hidden="true"
       class={clsx(
-        "shrink-0 text-forest transition-transform duration-300 ease-out-expo motion-reduce:transition-none",
+        "shrink-0 text-brand transition-transform duration-300 ease-out-expo motion-reduce:transition-none",
         open && "rotate-45",
       )}
     >
@@ -92,7 +92,7 @@ function Question({ question, answer }: { readonly question: string; readonly an
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen(!open)}
-        class="flex w-full cursor-pointer items-center justify-between gap-6 py-6 text-left font-sans text-lg font-medium transition-colors hover:text-forest"
+        class="flex w-full cursor-pointer items-center justify-between gap-6 py-6 text-left font-sans text-lg font-medium transition-colors hover:text-brand"
       >
         {question}
         <PlusIcon open={open} />

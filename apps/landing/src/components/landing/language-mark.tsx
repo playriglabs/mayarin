@@ -28,7 +28,7 @@ export function LanguageMark({ lang }: { readonly lang: string }) {
       role="img"
       aria-label="Shell script"
     >
-      <rect width="24" height="24" rx="2" fill="#1f6f54" />
+      <rect width="24" height="24" rx="2" fill="#2563eb" />
       <path
         d="m6.5 8.5 3.5 3.5-3.5 3.5M12.5 15.5h5"
         fill="none"

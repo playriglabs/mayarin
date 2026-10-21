@@ -10,7 +10,7 @@ import { useEffect, useId, useRef } from "preact/hooks";
 const ORBITS = [
   {
     path: "M 40 590 A 560 530 0 1 1 1160 590 A 560 530 0 1 1 40 590",
-    className: "stroke-forest/70",
+    className: "stroke-brand/70",
     duration: "34s",
     payments: [
       { code: "IDR", begin: "-3s", x: 124, y: 312 },
@@ -30,7 +30,7 @@ const ORBITS = [
   },
   {
     path: "M 75 590 A 525 205 0 1 1 1125 590 A 525 205 0 1 1 75 590",
-    className: "stroke-forest/50",
+    className: "stroke-brand/50",
     duration: "30s",
     payments: [
       { code: "MYR", begin: "-5s", x: 338, y: 412 },
@@ -56,14 +56,14 @@ function Currency({ code }: { readonly code: AssetCode }) {
     // stays one set of numbers and the breakpoints only say how large it is
     // drawn. `fill-box` pins the origin to the disc — the SVG default would
     // scale it about the centre of the viewBox and fling it off its orbit.
-    <g class="[transform-box:fill-box] [transform-origin:center] scale-[1.85] min-[560px]:scale-[1.35] md:scale-100">
-      <circle r="12" class="fill-v2-mist stroke-forest/35" stroke-width="1" />
+    <g class="transform-fill origin-center scale-[1.85] min-[560px]:scale-[1.35] md:scale-100">
+      <circle r="12" class="fill-v2-mist stroke-brand/35" stroke-width="1" />
       <text
         text-anchor="middle"
         dominant-baseline="central"
         // Two-character symbols would otherwise touch the disc's edge.
         class={clsx(
-          "fill-forest/80 font-sans font-normal",
+          "fill-brand/80 font-sans font-normal",
           symbol.length > 2 ? "text-[8px]" : symbol.length > 1 ? "text-[10px]" : "text-[12px]",
         )}
       >

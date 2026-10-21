@@ -263,7 +263,7 @@ export function Capabilities() {
               aria-haspopup={interactive ? "dialog" : undefined}
               class={clsx(
                 "relative flex w-full min-w-0 appearance-none flex-col overflow-hidden rounded-3xl border border-line bg-v2-mist/60 p-7 text-left transition-colors duration-380 ease-out-expo md:p-9",
-                interactive && "group cursor-pointer hover:border-forest/25",
+                interactive && "group cursor-pointer hover:border-brand/25",
               )}
             >
               <div class="flex w-full min-w-0 items-start justify-between gap-5">

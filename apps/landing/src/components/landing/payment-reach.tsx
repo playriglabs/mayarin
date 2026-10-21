@@ -42,13 +42,13 @@ export function PaymentReach() {
         <span class="text-slate-600">Let them pay their way, while you get paid yours.</span>
       </h2>
 
-      <div class="relative isolate -mx-6 mt-10 overflow-hidden bg-linear-to-br from-v2-mist via-v2-sage to-forest px-5 py-10 sm:mx-0 sm:rounded-2xl sm:px-10 md:mt-14 md:px-16 md:py-16">
+      <div class="relative isolate -mx-6 mt-10 overflow-hidden bg-linear-to-br from-v2-mist via-v2-sky to-brand px-5 py-10 sm:mx-0 sm:rounded-2xl sm:px-10 md:mt-14 md:px-16 md:py-16">
         <div
           aria-hidden="true"
           class="pointer-events-none absolute -right-20 -top-40 -z-10 size-150 rounded-full border-60 border-paper/15"
         />
         <div class="relative mx-auto grid max-w-210 items-center gap-5 md:grid-cols-2 md:gap-0">
-          <div class="rounded-2xl border border-line bg-paper p-6 shadow-lg shadow-forest/5 md:p-8">
+          <div class="rounded-2xl border border-line bg-paper p-6 shadow-lg shadow-brand/5 md:p-8">
             <div class="flex items-center justify-between gap-3">
               <span class="text-sm font-semibold">Mayarin checkout</span>
             </div>
@@ -63,20 +63,20 @@ export function PaymentReach() {
               {LOCAL_METHODS.map((method, index) => (
                 <div
                   key={method.name}
-                  class={`flex items-center gap-2.5 rounded-lg border px-3 py-4 ${index === 0 ? "border-forest bg-v2-mist" : "border-line"}`}
+                  class={`flex items-center gap-2.5 rounded-lg border px-3 py-4 ${index === 0 ? "border-brand bg-v2-mist" : "border-line"}`}
                 >
-                  <PaymentMethodIcon kind={method.kind} class="size-5 shrink-0 text-forest" />
+                  <PaymentMethodIcon kind={method.kind} class="size-5 shrink-0 text-brand" />
                   <p class="text-xs font-semibold">{method.name}</p>
                 </div>
               ))}
             </div>
-            <div class="mt-6 rounded-lg bg-forest px-4 py-3 text-center text-sm font-medium text-paper">
+            <div class="mt-6 rounded-lg bg-brand px-4 py-3 text-center text-sm font-medium text-paper">
               Pay with bank transfer
             </div>
           </div>
 
-          <div class="relative rounded-2xl border border-line bg-paper p-6 shadow-xl shadow-forest/10 md:-ml-6 md:translate-y-8 md:p-8">
-            <div class="flex size-10 items-center justify-center rounded-full bg-v2-sage text-forest">
+          <div class="relative rounded-2xl border border-line bg-paper p-6 shadow-xl shadow-brand/10 md:-ml-6 md:translate-y-8 md:p-8">
+            <div class="flex size-10 items-center justify-center rounded-full bg-v2-sky text-brand">
               <Check />
             </div>
             <p class="mt-5 text-lg font-semibold tracking-tight">Your sale. Settled.</p>
