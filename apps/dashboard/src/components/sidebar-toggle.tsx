@@ -1,4 +1,4 @@
-import { CaretLineLeftIcon } from "@phosphor-icons/react";
+import { SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -32,16 +32,7 @@ export default function SidebarToggle() {
       aria-expanded={!collapsed}
       aria-controls="dashboard-sidebar"
     >
-      <CaretLineLeftIcon
-        size={20}
-        weight="bold"
-        aria-hidden="true"
-        className={
-          collapsed
-            ? "rotate-180 transition-transform duration-200"
-            : "transition-transform duration-200"
-        }
-      />
+      <SidebarSimpleIcon size={20} weight="regular" aria-hidden="true" />
     </Button>
   );
 }
