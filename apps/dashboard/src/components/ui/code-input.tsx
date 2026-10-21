@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { Fragment, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,9 +39,14 @@ export interface CodeInputProps {
   readonly onComplete?: (code: string) => void;
   readonly labelledBy?: string;
   readonly describedBy?: string;
+  /** Letters and digits instead of digits only; what is typed is upper-cased. */
+  readonly alphanumeric?: boolean;
+  /** A dash is drawn after every this many boxes, as in `XXXX-XXXX`. */
+  readonly groupSize?: number;
 }
 
 const DIGITS_ONLY = /\D/g;
+const NOT_ALPHANUMERIC = /[^A-Za-z0-9]/g;
 
 export function CodeInput({
   id,
@@ -53,6 +58,8 @@ export function CodeInput({
   onComplete,
   labelledBy,
   describedBy,
+  alphanumeric = false,
+  groupSize,
 }: CodeInputProps) {
   const boxes = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length }, (_, index) => value[index] ?? "");
@@ -71,7 +78,9 @@ export function CodeInput({
   }
 
   function onBoxChange(index: number, raw: string) {
-    const typed = raw.replace(DIGITS_ONLY, "");
+    const typed = alphanumeric
+      ? raw.replace(NOT_ALPHANUMERIC, "").toUpperCase()
+      : raw.replace(DIGITS_ONLY, "");
     if (typed === "") return;
 
     // One character is a keystroke; more is a paste or an autofill, and it
@@ -118,42 +127,55 @@ export function CodeInput({
       className="m-0 flex min-w-0 items-center gap-1 border-0 p-0"
     >
       {digits.map((digit, index) => (
-        <input
-          // biome-ignore lint/suspicious/noArrayIndexKey: position IS the identity of a box — digits move between boxes on every edit, so the value cannot key the list, and the list never reorders.
-          key={`${id}-${index}`}
-          id={index === 0 ? id : `${id}-${index}`}
-          ref={(element) => {
-            boxes.current[index] = element;
-          }}
-          value={digit}
-          onChange={(event) => onBoxChange(index, event.target.value)}
-          onKeyDown={(event) => onKeyDown(index, event)}
-          // Selects on focus so typing over a filled box replaces rather than
-          // appends, which is what a second attempt at one digit expects.
-          onFocus={(event) => event.currentTarget.select()}
-          inputMode="numeric"
-          // Not `type="number"`: a spinner, a scroll-wheel hazard, and a leading
-          // zero that some browsers eat.
-          type="text"
-          autoComplete={index === 0 ? "one-time-code" : "off"}
-          // `maxLength` is the typing bound, not the paste bound — a paste
-          // arrives in `onChange` whole and is spread before this applies.
-          maxLength={length}
-          aria-label={`Digit ${index + 1} of ${length}`}
-          aria-invalid={invalid || undefined}
-          className={cn(
-            "h-16 w-full min-w-0 rounded-lg border border-input bg-card text-center",
-            // An arbitrary size, not a scale token: `--text-*: initial` closes
-            // this app's type scale at four sizes, so `text-3xl` and friends
-            // compile to nothing and the digits silently stay at body size.
-            // One oversized control does not earn a fifth shared token.
-            "font-mono text-[28px] leading-none text-foreground tabular-nums caret-transparent",
-            "transition-colors focus-visible:border-ring focus-visible:outline-none",
-            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",
-            "disabled:bg-muted disabled:text-subtle-foreground",
-            invalid && "border-destructive",
-          )}
-        />
+        // biome-ignore lint/suspicious/noArrayIndexKey: position IS the identity of a box — digits move between boxes on every edit, so the value cannot key the list, and the list never reorders.
+        <Fragment key={`${id}-${index}`}>
+          <input
+            id={index === 0 ? id : `${id}-${index}`}
+            ref={(element) => {
+              boxes.current[index] = element;
+            }}
+            value={digit}
+            onChange={(event) => onBoxChange(index, event.target.value)}
+            onKeyDown={(event) => onKeyDown(index, event)}
+            // Selects on focus so typing over a filled box replaces rather than
+            // appends, which is what a second attempt at one digit expects.
+            onFocus={(event) => event.currentTarget.select()}
+            inputMode={alphanumeric ? "text" : "numeric"}
+            // Not `type="number"`: a spinner, a scroll-wheel hazard, and a leading
+            // zero that some browsers eat.
+            type="text"
+            autoComplete={index === 0 && !alphanumeric ? "one-time-code" : "off"}
+            // `maxLength` is the typing bound, not the paste bound — a paste
+            // arrives in `onChange` whole and is spread before this applies.
+            maxLength={length}
+            aria-label={`${alphanumeric ? "Character" : "Digit"} ${index + 1} of ${length}`}
+            aria-invalid={invalid || undefined}
+            className={cn(
+              "w-full min-w-0 rounded-lg border border-input bg-card text-center",
+              // Eight boxes share the row, so a fixed height makes them tall slivers;
+              // a square keeps them boxes at whatever width the row gives them.
+              groupSize === undefined ? "h-16" : "aspect-square",
+              // An arbitrary size, not a scale token: `--text-*: initial` closes
+              // this app's type scale at four sizes, so `text-3xl` and friends
+              // compile to nothing and the digits silently stay at body size.
+              // One oversized control does not earn a fifth shared token.
+              "font-mono leading-none text-foreground tabular-nums caret-transparent",
+              groupSize === undefined ? "text-[28px]" : "text-[32px]",
+              "transition-colors focus-visible:border-ring focus-visible:outline-none",
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",
+              "disabled:bg-muted disabled:text-subtle-foreground",
+              invalid && "border-destructive",
+            )}
+          />
+          {groupSize !== undefined && (index + 1) % groupSize === 0 && index < length - 1 ? (
+            <span
+              aria-hidden="true"
+              className="w-3 shrink-0 text-center font-mono text-lg text-muted-foreground"
+            >
+              -
+            </span>
+          ) : null}
+        </Fragment>
       ))}
     </fieldset>
   );

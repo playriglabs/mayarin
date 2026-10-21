@@ -18,9 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { registerStepUpHost, type StepUpPrompt } from "@/lib/mfa-step-up";
 
+/** A recovery code is eight characters shown as two groups of four: `XXXX-XXXX`. */
+const RECOVERY_CODE_LENGTH = 8;
+const RECOVERY_GROUP_SIZE = 4;
 export function MfaStepUpHost() {
   const [prompt, setPrompt] = useState<StepUpPrompt | null>(null);
   const [code, setCode] = useState("");
@@ -60,7 +62,7 @@ export function MfaStepUpHost() {
             className="flex flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
-              if (recovery ? code.trim() !== "" : code.length === 6) finishCode(code.trim());
+              if (code.length === (recovery ? RECOVERY_CODE_LENGTH : 6)) finishCode(code);
             }}
           >
             <DialogHeader>
@@ -69,28 +71,17 @@ export function MfaStepUpHost() {
                 Enter the 6-digit code from your authenticator app, or one of your recovery codes.
               </DialogDescription>
             </DialogHeader>
-            {recovery ? (
-              <Input
-                autoFocus
-                autoComplete="off"
-                placeholder="XXXX-XXXX"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                aria-invalid={prompt?.kind === "code" && prompt.invalid}
-                aria-describedby="mfa-step-up-error"
-                className="h-12 text-center text-lg tracking-widest"
-              />
-            ) : (
-              <CodeInput
-                id="mfa-step-up-code"
-                value={code}
-                onChange={setCode}
-                length={6}
-                invalid={prompt?.kind === "code" && prompt.invalid}
-                describedBy="mfa-step-up-error"
-                onComplete={(next) => finishCode(next)}
-              />
-            )}
+            <CodeInput
+              key={recovery ? "recovery" : "totp"}
+              id="mfa-step-up-code"
+              value={code}
+              onChange={setCode}
+              length={recovery ? RECOVERY_CODE_LENGTH : 6}
+              {...(recovery ? { groupSize: RECOVERY_GROUP_SIZE, alphanumeric: true } : {})}
+              invalid={prompt?.kind === "code" && prompt.invalid}
+              describedBy="mfa-step-up-error"
+              onComplete={(next) => finishCode(next)}
+            />
             <button
               type="button"
               className="cursor-pointer self-start text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
@@ -110,7 +101,10 @@ export function MfaStepUpHost() {
               <Button type="button" variant="secondary" onClick={() => finishCode(null)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={recovery ? code.trim() === "" : code.length !== 6}>
+              <Button
+                type="submit"
+                disabled={code.length !== (recovery ? RECOVERY_CODE_LENGTH : 6)}
+              >
                 Confirm
               </Button>
             </DialogFooter>

@@ -30,6 +30,8 @@ import { withQuery } from "@/lib/with-query";
 import { isMfaChallenge } from "@/types/auth";
 
 const MFA_CODE_LENGTH = 6;
+const RECOVERY_CODE_LENGTH = 8;
+const RECOVERY_GROUP_SIZE = 4;
 
 type FormState =
   | { readonly status: "idle" }
@@ -50,7 +52,7 @@ function LoginForm() {
   /** Set once the password is accepted and a code is owed; no session exists yet. */
   const [challenge, setChallenge] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  /** A recovery code is eight characters, so it does not fit six digit boxes. */
+  /** A recovery code is eight characters, so it gets its own boxes, not the six digit ones. */
   const [useRecovery, setUseRecovery] = useState(false);
   const submitting = login.isPending || loginMfa.isPending || state.status === "submitting";
   const blocked = state.status === "blocked";
@@ -97,8 +99,7 @@ function LoginForm() {
   function submitCode(submitted: string) {
     const value = submitted.trim();
     if (challenge === null || submitting) return;
-    if (!useRecovery && value.length !== MFA_CODE_LENGTH) return;
-    if (value === "") return;
+    if (value.length !== (useRecovery ? RECOVERY_CODE_LENGTH : MFA_CODE_LENGTH)) return;
     setState({ status: "submitting" });
     loginMfa.mutate(
       { challenge, code: value },
@@ -192,17 +193,18 @@ function LoginForm() {
                 </button>
               </div>
               {useRecovery ? (
-                <Input
+                <CodeInput
                   id="login-mfa-code"
-                  autoFocus
-                  placeholder="XXXX-XXXX"
-                  autoComplete="off"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={setCode}
+                  length={RECOVERY_CODE_LENGTH}
+                  groupSize={RECOVERY_GROUP_SIZE}
+                  alphanumeric
                   disabled={submitting}
-                  aria-invalid={codeError}
-                  aria-describedby={codeError ? "login-error" : undefined}
-                  className="h-12 px-4 text-center text-lg tracking-widest"
+                  invalid={codeError}
+                  labelledBy="login-mfa-label"
+                  {...(codeError ? { describedBy: "login-error" } : {})}
+                  onComplete={(next) => submitCode(next)}
                 />
               ) : (
                 <CodeInput
@@ -232,7 +234,7 @@ function LoginForm() {
           <Button
             type="submit"
             disabled={
-              submitting || (useRecovery ? code.trim() === "" : code.length !== MFA_CODE_LENGTH)
+              submitting || code.length !== (useRecovery ? RECOVERY_CODE_LENGTH : MFA_CODE_LENGTH)
             }
             className="login-submit mt-2 h-12 w-full rounded-full px-6 text-base"
           >
