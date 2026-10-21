@@ -1,6 +1,6 @@
 import { type ReactNode, useId, useState } from "react";
 import { AssetLogo } from "../../shared/asset-logo.tsx";
-import { ChainLabel } from "../../shared/chain-logo.tsx";
+import { ChainLabel, ChainLogo } from "../../shared/chain-logo.tsx";
 import { walletAmount } from "../../shared/money.ts";
 import { chevron } from "../../shared/ui.ts";
 import type { Deposit } from "./types.ts";
@@ -40,15 +40,23 @@ export function DepositCard({
     <>
       <div className="mt-6 overflow-hidden rounded-2xl border border-line">
         <div className="flex flex-col items-center gap-6 p-5 sm:flex-row sm:items-center">
-          {deposit.uri !== null && (
-            <div className="shrink-0 rounded-xl bg-white p-2">
-              <img
-                className="block size-36"
-                alt={`QR payment ${deposit.amount.asset} at ${deposit.chain}`}
-                src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
-              />
-            </div>
-          )}
+          {/* The bare address, not the payment URI: an exchange or a Phantom scan
+              reads an address, and the amount is on the card to type or copy. The
+              token and its network sit over the middle, which the code's
+              error correction (`level=high`) is sized to lose. */}
+          <div className="relative shrink-0 rounded-xl bg-white p-2">
+            <img
+              className="block size-36"
+              alt={`QR address for ${deposit.amount.asset} at ${deposit.chain}`}
+              src={`/checkout/qr?level=high&value=${encodeURIComponent(deposit.address)}`}
+            />
+            <span className="absolute top-1/2 left-1/2 grid size-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white">
+              <AssetLogo symbol={deposit.amount.asset} size={32} />
+              <span className="absolute -right-0.5 -bottom-0.5 grid size-4.5 place-items-center rounded-full bg-white">
+                <ChainLogo chain={deposit.chain} size={14} className="size-3.5" />
+              </span>
+            </span>
+          </div>
           <div className="flex min-w-0 flex-1 flex-col gap-4 text-center sm:text-left">
             <div>
               <span className="block text-xs text-muted">Send exactly</span>

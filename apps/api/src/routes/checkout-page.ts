@@ -101,7 +101,9 @@ export function checkoutPageRoutes(container: Container): Hono {
       ? undefined
       : ((linkId === undefined ? undefined : await merchantLogoMark(container, linkId)) ??
         (await mayarinMark()));
-    const svg = await qrSvg(value, mark);
+    // A caller that lays its own badge over the code asks for the redundancy
+    // that survives it.
+    const svg = await qrSvg(value, mark, c.req.query("level") === "high");
     if (png) return c.body(await qrPng(svg));
     return c.body(svg);
   });
@@ -322,12 +324,12 @@ interface QrMark {
   readonly source: string;
 }
 
-/** Without a `mark` the QR is plain. */
-async function qrSvg(value: string, mark?: QrMark): Promise<string> {
+/** Without a `mark` the QR is plain, and without `high` it is the lighter code. */
+async function qrSvg(value: string, mark?: QrMark, high = false): Promise<string> {
   const svg = await qrToString(value, {
     type: "svg",
     margin: 1,
-    errorCorrectionLevel: mark === undefined ? "M" : "H",
+    errorCorrectionLevel: mark === undefined && !high ? "M" : "H",
   });
   return mark === undefined ? svg : withMark(svg, mark);
 }

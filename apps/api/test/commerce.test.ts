@@ -582,6 +582,16 @@ describe("hosted checkout", () => {
     expect(await response.text()).toContain("<svg");
   });
 
+  test("level=high renders the same value with more error correction", async () => {
+    const harness = createApiHarness();
+    const value = "0x1111111111111111111111111111111111111111";
+    const plain = await (await harness.app.request(`/checkout/qr?value=${value}`)).text();
+    const high = await (await harness.app.request(`/checkout/qr?value=${value}&level=high`)).text();
+
+    expect(high).toContain("<svg");
+    expect(high).not.toBe(plain);
+  });
+
   test("serves a self-contained branded payment-link QR as a PNG download", async () => {
     const harness = createApiHarness();
     const svgResponse = await harness.app.request(
