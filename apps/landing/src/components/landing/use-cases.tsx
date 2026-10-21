@@ -45,7 +45,7 @@ export function UseCases() {
           Solutions for every industry
         </p>
         <h2 class="mt-6 text-balance">
-          <span class="text-forest">One integration.</span> Every way your money moves.
+          <span class="text-brand">One integration.</span> Every way your money moves.
         </h2>
       </Reveal>
 
@@ -74,8 +74,8 @@ export function UseCases() {
                 class={clsx(
                   "min-h-11 cursor-pointer rounded-full border px-4 py-2 text-sm transition-colors duration-200 md:px-5 md:text-base",
                   selected
-                    ? "border-forest bg-forest text-paper"
-                    : "border-line text-slate-600 hover:border-forest hover:text-forest",
+                    ? "border-brand bg-brand text-paper"
+                    : "border-line text-slate-600 hover:border-brand hover:text-brand",
                 )}
               >
                 {item.name}
@@ -170,7 +170,7 @@ function CheckoutVisual() {
           class={clsx(
             "-mt-2 flex items-center gap-3 rounded-lg border px-4 py-3 shadow-sm first:mt-0",
             option.selected
-              ? "relative border-forest bg-forest text-paper"
+              ? "relative border-brand bg-brand text-paper"
               : "border-line bg-paper text-ink",
           )}
         >
@@ -202,18 +202,18 @@ function FiatVisual() {
           key={method.name}
           class={clsx(
             "flex w-full items-center gap-3 rounded-lg border bg-paper px-4 py-2.5 shadow-sm",
-            index === 0 ? "border-forest" : "border-line",
+            index === 0 ? "border-brand" : "border-line",
           )}
         >
-          <PaymentMethodIcon kind={method.kind} class="size-4 shrink-0 text-forest" />
+          <PaymentMethodIcon kind={method.kind} class="size-4 shrink-0 text-brand" />
           {method.name}
         </div>
       ))}
-      <span class="h-4 border-l border-dashed border-forest/40" />
-      <div class="flex w-full items-center justify-center gap-2 rounded-lg bg-forest px-4 py-2.5 text-paper shadow-md">
+      <span class="h-4 border-l border-dashed border-brand/40" />
+      <div class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-paper shadow-md">
         <span class="flex -space-x-1.5">
-          <TokenLogo asset="USDC" class="size-5 ring-2 ring-forest" />
-          <TokenLogo asset="USDT" class="size-5 ring-2 ring-forest" />
+          <TokenLogo asset="USDC" class="size-5 ring-2 ring-brand" />
+          <TokenLogo asset="USDT" class="size-5 ring-2 ring-brand" />
         </span>
         Settled in stablecoin
       </div>
@@ -326,7 +326,7 @@ function PayoutsVisual() {
             cx={dot.x}
             cy={dot.y}
             r="1.3"
-            class="fill-forest"
+            class="fill-brand"
             // Fade toward the rim, so the dome reads as round rather than cut.
             opacity={0.15 + 0.45 * (1 - Math.abs(dot.x - 140) / 140)}
           />
@@ -355,7 +355,7 @@ function InvoiceVisual() {
     <div class="w-full max-w-56 rounded-lg border border-line bg-paper p-4 text-left text-xs shadow-sm">
       <div class="flex items-center justify-between">
         <span class="font-medium text-ink">Invoice INV-0042</span>
-        <span class="rounded-full bg-v2-sage px-2 py-0.5 text-forest">Paid</span>
+        <span class="rounded-full bg-v2-sky px-2 py-0.5 text-brand">Paid</span>
       </div>
       <div class="mt-4 space-y-2 text-slate-600">
         <div class="flex justify-between">
@@ -392,7 +392,7 @@ function RecurringVisual() {
           <span
             class={clsx(
               "rounded-full px-2 py-0.5 text-xs",
-              cycle.status === "Paid" ? "bg-v2-sage text-forest" : "bg-v2-mist text-slate-600",
+              cycle.status === "Paid" ? "bg-v2-sky text-brand" : "bg-v2-mist text-slate-600",
             )}
           >
             {cycle.status}
@@ -419,8 +419,8 @@ function CounterVisual() {
   return (
     <div class="rounded-xl border border-line bg-paper p-3 shadow-sm">
       <img
-        src="/images/product/mayarin-qr.png"
-        alt=""
+        src="/images/product/qr-overview.png"
+        alt="qr-overview"
         width={160}
         height={160}
         loading="lazy"

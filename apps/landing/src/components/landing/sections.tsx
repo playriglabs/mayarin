@@ -5,10 +5,10 @@ import { Action, Check, DashboardPreview } from "./ui.tsx";
 
 export function Hero() {
   return (
-    <section class="relative isolate overflow-hidden bg-v2-mist pt-28 sm:pt-32 md:pt-44 [&_h1]:mt-7 [&_h1]:text-[clamp(2.7rem,7.5vw,4.5rem)] [&_h1]:leading-[1.1] md:[&_h1]:leading-[1.04] [&_h1_span]:text-forest">
+    <section class="relative isolate overflow-hidden bg-v2-mist pt-28 sm:pt-32 md:pt-44 [&_h1]:mt-7 [&_h1]:text-[clamp(2.7rem,7.5vw,4.5rem)] [&_h1]:leading-[1.1] md:[&_h1]:leading-[1.04] [&_h1_span]:text-brand">
       <div
         aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-linear-to-t from-v2-sage/80 to-transparent"
+        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-linear-to-t from-v2-sky/80 to-transparent"
       />
       <div class="mx-auto w-full max-w-300 px-6 md:px-10 text-center">
         <div class="relative z-20">
@@ -29,7 +29,7 @@ export function Hero() {
           <Reveal delay={240} class="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#use-cases"
-              class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-medium text-paper ring-1 ring-inset ring-forest transition-colors duration-200 hover:bg-paper hover:text-ink hover:ring-line focus-visible:outline-ink sm:px-6"
+              class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-medium text-paper ring-1 ring-inset ring-brand transition-colors duration-200 hover:bg-paper hover:text-ink hover:ring-line focus-visible:outline-ink sm:px-6"
             >
               See the use cases
             </a>
@@ -39,7 +39,7 @@ export function Hero() {
         <div class="relative z-0 isolate mx-auto mt-14 max-w-255 px-1 pt-3 md:mt-24 md:max-w-290 md:px-4">
           <PaymentOrbits />
           <ScrollTilt>
-            <DashboardPreview src="/images/product/mayarin-overview.png" />
+            <DashboardPreview src="/images/product/dashboard-overview.png" />
           </ScrollTilt>
         </div>
       </div>
@@ -49,7 +49,7 @@ export function Hero() {
 
 export function ValueStrip() {
   return (
-    <div class="grid gap-5 border-b border-line py-8 text-xs text-slate-600 md:grid-cols-3 md:gap-8 [&_p]:flex [&_p]:items-center [&_p]:justify-center [&_p]:gap-2 [&_svg]:shrink-0 [&_svg]:text-forest mx-auto w-full max-w-300 px-6 md:px-10">
+    <div class="grid gap-5 border-b border-line py-8 text-xs text-slate-600 md:grid-cols-3 md:gap-8 [&_p]:flex [&_p]:items-center [&_p]:justify-center [&_p]:gap-2 [&_svg]:shrink-0 [&_svg]:text-brand mx-auto w-full max-w-300 px-6 md:px-10">
       {[
         "Your prices, in local currency",
         "Your customers, paying their way",
