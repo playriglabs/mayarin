@@ -3,6 +3,7 @@ import { checkoutBody } from "../features/link/checkout-body.ts";
 import type { LinkBootstrap } from "../features/link/types.ts";
 import {
   canContinueWithQuote,
+  createQuoteCache,
   quoteBody,
   quoteEstimateFrom,
 } from "../features/link/use-quote-estimate.ts";
@@ -280,5 +281,25 @@ describe("flagEmoji", () => {
   test("turns a country code into its flag", () => {
     expect(flagEmoji("ID")).toBe("🇮🇩");
     expect(flagEmoji("ph")).toBe("🇵🇭");
+  });
+});
+
+describe("quote cache", () => {
+  const priced = { status: "available", display: "$ 1.00" } as const;
+
+  test("reuses a priced estimate for 30 seconds, then asks again", () => {
+    let now = 0;
+    const cache = createQuoteCache(30_000, () => now);
+    cache.set("k", priced);
+    now = 29_999;
+    expect(cache.get("k")).toBe(priced);
+    now = 30_000;
+    expect(cache.get("k")).toBeUndefined();
+  });
+
+  test("keeps nothing that is not a price, so a transient failure is retried", () => {
+    const cache = createQuoteCache(30_000, () => 0);
+    cache.set("k", { status: "unavailable", display: "Unavailable", message: "no" });
+    expect(cache.get("k")).toBeUndefined();
   });
 });

@@ -58,6 +58,25 @@ export function quoteBody(typedAmount: string, currency: string, rail: Rail) {
   };
 }
 
+/** How long a priced estimate is reused before the same input asks the rate source again. */
+const QUOTE_TTL_MS = 30_000;
+
+/** Estimates by request body, each good for `ttlMs`. Only a priced estimate is worth keeping. */
+export function createQuoteCache(ttlMs: number, now: () => number = Date.now) {
+  const held = new Map<string, { readonly estimate: QuoteEstimate; readonly at: number }>();
+  return {
+    get(key: string): QuoteEstimate | undefined {
+      const entry = held.get(key);
+      return entry !== undefined && now() - entry.at < ttlMs ? entry.estimate : undefined;
+    },
+    set(key: string, estimate: QuoteEstimate): void {
+      if (estimate.status === "available") held.set(key, { estimate, at: now() });
+    },
+  };
+}
+
+const quoteCache = createQuoteCache(QUOTE_TTL_MS);
+
 /**
  * The "estimated total in <asset>" line.
  *
@@ -68,7 +87,10 @@ export function quoteBody(typedAmount: string, currency: string, rail: Rail) {
  * first network's answer.
  *
  * Debounced rather than fired per keystroke: the quote reads a live rate
- * source, and a request per character is a request per character.
+ * source, and a request per character is a request per character. The same
+ * amount, currency and rail inside 30 seconds reuses the last priced estimate
+ * instead of asking again, so flipping between rails or retyping a figure does
+ * not hit the rate source each time.
  */
 export function useQuoteEstimate(
   typedAmount: string,
@@ -83,6 +105,13 @@ export function useQuoteEstimate(
       return;
     }
 
+    const body = JSON.stringify(quoteBody(typedAmount, currency, rail));
+    const cached = quoteCache.get(body);
+    if (cached !== undefined) {
+      setEstimate(cached);
+      return;
+    }
+
     const controller = new AbortController();
     setEstimate(CALCULATING);
     const debounce = setTimeout(async () => {
@@ -90,11 +119,13 @@ export function useQuoteEstimate(
         const response = await fetch("/v1/quotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(quoteBody(typedAmount, currency, rail)),
+          body,
           signal: controller.signal,
         });
         const payload: unknown = await response.json();
-        setEstimate(quoteEstimateFrom(payload));
+        const next = quoteEstimateFrom(payload);
+        quoteCache.set(body, next);
+        setEstimate(next);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setEstimate({
