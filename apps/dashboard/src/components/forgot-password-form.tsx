@@ -82,6 +82,7 @@ function ForgotPasswordForm() {
               <Input
                 id="reset-code"
                 inputMode="numeric"
+                placeholder="Enter one time code"
                 autoComplete="one-time-code"
                 maxLength={6}
                 required
@@ -98,6 +99,7 @@ function ForgotPasswordForm() {
                 id="reset-password"
                 type="password"
                 autoComplete="new-password"
+                placeholder="Enter your password"
                 minLength={12}
                 required
                 value={newPassword}
@@ -151,6 +153,7 @@ function ForgotPasswordForm() {
               </FieldLabel>
               <Input
                 id="forgot-email"
+                placeholder="Enter your email"
                 type="email"
                 autoComplete="email"
                 required
