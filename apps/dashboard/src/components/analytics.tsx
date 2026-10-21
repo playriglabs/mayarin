@@ -625,7 +625,7 @@ function Dashboards({ data }: { readonly data: AnalyticsResponse }) {
             aria-current={dashboard === entry.value ? "page" : undefined}
             onClick={() => choose(entry.value)}
             className={cn(
-              "-mb-px shrink-0 border-b-2 px-3 pb-3 text-base transition-colors",
+              "-mb-px shrink-0 border-b-2 cursor-pointer px-3 pb-3 text-base transition-colors",
               dashboard === entry.value
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
