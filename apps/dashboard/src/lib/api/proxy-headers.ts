@@ -14,6 +14,7 @@ const REQUEST_HEADERS = [
   "idempotency-key",
   "user-agent",
   "x-csrf-token",
+  "x-mfa-code",
 ];
 
 const RESPONSE_HEADERS = [

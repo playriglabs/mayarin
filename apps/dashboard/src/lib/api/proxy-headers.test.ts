@@ -22,6 +22,11 @@ describe("apiProxyHeaders", () => {
     expect(headers.has("x-real-ip")).toBe(false);
   });
 
+  test("forwards the step-up code that fund-moving routes demand", () => {
+    const headers = apiProxyHeaders(new Headers({ "x-mfa-code": "123456" }));
+    expect(headers.get("x-mfa-code")).toBe("123456");
+  });
+
   test("drops every request header that is not on the allowlist", () => {
     const headers = apiProxyHeaders(
       new Headers({
