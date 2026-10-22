@@ -11,13 +11,15 @@ import { CoinbasePriceOracle } from "../src/adapter.ts";
 const OBSERVED_AT = new Date("2026-09-05T08:47:37.880Z");
 const ETH_USDC: Record<string, string> = { "ETH/USDC": "ETH-USD" };
 
-function tickerBody(overrides: Partial<{ price: string; time: string }> = {}) {
+// The real ticker also carries the last trade (`price`, `time`), which is deliberately ignored: a
+// product that has not traded for a minute still has a live book.
+function tickerBody(overrides: Partial<{ bid: string; ask: string; time: string }> = {}) {
   return {
-    ask: "2455.33",
-    bid: "2455.31",
+    ask: overrides.ask ?? "2455.33",
+    bid: overrides.bid ?? "2455.31",
     volume: "84270.73304125",
     trade_id: 840_769_402,
-    price: overrides.price ?? "2455.32",
+    price: "2455.32",
     size: "0.610918",
     time: overrides.time ?? OBSERVED_AT.toISOString(),
   };
@@ -85,7 +87,7 @@ describe("CoinbasePriceOracle", () => {
   // A near-peg pair is where a truncating adapter looks correct and is not:
   // 1.00003 must not read back as 1.
   test("carries the full precision of a near-peg pair", async () => {
-    const { fn } = stubFetch(() => json(tickerBody({ price: "1.00003" })));
+    const { fn } = stubFetch(() => json(tickerBody({ bid: "1.00002", ask: "1.00004" })));
     const price = await oracle(fn, { "USDT/USDC": "USDT-USD" }).reference("USDT", "USDC");
 
     expect(price.scaledRate).toBe(scaledRateFrom(1_000_030n, 1n));
@@ -115,7 +117,15 @@ describe("CoinbasePriceOracle", () => {
     expect(calls).toHaveLength(2);
   });
 
-  test("a cached observation keeps the trade's own timestamp, so it still ages", async () => {
+  test("a product that has not traded for hours is current while its book is live", async () => {
+    const stale = new Date(OBSERVED_AT.getTime() - 3 * 3_600_000).toISOString();
+    const { fn } = stubFetch(() => json(tickerBody({ time: stale })));
+    const price = await oracle(fn).reference("ETH", "USDC");
+
+    expect(price.observedAt).toEqual(OBSERVED_AT);
+  });
+
+  test("a cached observation keeps the time it was read, so it still ages", async () => {
     const { fn } = stubFetch(() => json(tickerBody()));
     const clock = new FixedClock(OBSERVED_AT);
     const source = oracle(fn, ETH_USDC, { clock, cacheSeconds: 10 });
@@ -168,23 +178,23 @@ describe("CoinbasePriceOracle", () => {
     }
   });
 
-  test("rejects an unreadable trade time rather than dating it now", async () => {
-    const { fn } = stubFetch(() => json(tickerBody({ time: "not-a-time" })));
-    expect(oracle(fn).reference("ETH", "USDC")).rejects.toThrow(ProviderError);
-  });
-
   test("rejects a price that is not a positive decimal", async () => {
-    const { fn } = stubFetch(() => json(tickerBody({ price: "-1.5" })));
+    const { fn } = stubFetch(() => json(tickerBody({ bid: "-1.5" })));
     expect(oracle(fn).reference("ETH", "USDC")).rejects.toThrow(ProviderError);
   });
 
-  test("rejects a zero price", async () => {
-    const { fn } = stubFetch(() => json(tickerBody({ price: "0" })));
+  test("rejects an empty side of the book", async () => {
+    const { fn } = stubFetch(() => json(tickerBody({ bid: "0" })));
     expect(oracle(fn).reference("ETH", "USDC")).rejects.toThrow(ProviderError);
+  });
+
+  test("rejects a crossed book", async () => {
+    const { fn } = stubFetch(() => json(tickerBody({ bid: "2455.40", ask: "2455.33" })));
+    expect(oracle(fn).reference("ETH", "USDC")).rejects.toThrow(/crossed/i);
   });
 
   test("rejects a response that is not the expected shape", async () => {
-    const { fn } = stubFetch(() => json({ bid: "2455.31" }));
+    const { fn } = stubFetch(() => json({ price: "2455.32", time: OBSERVED_AT.toISOString() }));
     expect(oracle(fn).reference("ETH", "USDC")).rejects.toThrow(ProviderError);
   });
 

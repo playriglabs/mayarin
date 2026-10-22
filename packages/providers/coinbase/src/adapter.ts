@@ -13,11 +13,18 @@
  * `FallbackPriceOracle`, a new payer asset is covered by at least one source on
  * the day it is added.
  *
- * **What it is not.** A single venue's last trade, not a cross-venue aggregate.
+ * **What it is not.** A single venue's book, not a cross-venue aggregate.
  * That is honest for a deviation guard — it is independent of the DEX pool it
  * guards, which is the only property the guard needs — but on a thin pair the
  * aggregate would be the better reference. Prefer it as a secondary source and
  * let `FallbackPriceOracle` cross-check it against the primary.
+ *
+ * **The price is the midpoint of the best bid and ask, dated when it was read.**
+ * The ticker's own `price` is the last trade and `time` its instant, and a product
+ * that has not traded for a minute then reads as stale although its book is live:
+ * CAKE-USD went more than a hundred seconds between trades, which dropped it from
+ * the rails against a sixty second bound while its pool was healthy. A quote on
+ * the book is current the moment it is read.
  *
  * The `feeds` map is deployment configuration from pair to product id, and it
  * owns the equivalence: naming `ETH-USD` as the reference for `ETH/USDC` is the
@@ -39,7 +46,9 @@ import {
 } from "@mayarin/shared";
 import {
   coinbaseTickerSchema,
+  compareDecimal,
   type DecimalPrice,
+  midpoint,
   scaleTickerPrice,
   splitDecimalPrice,
 } from "./ticker.ts";
@@ -53,7 +62,7 @@ export const DEFAULT_COINBASE_ENDPOINT = "https://api.exchange.coinbase.com";
  * path — every quote and every checkout preview reads it. Ten seconds keeps a
  * burst of previews to one request while staying far inside the 60 second
  * freshness bound a deployment typically sets. It cannot fake freshness: what
- * is cached is the trade's own timestamp, so a cached price ages as the guard
+ * is cached is the time it was read, so a cached price ages as the guard
  * expects.
  */
 export const DEFAULT_COINBASE_CACHE_SECONDS = 10;
@@ -123,36 +132,43 @@ export class CoinbasePriceOracle implements PriceOracle {
 
     const body = await this.#ticker(product, from, to);
 
-    const observedAt = new Date(body.time);
-    if (Number.isNaN(observedAt.getTime())) {
-      throw new ProviderError(`Coinbase ticker for ${from} -> ${to} has an unreadable time`, {
-        from,
-        to,
-        product,
-        time: body.time,
-      });
-    }
-
-    let price: DecimalPrice;
+    let bid: DecimalPrice;
+    let ask: DecimalPrice;
     try {
-      price = splitDecimalPrice(body.price);
+      bid = splitDecimalPrice(body.bid);
+      ask = splitDecimalPrice(body.ask);
     } catch (error) {
       throw new ProviderError(
         `Coinbase price for ${from} -> ${to} is not a positive decimal`,
-        { from, to, product, price: body.price },
+        { from, to, product, bid: body.bid, ask: body.ask },
         { cause: error },
       );
     }
-    if (price.significand <= 0n) {
+    if (bid.significand <= 0n || ask.significand <= 0n) {
       throw new ProviderError(`Coinbase price for ${from} -> ${to} is not positive`, {
         from,
         to,
         product,
-        price: body.price,
+        bid: body.bid,
+        ask: body.ask,
+      });
+    }
+    const price = midpoint(bid, ask);
+    if (compareDecimal(bid, ask) > 0) {
+      throw new ProviderError(`Coinbase book for ${from} -> ${to} is crossed`, {
+        from,
+        to,
+        product,
+        bid: body.bid,
+        ask: body.ask,
       });
     }
 
-    const observation: Observation = { price, observedAt, expiresAtMs: nowMs + this.#cacheMs };
+    const observation: Observation = {
+      price,
+      observedAt: new Date(nowMs),
+      expiresAtMs: nowMs + this.#cacheMs,
+    };
     this.#cache.set(product, observation);
     return observation;
   }
