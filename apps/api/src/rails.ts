@@ -27,7 +27,9 @@ import {
   assetDecimals,
   isAssetCode,
   isMayarinError,
+  mapLimit,
   money,
+  StaleCache,
   ValidationError,
 } from "@mayarin/shared";
 import type { Config } from "./config.ts";
@@ -107,12 +109,28 @@ export function chainReceipts(
  */
 export class QuotePricingSource implements RailPricingSource {
   readonly #context: PricingContext;
-  readonly #ttlMs: number;
-  readonly #answers = new Map<string, { readonly at: number; readonly priceable: boolean }>();
+  readonly #answers: StaleCache<boolean>;
 
-  constructor(context: PricingContext, ttlMs = 30_000) {
+  /**
+   * An answer is used for `ttlMs`, then served stale for up to `staleMs` while a new one is
+   * fetched behind it. Pricing a pair is a handful of RPC round trips, and a page that
+   * waited for thirty-odd of them in turn took eighteen seconds from a far region.
+   */
+  constructor(context: PricingContext, ttlMs = 60_000, staleMs = 600_000) {
     this.#context = context;
-    this.#ttlMs = ttlMs;
+    this.#answers = new StaleCache<boolean>({
+      freshMs: ttlMs,
+      staleMs,
+      load: async (key) => {
+        const [chain, asset, settlementAsset] = key.split(":") as [ChainId, AssetCode, AssetCode];
+        const { priceable, settled } = await this.#quotes(settlementAsset, asset, chain);
+        // A retryable failure is not an answer, it is the absence of one. Caching
+        // it hid the rail for the whole TTL after a moment's rate limit or RPC
+        // blip — the merchant saw an asset they accept quietly disappear from the
+        // counter with nothing to act on. Settled answers still cache.
+        return { value: priceable, keep: settled };
+      },
+    });
   }
 
   async canPrice(rail: {
@@ -124,18 +142,23 @@ export class QuotePricingSource implements RailPricingSource {
     // so there is nothing a rate provider could refuse.
     if (rail.asset === rail.settlementAsset) return true;
 
-    const key = `${rail.chain}:${rail.asset}:${rail.settlementAsset}`;
-    const cached = this.#answers.get(key);
-    const now = Date.now();
-    if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
+    return this.#answers.get(`${rail.chain}:${rail.asset}:${rail.settlementAsset}`);
+  }
 
-    const { priceable, settled } = await this.#quotes(rail.settlementAsset, rail.asset, rail.chain);
-    // A retryable failure is not an answer, it is the absence of one. Caching
-    // it hid the rail for the whole TTL after a moment's rate limit or RPC
-    // blip — the merchant saw an asset they accept quietly disappear from the
-    // counter with nothing to act on. Settled answers still cache.
-    if (settled) this.#answers.set(key, { at: now, priceable });
-    return priceable;
+  /**
+   * Prices these pairs ahead of anyone asking, a few at a time, so the first visitor after a
+   * restart finds an answer waiting. Never throws: a pair that cannot be priced is the
+   * ordinary answer `canPrice` already gives.
+   */
+  async warm(
+    rails: readonly {
+      readonly chain: ChainId;
+      readonly asset: AssetCode;
+      readonly settlementAsset: AssetCode;
+    }[],
+    concurrency = 4,
+  ): Promise<void> {
+    await mapLimit(rails, concurrency, (rail) => this.canPrice(rail).catch(() => false));
   }
 
   /**

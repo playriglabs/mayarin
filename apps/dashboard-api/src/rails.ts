@@ -16,7 +16,7 @@
 
 import { type ChainId, isChainId } from "@mayarin/chain";
 import type { ChainReceipt, RailPricingSource } from "@mayarin/payment-intent";
-import { type AssetCode, isAssetCode } from "@mayarin/shared";
+import { type AssetCode, isAssetCode, mapLimit, StaleCache } from "@mayarin/shared";
 import type { Config } from "./config.ts";
 import type { PaymentApiClient } from "./services/payment-api-client.ts";
 
@@ -67,12 +67,24 @@ export function chainReceipts(config: Config): readonly ChainReceipt[] {
  */
 export class PaymentApiPricingSource implements RailPricingSource {
   readonly #payments: PaymentApiClient;
-  readonly #ttlMs: number;
-  readonly #answers = new Map<string, { readonly at: number; readonly priceable: boolean }>();
+  readonly #answers: StaleCache<boolean>;
 
-  constructor(payments: PaymentApiClient, ttlMs = 30_000) {
+  /**
+   * Fresh for `ttlMs`, then served stale for up to `staleMs` while a new answer is fetched
+   * behind the caller. Each probe is an HTTP round trip to the payment API, which prices the
+   * pair over RPC, so a settings screen that waited for every row in turn took ten to twenty
+   * seconds from a far region.
+   */
+  constructor(payments: PaymentApiClient, ttlMs = 60_000, staleMs = 600_000) {
     this.#payments = payments;
-    this.#ttlMs = ttlMs;
+    this.#answers = new StaleCache<boolean>({
+      freshMs: ttlMs,
+      staleMs,
+      load: async (key) => {
+        const [chain, asset, settlementAsset] = key.split(":") as [ChainId, AssetCode, AssetCode];
+        return this.#ask(chain, asset, settlementAsset);
+      },
+    });
   }
 
   async canPrice(rail: {
@@ -83,17 +95,30 @@ export class PaymentApiPricingSource implements RailPricingSource {
     // A payer sending exactly what the merchant settles in needs no conversion.
     if (rail.asset === rail.settlementAsset) return true;
 
-    const key = `${rail.chain}:${rail.asset}:${rail.settlementAsset}`;
-    const cached = this.#answers.get(key);
-    const now = Date.now();
-    if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
-
-    const priceable = await this.#ask(rail.chain, rail.asset, rail.settlementAsset);
-    this.#answers.set(key, { at: now, priceable });
-    return priceable;
+    return this.#answers.get(`${rail.chain}:${rail.asset}:${rail.settlementAsset}`);
   }
 
-  async #ask(chain: ChainId, payerAsset: AssetCode, settlementAsset: AssetCode): Promise<boolean> {
+  /**
+   * Asks about these pairs ahead of anyone, a few at a time, so the first settings screen
+   * after a restart finds the answers waiting. Never throws: a pair the payment API cannot
+   * price is the ordinary answer `canPrice` already gives.
+   */
+  async warm(
+    rails: readonly {
+      readonly chain: ChainId;
+      readonly asset: AssetCode;
+      readonly settlementAsset: AssetCode;
+    }[],
+    concurrency = 4,
+  ): Promise<void> {
+    await mapLimit(rails, concurrency, (rail) => this.canPrice(rail).catch(() => false));
+  }
+
+  async #ask(
+    chain: ChainId,
+    payerAsset: AssetCode,
+    settlementAsset: AssetCode,
+  ): Promise<{ readonly value: boolean; readonly keep: boolean }> {
     try {
       // Probed in **fiat**, not in the settlement asset. `POST /v1/quotes`
       // prices a merchant's own currency into what the payer sends, so a
@@ -113,13 +138,17 @@ export class PaymentApiPricingSource implements RailPricingSource {
         chain,
         settlementAsset,
       );
-      return view.quotes.some((line) => line.asset === payerAsset && line.available);
+      return {
+        value: view.quotes.some((line) => line.asset === payerAsset && line.available),
+        keep: true,
+      };
     } catch {
       // The payment API being unreachable is not evidence that a pair cannot be
       // priced, but it is evidence that nothing can be paid right now — and the
       // honest thing to show a merchant is the rail missing rather than a rail
-      // that would fail if they used it.
-      return false;
+      // that would fail if they used it. Shown now, but not remembered: the payment API
+      // being down for a moment must not hide a rail for the window after it recovers.
+      return { value: false, keep: false };
     }
   }
 }

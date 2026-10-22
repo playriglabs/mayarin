@@ -81,6 +81,22 @@ if (x402 !== undefined) {
   }
 }
 
+// Rail pricing is a handful of RPC round trips per pair, and a buyer's page waits for all of
+// them. Price every pair now, in the background, and again before the answers go stale, so the
+// first buyer after a restart does not pay for it. A failure leaves the pair to be priced when
+// someone asks, as it always was.
+const warmRailPricing = container.warmRailPricing;
+if (warmRailPricing !== undefined) {
+  const RAIL_WARM_INTERVAL_MS = 4 * 60_000;
+  const warm = () =>
+    warmRailPricing().catch((error: unknown) => {
+      console.warn("[api] could not warm rail pricing", error);
+    });
+  void warm();
+  setInterval(() => void warm(), RAIL_WARM_INTERVAL_MS).unref();
+  console.log(`[api] warming rail pricing every ${RAIL_WARM_INTERVAL_MS}ms`);
+}
+
 // The dispatcher runs on its own timer, in the watcher's shape: a failed pass
 // leaves the cursor and the due deliveries where they were, so the next pass
 // repeats them. The guard skips a beat rather than overlapping a slow one —

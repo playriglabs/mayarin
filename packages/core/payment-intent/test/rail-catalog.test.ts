@@ -62,6 +62,91 @@ function catalog(overrides: Partial<ConstructorParameters<typeof DerivedRailCata
   });
 }
 
+describe("DerivedRailCatalog pricing", () => {
+  const MANY: ChainReceipt = {
+    chain: BASE,
+    tokens: Object.fromEntries(
+      [
+        "USDT",
+        "EURC",
+        "DAI",
+        "FDUSD",
+        "USDG",
+        "WETH",
+        "WBTC",
+        "CBBTC",
+        "LINK",
+        "UNI",
+        "AAVE",
+        "ARB",
+      ].map((asset, i) => [asset, `0x${String(i + 1).padStart(40, "0")}`]),
+    ) as ChainReceipt["tokens"],
+  };
+
+  test("prices the pairs together, not one after another, and keeps the order", async () => {
+    let active = 0;
+    let peak = 0;
+    const slow: RailPricingSource = {
+      canPrice: async ({ asset }) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await Bun.sleep(40);
+        active -= 1;
+        return asset !== "DAI";
+      },
+    };
+    const started = performance.now();
+    const report = await catalog({ receipts: [MANY], pricing: slow }).describe(MERCHANT);
+    const elapsed = performance.now() - started;
+
+    // Twelve pairs at forty milliseconds each is nearly half a second in turn.
+    expect(elapsed).toBeLessThan(250);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(8);
+    expect(report.rails.map((rail) => rail.asset)).toEqual([
+      "USDT",
+      "EURC",
+      "FDUSD",
+      "USDG",
+      "WETH",
+      "WBTC",
+      "CBBTC",
+      "LINK",
+      "UNI",
+      "AAVE",
+      "ARB",
+    ]);
+    expect(report.unavailable.map((entry) => ("asset" in entry ? entry.asset : undefined))).toEqual(
+      ["DAI"],
+    );
+  });
+
+  test("asks about the settlement address on every chain together", async () => {
+    let active = 0;
+    let peak = 0;
+    const slowCode: ContractCodeSource = {
+      hasCode: async () => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await Bun.sleep(20);
+        active -= 1;
+        return false;
+      },
+    };
+    await catalog({
+      receipts: [BASE_RECEIPT, { ...BASE_RECEIPT, chain: "ethereum-sepolia" }, ARC_RECEIPT],
+      merchantPolicies: policies({
+        settlementAsset: "USDC",
+        acceptedAssets: [],
+        settlementAddress: SAFE_ON_BASE,
+      }),
+      code: slowCode,
+    }).describe(MERCHANT);
+
+    expect(peak).toBeGreaterThan(1);
+  });
+});
+
 describe("DerivedRailCatalog", () => {
   test("filters assets per chain rather than unioning them", async () => {
     const rails = await catalog().railsFor(MERCHANT);

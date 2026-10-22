@@ -604,6 +604,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchantWallets,
     settlementAddresses: settlementAddressResolver,
     rails,
+    warmRailPricing: async () => undefined,
     ...(options.contractsOn === undefined
       ? {}
       : {
