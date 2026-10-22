@@ -143,7 +143,7 @@ import type {
 } from "@mayarin/x402";
 import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
-import type { Config } from "./config.ts";
+import { type Config, isMainnetDeployment } from "./config.ts";
 import {
   ApiContractPlanner,
   ContractCheckout,
@@ -949,12 +949,18 @@ export function createContainer({
   });
 
   const adapters = new SettlementAdapterRegistry([
-    new MockSettlementAdapter({
-      clock,
-      ...(config.mockWebhookSecret === undefined
-        ? {}
-        : { webhookSecret: config.mockWebhookSecret }),
-    }),
+    // The mock adapter settles without moving value, and a caller may name a
+    // provider per payment, so a mainnet deployment does not register it at all.
+    ...(isMainnetDeployment(config)
+      ? []
+      : [
+          new MockSettlementAdapter({
+            clock,
+            ...(config.mockWebhookSecret === undefined
+              ? {}
+              : { webhookSecret: config.mockWebhookSecret }),
+          }),
+        ]),
     // Backed by Postgres, not memory: the engine asks this adapter what became
     // of a settlement it already recorded, and that question outlives the
     // process that answered the first one.

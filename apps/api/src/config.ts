@@ -1186,6 +1186,15 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
  * evidence — so it exists only where no value can. Anything that is not
  * TransFi's sandbox host fails boot rather than quietly settling real payments.
  */
+/** True when any configured chain, token or router, is a mainnet. */
+export function isMainnetDeployment(
+  data: Pick<RawConfig, "chainAssets" | "paymentRouters">,
+): boolean {
+  return [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
+    (chain) => isChainId(chain) && isMainnetChain(chain),
+  );
+}
+
 function assertPaymentLimit(data: RawConfig, role: ConfigRole): void {
   const issues: string[] = [];
   const limits = {
@@ -1205,9 +1214,7 @@ function assertPaymentLimit(data: RawConfig, role: ConfigRole): void {
       }
     }
   }
-  const onMainnet = [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
-    (chain) => isChainId(chain) && isMainnetChain(chain),
-  );
+  const onMainnet = isMainnetDeployment(data);
   if (onMainnet && Object.keys(data.maxPaymentSettlement).length === 0) {
     issues.push(
       "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
@@ -1233,6 +1240,11 @@ function assertPaymentLimit(data: RawConfig, role: ConfigRole): void {
         `RELAYER_GAS_FEE_MINIMUMS has no entry for ${chain}: a mainnet chain needs the least a relayed payment reimburses in gas`,
       );
     }
+  }
+  if (onMainnet && data.defaultProvider === "mock") {
+    issues.push(
+      "DEFAULT_SETTLEMENT_PROVIDER=mock moves no value and is refused when a mainnet chain is configured",
+    );
   }
   if (onMainnet && data.operatorSigner === "local" && data.operatorPrivateKey !== undefined) {
     issues.push(
