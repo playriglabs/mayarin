@@ -235,7 +235,7 @@ function Subscriptions() {
       </div>
 
       {match(subscriptions)
-        .with({ isPending: true }, () => <TableSkeleton rows={5} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}
