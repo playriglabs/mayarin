@@ -464,6 +464,7 @@ export function PasswordSection() {
                 id="current-password"
                 type="password"
                 autoComplete="current-password"
+                placeholder="Enter your current password"
                 required
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -475,6 +476,7 @@ export function PasswordSection() {
                 id="new-password"
                 type="password"
                 autoComplete="new-password"
+                placeholder="Enter a new password"
                 minLength={12}
                 required
                 value={newPassword}
@@ -487,6 +489,7 @@ export function PasswordSection() {
                 <Input
                   id="password-mfa"
                   autoComplete="one-time-code"
+                  placeholder="6-digit code or recovery code"
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value)}

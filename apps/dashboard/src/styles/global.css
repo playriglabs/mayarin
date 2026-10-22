@@ -774,3 +774,13 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
 body[data-mfa-step-up] [data-slot="dialog-content"]:not([data-mfa-step-up-dialog]) {
   visibility: hidden;
 }
+
+/*
+ * A page's content grows to the bottom of the frame, so an empty state can fill the space the
+ * rows would have taken instead of stopping partway down. The island is `display: contents`, so
+ * its root is the flex item. Only a section that holds an `Empty` has anything to stretch: the
+ * rest keep their height and leave the extra space below.
+ */
+[data-page-body] > astro-island > :first-child {
+  flex: 1 1 auto;
+}

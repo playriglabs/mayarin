@@ -283,7 +283,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main
         id="main"
-        class="min-w-0 flex-1 overflow-hidden bg-card md:my-4 md:mr-4 md:rounded-2xl md:border md:border-border"
+        class="flex min-w-0 flex-1 flex-col overflow-hidden bg-card md:my-4 md:mr-4 md:rounded-2xl md:border md:border-border"
       >
         <header
           class="flex h-16 items-center justify-between gap-x-4 gap-y-2 border-b border-border bg-background px-4 md:hidden"
@@ -327,7 +327,10 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           </nav>
         </header>
 
-        <div class="mx-auto w-full max-w-[106rem] p-4 md:px-8 md:py-7 lg:px-12 lg:py-8 xl:px-14">
+        <div
+          data-page-body
+          class="mx-auto flex w-full max-w-[106rem] flex-1 flex-col p-4 md:px-8 md:py-7 lg:px-12 lg:py-8 xl:px-14"
+        >
           <slot />
         </div>
       </main>
