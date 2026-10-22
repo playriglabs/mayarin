@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import { PoweredBy } from "./powered-by.tsx";
 
 /**
- * Every buyer page sits on a testnet: test assets, no real-world value. Said
- * across the top of the page, the way the dashboard says it, so nobody sends
- * mainnet funds to a testnet address. No dash and no icon: the strings this
+ * A testnet's buyer pages say so across the top: test assets, no real-world value,
+ * so nobody sends mainnet funds to a testnet address. A mainnet's say nothing. The
+ * API puts the network in the bootstrap; without it the page assumes a testnet, so
+ * a missing flag errs toward the warning. No dash and no icon: the strings this
  * page renders are pinned by tests that forbid both.
  */
 export function TestnetBanner() {
+  if (typeof window !== "undefined" && window.__BOOTSTRAP__?.network === "mainnet") return null;
   return (
     <p className="m-0 bg-banner px-4 py-2.5 text-center text-sm text-banner-ink print:hidden">
       Mayarin Testnet ─ Payments use test assets and have no real-world value

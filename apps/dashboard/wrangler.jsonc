@@ -28,7 +28,10 @@
   // network for every SSR session check and every proxied call: roughly 200ms
   // per request, paid on every page load for a signed-in merchant.
   "vars": {
-    "API_URL": "https://api-merchant-testnet.mayarin.xyz"
+    "API_URL": "https://api-merchant-testnet.mayarin.xyz",
+    // Which network the pages say they are on (register copy, the testnet banner).
+    // Anything but "mainnet" is a testnet; the mainnet deploy script sets "mainnet".
+    "NETWORK": "testnet"
   },
 
   // A route, not a custom domain: the hostname is still attached to the old

@@ -1186,6 +1186,15 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
  * evidence — so it exists only where no value can. Anything that is not
  * TransFi's sandbox host fails boot rather than quietly settling real payments.
  */
+export type DeploymentNetwork = "testnet" | "mainnet";
+
+/** What the buyer-facing pages say they are: a mainnet if any chain is, else a testnet. */
+export function deploymentNetwork(
+  data: Pick<RawConfig, "chainAssets" | "paymentRouters">,
+): DeploymentNetwork {
+  return isMainnetDeployment(data) ? "mainnet" : "testnet";
+}
+
 /** True when any configured chain, token or router, is a mainnet. */
 export function isMainnetDeployment(
   data: Pick<RawConfig, "chainAssets" | "paymentRouters">,

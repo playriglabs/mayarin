@@ -1,8 +1,11 @@
 ---
 import Auth from "../layouts/auth.astro";
 import RegisterForm from "../components/register-form.tsx";
+import { getNetwork } from "../lib/network";
+
+const network = getNetwork();
 ---
 
 <Auth title="Create an account">
-  <RegisterForm client:load />
+  <RegisterForm client:load network={network} />
 </Auth>

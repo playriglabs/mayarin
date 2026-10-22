@@ -7,8 +7,29 @@
 
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { bootstrapScript, shellCsp } from "../src/services/checkout-shell.ts";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { bootstrapScript, renderShell, shellCsp } from "../src/services/checkout-shell.ts";
 import { createApiHarness } from "./harness.ts";
+
+describe("the network a page says it is on", () => {
+  async function dist(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "shell-"));
+    await writeFile(join(dir, "index.html"), "<html><body><!--__BOOTSTRAP__--></body></html>");
+    return dir;
+  }
+
+  test("is injected into every bootstrap, and the CSP hash covers it", async () => {
+    for (const network of ["testnet", "mainnet"] as const) {
+      const page = await renderShell(await dist(), network, { page: "pay" });
+      expect(page.html).toContain(`"network":"${network}"`);
+      const source = /<script>([^<]*)<\/script>/.exec(page.html)?.[1] ?? "";
+      const hash = createHash("sha256").update(source).digest("base64");
+      expect(page.headers["content-security-policy"]).toContain(`'sha256-${hash}'`);
+    }
+  });
+});
 
 describe("bootstrap script", () => {
   test("keeps a script-closing value inert inside the JSON", () => {

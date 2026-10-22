@@ -142,7 +142,7 @@ if (only.includes("dashboard")) {
     ...base,
     name: DASHBOARD_WORKER,
     topLevelName: DASHBOARD_WORKER,
-    vars: { ...base.vars, API_URL: DASHBOARD_API_URL },
+    vars: { ...base.vars, API_URL: DASHBOARD_API_URL, NETWORK: "mainnet" },
     routes: [{ pattern: new URL(DASHBOARD_URL).hostname, custom_domain: true }],
     kv_namespaces: (base.kv_namespaces ?? []).map((namespace) =>
       namespace.binding === "SESSION" ? { ...namespace, id: kvId } : namespace,

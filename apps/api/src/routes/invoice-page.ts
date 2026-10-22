@@ -16,6 +16,7 @@
 import type { InvoiceView } from "@mayarin/invoicing";
 import { SUBSCRIPTION_METADATA_KEY, type SubscriptionInterval } from "@mayarin/subscriptions";
 import { Hono } from "hono";
+import { deploymentNetwork } from "../config.ts";
 import type { Container } from "../container.ts";
 import { toInvoicePaymentDto } from "../dto/invoice.ts";
 import { toMoneyDto } from "../dto/money.ts";
@@ -28,6 +29,7 @@ import { type ProtectionOffer, protectionOffer } from "../services/protection.ts
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
   const distDir = container.config.checkoutUiDist;
+  const network = deploymentNetwork(container.config);
 
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
@@ -45,6 +47,7 @@ export function invoicePageRoutes(container: Container): Hono {
     return shellResponse(
       c,
       distDir,
+      network,
       invoiceBootstrap(
         view,
         `/v1/invoices/${view.invoice.id}/checkout`,

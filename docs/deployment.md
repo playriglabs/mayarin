@@ -545,6 +545,14 @@ publishes from `apps/pay-proxy/wrangler.mainnet.jsonc`; the default
 `wrangler.jsonc` there is testnet. A custom domain needs the hostname to carry
 no hand-managed DNS record (Cloudflare error 100117).
 
+Which network the pages say they are on comes from configuration, not from the
+build. The dashboard reads the Worker var `NETWORK` (`testnet` in
+`apps/dashboard/wrangler.jsonc`, `mainnet` written by the deploy script): on a
+mainnet the register page drops "sandbox" and "test assets", and the testnet
+banner is not rendered. Anything but exactly `mainnet` counts as a testnet, so a
+lost variable keeps the warning. The buyer pages get the same flag from
+`core-api`, which reports `mainnet` whenever any configured chain is one.
+
 `ORIGIN_AUTH_SECRET` (SEC-13) is not written to the AWS env files. It closes the
 direct path to an origin's public address; here the origin has no public address,
 so every request already arrives through the tunnel and the secret would only

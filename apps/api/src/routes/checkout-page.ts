@@ -30,6 +30,7 @@ import { getCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
 import sharp from "sharp";
+import { deploymentNetwork } from "../config.ts";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
@@ -69,6 +70,7 @@ const MAYARIN_MARK_FILE = new URL(
 export function checkoutPageRoutes(container: Container): Hono {
   const app = new Hono();
   const distDir = container.config.checkoutUiDist;
+  const network = deploymentNetwork(container.config);
 
   /**
    * Renders any string as a QR.
@@ -225,7 +227,7 @@ export function checkoutPageRoutes(container: Container): Hono {
             lockMinutes: Math.max(1, Math.round(container.config.paymentIntentTtlSeconds / 60)),
           };
 
-    return shellResponse(c, distDir, {
+    return shellResponse(c, distDir, network, {
       page: "pay",
       intentId: intent.id,
       // The request's own token when it brought one, so the address bar and the
@@ -296,6 +298,7 @@ export function checkoutPageRoutes(container: Container): Hono {
     return shellResponse(
       c,
       distDir,
+      network,
       await linkBootstrap({
         link,
         payable,
