@@ -437,6 +437,61 @@ project only. A mainnet deploy path is a separate piece of work behind the
 
 ---
 
+## AWS Mainnet Host
+
+Mainnet runs on one EC2 instance with a private RDS Postgres, not on Railway.
+Testnet stays on Railway and keeps the procedure above.
+
+| Resource      | Value                                                                         |
+| ------------- | ----------------------------------------------------------------------------- |
+| Region        | `ap-southeast-2` — the only region the account's org policy allows EC2/RDS    |
+| App host      | `t4g.medium` (arm64), Amazon Linux 2023, no key pair, no inbound ports        |
+| Database      | RDS Postgres 16, `db.t4g.micro`, private, single-AZ, deletion protection on   |
+| Access        | SSM Session Manager (`aws ssm start-session`); needs `session-manager-plugin` |
+| Way in        | Cloudflare Tunnel (`cloudflared` container) to `core-api` and `dashboard-api` |
+| Master secret | Created and rotated by RDS in Secrets Manager; never copied into a file       |
+
+`deploy/aws/docker-compose.yml` runs the one image as `core-api` (port 3000),
+`dashboard-api` (3001) and `chain-worker`, selected by `RAILWAY_SERVICE_NAME`
+exactly as `scripts/start-railway.sh` does. Each service reads its own
+`deploy/aws/.env.<service>` (git-ignored), so a service holds only the secrets
+its policy in `scripts/railway-env-policy.ts` allows. `.env.cloudflared` holds
+`TUNNEL_TOKEN`.
+
+The Mainnet Gate above applies unchanged, including the `deploy mayarin
+mainnet` phrase, before the first migration or start.
+
+### First start
+
+On the host, through an SSM session:
+
+```bash
+git clone https://github.com/playriglabs/mayarin.git && cd mayarin/deploy/aws
+bash bootstrap.sh
+```
+
+`bootstrap.sh` can be run again. It adds swap, writes `.env.db` from the
+RDS-managed secret, then stops until `.env.core-api`, `.env.dashboard-api`,
+`.env.chain-worker` and `.env.cloudflared` are filled in (paste each with
+`cat > .env.core-api`, then Ctrl-D). Run it again and it builds the image,
+migrates and starts the services.
+
+The instance role may read exactly one secret, the RDS master secret, and
+describe its own database; nothing else beyond SSM. The database is not
+reachable from outside the VPC, so the migration runs on the host, not from a
+workstation as in step 4 above. RDS Postgres 16 forces SSL, so the URL carries
+`sslmode=require`.
+
+In the Cloudflare Zero Trust dashboard, point the tunnel's public hostnames at
+`http://core-api:3000` and `http://dashboard-api:3001`.
+
+### Updating
+
+Pull the commit the operator reviewed, then `docker compose build core-api &&
+docker compose up -d`. Run one `chain-worker`: nothing here has verified that two are safe.
+
+---
+
 ## Mainnet Gate
 
 Create `mayarin-mainnet` as a new Railway project; do not clone the testnet

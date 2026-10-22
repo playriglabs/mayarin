@@ -1,0 +1,49 @@
+# Mainnet app host on AWS (one EC2 instance, ap-southeast-2).
+# One image, three services, and the Cloudflare tunnel that is the only way in:
+# the instance has no inbound ports. See docs/deployment.md → "AWS mainnet host".
+#
+# Each service reads .env.db (the database URL) and its own env file, never a
+# shared one, so a service holds only the secrets its policy in
+# scripts/railway-env-policy.ts allows. bootstrap.sh writes .env.db.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  core-api:
+    build:
+      context: ../..
+    image: mayarin:mainnet
+    restart: unless-stopped
+    logging: *logging
+    env_file: [.env.db, .env.core-api]
+    environment:
+      RAILWAY_SERVICE_NAME: core-api
+      PORT: "3000"
+
+  dashboard-api:
+    image: mayarin:mainnet
+    restart: unless-stopped
+    logging: *logging
+    env_file: [.env.db, .env.dashboard-api]
+    environment:
+      RAILWAY_SERVICE_NAME: dashboard-api
+      PORT: "3001"
+
+  chain-worker:
+    image: mayarin:mainnet
+    restart: unless-stopped
+    logging: *logging
+    env_file: [.env.db, .env.chain-worker]
+    environment:
+      RAILWAY_SERVICE_NAME: chain-worker
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    logging: *logging
+    command: tunnel --no-autoupdate run
+    env_file: .env.cloudflared
