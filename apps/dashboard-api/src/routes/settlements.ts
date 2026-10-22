@@ -13,7 +13,7 @@ import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { toSettlementDto, toSettlementSummaryDto } from "../dto/settlement.ts";
 import type { AuthVars } from "../middleware/types.ts";
-import { toUsd, usdRates } from "../usd.ts";
+import { displayCurrencyOf, toUsd, usdRates } from "../usd.ts";
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
@@ -38,6 +38,8 @@ export function settlementRoutes(container: Container): Hono<{ Variables: AuthVa
     const inUsd = (pick: (total: (typeof totals)[number]) => Money) =>
       totals.reduce((sum, total) => sum + (toUsd(pick(total), rates)?.amount ?? 0n), 0n);
     return c.json({
+      // The summary is held in dollars; this is the currency the merchant reads it in.
+      display: await displayCurrencyOf(container, scope),
       settlements: result.rows.map(toSettlementDto),
       summary: {
         ...toSettlementSummaryDto(result.summary),

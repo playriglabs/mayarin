@@ -69,3 +69,17 @@ export function toUsd(value: Money, rates: Readonly<Record<string, string>>): Mo
   const denominator = USD_RATE_SCALE * 10n ** BigInt(assetDecimals(value.asset));
   return money((numerator * 2n + denominator) / (denominator * 2n), "USD");
 }
+
+/**
+ * What one US dollar buys in the merchant's display currency. A merchant on dollars, or a rate
+ * table that cannot be read, gets 1: the dashboard then shows dollars rather than a number nobody
+ * can stand behind.
+ */
+export async function displayCurrencyOf(
+  container: Pick<Container, "settings" | "displayRates">,
+  scope: Parameters<Container["settings"]["get"]>[0],
+): Promise<{ readonly currency: string; readonly perUsd: string }> {
+  const currency = (await container.settings.get(scope)).displayCurrency ?? "USD";
+  const perUsd = currency === "USD" ? undefined : await container.displayRates.perUsd(currency);
+  return perUsd === undefined ? { currency: "USD", perUsd: "1" } : { currency, perUsd };
+}
