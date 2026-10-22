@@ -472,9 +472,22 @@ bash bootstrap.sh
 
 `bootstrap.sh` can be run again. It adds swap, writes `.env.db` from the
 RDS-managed secret, then stops until `.env.core-api`, `.env.dashboard-api`,
-`.env.chain-worker` and `.env.cloudflared` are filled in (paste each with
-`cat > .env.core-api`, then Ctrl-D). Run it again and it builds the image,
-migrates and starts the services.
+`.env.chain-worker` and `.env.cloudflared` are filled in. Run it again and it
+builds the image, migrates and starts the services.
+
+Generate the three service files on the workstation from `.env.mainnet`, with
+the same per-service key sets and credential policy as the Railway sync:
+
+```bash
+bun run scripts/sync-railway-env.ts --aws=deploy/aws/out
+```
+
+It reads `.env.mainnet` itself, never the development `.env`, and drops the
+Railway-only overrides. Copy each file onto the host by pasting it into an SSM
+session (`pbcopy < deploy/aws/out/.env.core-api`, then `cat > .env.core-api`
+on the host, paste, Ctrl-D), so the secrets never land in AWS command history.
+`.env.cloudflared` holds `TUNNEL_TOKEN=...` and is written by hand. Delete
+`deploy/aws/out` afterwards.
 
 The instance role may read exactly one secret, the RDS master secret, and
 describe its own database; nothing else beyond SSM. The database is not
