@@ -42,6 +42,17 @@ setInterval(() => {
     });
 }, TICK_MS);
 
+// Pricing every rail takes a payment API round trip per pair, and the settings screen waits
+// for all of them. Do it now, in the background, and again before the answers go stale, so the
+// first screen after a restart does not pay for it.
+const RAIL_WARM_INTERVAL_MS = 4 * 60_000;
+const warmRails = () =>
+  container.warmRailPricing().catch((error: unknown) => {
+    console.warn("[dashboard-api] could not warm rail pricing", error);
+  });
+void warmRails();
+setInterval(() => void warmRails(), RAIL_WARM_INTERVAL_MS).unref();
+
 console.log(`[dashboard-api] listening on http://localhost:${config.port}`);
 
 export default {

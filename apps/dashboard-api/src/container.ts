@@ -253,6 +253,8 @@ export interface Container {
    * settings change they can make themselves.
    */
   readonly rails: RailCatalog;
+  /** Prices every rail ahead of anyone asking; see the payment API's own. */
+  readonly warmRailPricing: () => Promise<void>;
   /**
    * Reads deployed code, for the settings guard (#244).
    *
@@ -667,14 +669,16 @@ export function createContainer(options: CreateContainerOptions): Container {
     crossAssetOperator: () => crossAssetOperator(config),
   });
 
+  const railPricing = new PaymentApiPricingSource(paymentApi);
+  const railReceipts = chainReceipts(config);
   const rails = new DerivedRailCatalog({
-    receipts: chainReceipts(config),
+    receipts: railReceipts,
     merchantPolicies: new DrizzleMerchantAssetPolicySource(merchants),
     settlement: {
       destinationFor: (merchantId, chain, configured) =>
         settlementAddresses.effective(merchantId, chain, configured),
     },
-    pricing: new PaymentApiPricingSource(paymentApi),
+    pricing: railPricing,
     defaultSettlementAsset: config.settlementAsset,
     ...(contractCode === undefined ? {} : { code: contractCode }),
   });
@@ -736,6 +740,28 @@ export function createContainer(options: CreateContainerOptions): Container {
     merchantWallets: walletRepository,
     settlementAddresses,
     rails,
+    warmRailPricing: () => {
+      // The assets a merchant can be paid in here: the deployment's allowlist, else its default.
+      const settlements = new Set<AssetCode>([
+        config.settlementAsset,
+        ...config.merchantSettlementAssets,
+      ]);
+      const pairs = railReceipts.flatMap((receipt) =>
+        [
+          ...new Set([
+            ...(Object.keys(receipt.tokens) as AssetCode[]),
+            ...(receipt.nativeAsset === undefined ? [] : [receipt.nativeAsset]),
+          ]),
+        ].flatMap((asset) =>
+          [...settlements].map((settlementAsset) => ({
+            chain: receipt.chain,
+            asset,
+            settlementAsset,
+          })),
+        ),
+      );
+      return railPricing.warm(pairs);
+    },
     ...(contractCode === undefined ? {} : { contractCode }),
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };

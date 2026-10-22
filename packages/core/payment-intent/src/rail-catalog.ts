@@ -26,7 +26,7 @@
  */
 
 import { type ChainId, type ContractCodeSource, isChainAddress } from "@mayarin/chain";
-import type { AssetCode } from "@mayarin/shared";
+import { type AssetCode, mapLimit } from "@mayarin/shared";
 import {
   acceptedPayerAssets,
   type MerchantAssetPolicySource,
@@ -201,6 +201,12 @@ export interface RailCatalog {
   describe(merchantId: string): Promise<RailReport>;
 }
 
+/**
+ * How many pairs are priced at once. Each is a few RPC round trips, so this keeps a report to a
+ * handful of waits without a burst a provider would answer with a rate limit.
+ */
+const PRICING_CONCURRENCY = 8;
+
 export class DerivedRailCatalog implements RailCatalog {
   readonly #receipts: readonly ChainReceipt[];
   readonly #policies: MerchantAssetPolicySource;
@@ -229,13 +235,25 @@ export class DerivedRailCatalog implements RailCatalog {
     const settlementAsset = policy?.settlementAsset ?? this.#defaultSettlementAsset;
     const configured = policy?.settlementAddress;
 
-    const rails: OfferedRail[] = [];
-    const unavailable: RailExclusion[] = [];
-
     // Read once for the whole report: the contract check asks about the same
     // address on every chain, and asking per rail would be one RPC round trip
     // per asset for an answer that cannot differ between them.
     const codeChains = await this.#chainsWithCode(configured);
+
+    // Two passes. The first settles everything that is cheap, chain by chain and in order:
+    // where the merchant is paid, whether that address exists there, what they accept. What
+    // survives is a candidate. The second asks the one expensive question, whether a candidate
+    // can be priced, for all of them together, because each answer is a few RPC round trips
+    // and asking thirty-odd of them one after another is what made a page take eighteen
+    // seconds. The report comes out in the order the first pass saw, as it always has.
+    type Candidate = {
+      readonly chain: ChainId;
+      readonly asset: AssetCode;
+      readonly contract: string | undefined;
+      readonly payTo: string | undefined;
+      readonly settlesIn: AssetCode;
+    };
+    const slots: ({ readonly exclusion: RailExclusion } | { readonly candidate: Candidate })[] = [];
 
     for (const receipt of this.#receipts) {
       const chain = receipt.chain;
@@ -246,10 +264,12 @@ export class DerivedRailCatalog implements RailCatalog {
         ? await this.#settlement?.destinationFor(merchantId, chain, configured)
         : undefined;
       if (needsSettlement && payTo === undefined) {
-        unavailable.push({
-          kind: "no-settlement-destination",
-          chain,
-          reason: `No settlement address on ${chain}. Set one, or provision a managed wallet on ${chain}.`,
+        slots.push({
+          exclusion: {
+            kind: "no-settlement-destination",
+            chain,
+            reason: `No settlement address on ${chain}. Set one, or provision a managed wallet on ${chain}.`,
+          },
         });
         continue;
       }
@@ -262,10 +282,12 @@ export class DerivedRailCatalog implements RailCatalog {
         codeChains.size > 0 &&
         !codeChains.has(chain)
       ) {
-        unavailable.push({
-          kind: "settlement-address-has-no-code",
-          chain,
-          reason: `Your settlement address is a contract on ${[...codeChains].join(", ")} and has no code on ${chain}. A contract does not exist on a chain it was not deployed to, so paying it there would strand the funds.`,
+        slots.push({
+          exclusion: {
+            kind: "settlement-address-has-no-code",
+            chain,
+            reason: `Your settlement address is a contract on ${[...codeChains].join(", ")} and has no code on ${chain}. A contract does not exist on a chain it was not deployed to, so paying it there would strand the funds.`,
+          },
         });
         continue;
       }
@@ -278,33 +300,54 @@ export class DerivedRailCatalog implements RailCatalog {
 
       for (const [asset, contract] of assetsOn(receipt)) {
         if (accepted.length > 0 && !accepted.includes(asset)) {
-          unavailable.push({
-            kind: "not-accepted",
-            chain,
-            asset,
-            reason: `${asset} is not in the assets you accept on ${chain}.`,
+          slots.push({
+            exclusion: {
+              kind: "not-accepted",
+              chain,
+              asset,
+              reason: `${asset} is not in the assets you accept on ${chain}.`,
+            },
           });
           continue;
         }
+        slots.push({ candidate: { chain, asset, contract, payTo, settlesIn } });
+      }
+    }
 
-        if (!(await this.#pricing.canPrice({ chain, asset, settlementAsset: settlesIn }))) {
-          unavailable.push({
-            kind: "not-priceable",
-            chain,
-            asset,
-            reason: `${asset} on ${chain} cannot be priced into ${settlesIn} right now.`,
-          });
-          continue;
-        }
+    const candidates = slots.flatMap((slot) => ("candidate" in slot ? [slot.candidate] : []));
+    const priceable = await mapLimit(candidates, PRICING_CONCURRENCY, (candidate) =>
+      this.#pricing.canPrice({
+        chain: candidate.chain,
+        asset: candidate.asset,
+        settlementAsset: candidate.settlesIn,
+      }),
+    );
 
-        rails.push({
+    const rails: OfferedRail[] = [];
+    const unavailable: RailExclusion[] = [];
+    let priced = 0;
+    for (const slot of slots) {
+      if ("exclusion" in slot) {
+        unavailable.push(slot.exclusion);
+        continue;
+      }
+      const { chain, asset, contract, payTo, settlesIn } = slot.candidate;
+      if (!priceable[priced++]) {
+        unavailable.push({
+          kind: "not-priceable",
           chain,
           asset,
-          ...(contract === undefined ? {} : { contract }),
-          ...(payTo === undefined ? {} : { payTo }),
-          settlementAsset: settlesIn,
+          reason: `${asset} on ${chain} cannot be priced into ${settlesIn} right now.`,
         });
+        continue;
       }
+      rails.push({
+        chain,
+        asset,
+        ...(contract === undefined ? {} : { contract }),
+        ...(payTo === undefined ? {} : { payTo }),
+        settlementAsset: settlesIn,
+      });
     }
 
     return { rails, unavailable, settlementAsset };
@@ -323,14 +366,17 @@ export class DerivedRailCatalog implements RailCatalog {
       return undefined;
     }
 
-    const found = new Set<ChainId>();
-    for (const receipt of this.#receipts) {
-      // An EVM address means nothing on Solana, and the reverse; the chain
-      // family it does not belong to is not asked.
-      if (!isChainAddress(receipt.chain, configured)) continue;
-      if (await code.hasCode(receipt.chain, configured)) found.add(receipt.chain);
-    }
-    return found;
+    // An EVM address means nothing on Solana, and the reverse; the chain
+    // family it does not belong to is not asked. The rest are asked together:
+    // each is an RPC round trip, and they do not depend on one another.
+    const asked = this.#receipts.filter((receipt) => isChainAddress(receipt.chain, configured));
+    const answers = await Promise.all(
+      asked.map(async (receipt) => ({
+        chain: receipt.chain,
+        has: await code.hasCode(receipt.chain, configured),
+      })),
+    );
+    return new Set(answers.filter((answer) => answer.has).map((answer) => answer.chain));
   }
 }
 

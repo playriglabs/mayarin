@@ -127,6 +127,7 @@ import {
   type EventPublisher,
   fromDecimalString,
   InMemoryEventBus,
+  isAssetCode,
   type NonceSequencer,
   NotFoundError,
   OperatorFloatMonitor,
@@ -247,6 +248,11 @@ export interface Container {
    * Arc was offered ETH, which does not exist there.
    */
   readonly rails: RailCatalog;
+  /**
+   * Prices every rail ahead of anyone asking, so the first buyer after a restart (or after
+   * the answers aged out) does not wait for it. Absent where there is no pricing to warm.
+   */
+  readonly warmRailPricing?: () => Promise<void>;
   /**
    * Market data held in the database rather than the environment (#95).
    *
@@ -1411,8 +1417,13 @@ export function createContainer({
     Object.keys(config.chainRpcUrls).length === 0
       ? undefined
       : new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls });
+  const railPricing = new QuotePricingSource({ market, rates, config });
+  const railReceipts = chainReceipts(
+    config,
+    new Set<ChainId>([...watchers.keys(), ...indexers.keys()]),
+  );
   const railCatalog = new DerivedRailCatalog({
-    receipts: chainReceipts(config, new Set<ChainId>([...watchers.keys(), ...indexers.keys()])),
+    receipts: railReceipts,
     merchantPolicies,
     // `effective` is exactly the port's question — where is this merchant paid
     // on this chain, or nowhere — under the name the resolver gave it before
@@ -1433,7 +1444,7 @@ export function createContainer({
               ? new Set(Object.keys(config.contract?.paymentRouters ?? {}) as ChainId[])
               : (treasury?.chains ?? new Set<ChainId>()),
         }),
-    pricing: new QuotePricingSource({ market, rates, config }),
+    pricing: railPricing,
     defaultSettlementAsset: config.settlementAsset,
     // Absent with no RPC configured: a deployment settling off-chain cannot
     // strand funds at a contract address that does not exist on a chain.
@@ -1572,6 +1583,27 @@ export function createContainer({
     merchantPolicies,
     merchants,
     rails: railCatalog,
+    warmRailPricing: () => {
+      const settlements = new Set<AssetCode>([
+        config.settlementAsset,
+        ...config.settlementAssets.filter(isAssetCode),
+      ]);
+      const pairs = railReceipts.flatMap((receipt) =>
+        [
+          ...new Set([
+            ...(Object.keys(receipt.tokens) as AssetCode[]),
+            ...(receipt.nativeAsset === undefined ? [] : [receipt.nativeAsset]),
+          ]),
+        ].flatMap((asset) =>
+          [...settlements].map((settlementAsset) => ({
+            chain: receipt.chain,
+            asset,
+            settlementAsset,
+          })),
+        ),
+      );
+      return railPricing.warm(pairs);
+    },
     walletGuard,
     watchers,
     indexers,
