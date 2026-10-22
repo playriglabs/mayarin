@@ -249,3 +249,61 @@ describe("LifiSwapVenue pairs derived from the deployment's tokens", () => {
     );
   });
 });
+
+describe("LifiSwapVenue token units", () => {
+  // USDC and USDT carry 18 decimals on BNB Smart Chain and 6 elsewhere; LiFi counts in what the
+  // token contract says, the domain in its own.
+  const BSC_USDT_USDC: Record<string, LifiPair> = {
+    "USDT/USDC": {
+      chainId: 56,
+      fromToken: "0x55d398326f99059fF775485246999027B3197955",
+      toToken: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    },
+  };
+
+  test("asks LiFi for the contract's amount and reads the answer back in the domain's", async () => {
+    // Selling 100 USDT: 100_000_000 domain units, 100e18 on BSC. LiFi returns 99.9 USDC in 18.
+    const { calls, fn } = stubFetch(() =>
+      json(
+        quoteBody({
+          fromAmount: (100n * 10n ** 18n).toString(),
+          toAmount: (999n * 10n ** 17n).toString(),
+        }),
+      ),
+    );
+
+    const quote = await venue(fn, BSC_USDT_USDC).quote(
+      "USDT",
+      "USDC",
+      money(100_000_000n, "USDT"),
+      "bsc",
+    );
+
+    expect(calls[0]?.url).toContain("fromAmount=100000000000000000000");
+    // 99.9 USDC for 100 USDT is a rate of 0.999, in the domain's 6-decimal minor units.
+    expect(quote.scaledRate).toBe(scaleSwapRate(100_000_000n, 99_900_000n, 6));
+  });
+
+  test("works out the chain from the pair when the caller names none", async () => {
+    const { calls, fn } = stubFetch(() =>
+      json(
+        quoteBody({
+          fromAmount: (100n * 10n ** 18n).toString(),
+          toAmount: (999n * 10n ** 17n).toString(),
+        }),
+      ),
+    );
+
+    await venue(fn, BSC_USDT_USDC).quote("USDT", "USDC", money(100_000_000n, "USDT"));
+
+    expect(calls[0]?.url).toContain("fromAmount=100000000000000000000");
+  });
+
+  test("a chain whose tokens agree with the domain is asked for the amount as it is", async () => {
+    const { calls, fn } = stubFetch(() => json(quoteBody()));
+
+    await venue(fn).quote("ETH", "USDC", ONE_ETH, "base");
+
+    expect(calls[0]?.url).toContain("fromAmount=1000000000000000000");
+  });
+});

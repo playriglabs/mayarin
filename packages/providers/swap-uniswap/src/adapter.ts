@@ -15,7 +15,7 @@
  * cross-rate derivation happens here, matching the other price seams.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, chainUnitScale, fromChainUnits, toChainUnits } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -71,6 +71,8 @@ export interface UniswapSwapVenueOptions {
   readonly quoters: Readonly<Partial<Record<ChainId, string>>>;
   /** Pair (`rateKey(from, to)`) to pool, e.g. `"ETH/USDC": { chain, …, fee }`. */
   readonly pools: Readonly<Record<string, UniswapPool>>;
+  /** For a test: a chain's read client, used in place of one built from its RPC URL. */
+  readonly clients?: Readonly<Partial<Record<ChainId, Pick<PublicClient, "readContract">>>>;
 }
 
 export class UniswapSwapVenue implements SwapVenue {
@@ -78,9 +80,12 @@ export class UniswapSwapVenue implements SwapVenue {
   readonly #rpcUrls: UniswapSwapVenueOptions["rpcUrls"];
   readonly #quoters: UniswapSwapVenueOptions["quoters"];
   readonly #pools: ReadonlyMap<string, UniswapPool>;
-  readonly #clients = new Map<ChainId, PublicClient>();
+  readonly #clients = new Map<ChainId, Pick<PublicClient, "readContract">>();
 
   constructor(options: UniswapSwapVenueOptions) {
+    for (const [chain, client] of Object.entries(options.clients ?? {})) {
+      this.#clients.set(chain as ChainId, client);
+    }
     this.#rpcUrls = options.rpcUrls;
     this.#quoters = options.quoters;
     this.#pools = new Map(
@@ -120,7 +125,7 @@ export class UniswapSwapVenue implements SwapVenue {
     const pool = this.#poolFor(from, to, chain);
     const quoterAddress = this.#quoterFor(pool);
 
-    const [amountIn] = await this.#rpc(
+    const [amountInOnChain] = await this.#rpc(
       pool.chain,
       this.#clientFor(pool.chain).readContract({
         address: getAddress(quoterAddress),
@@ -130,7 +135,8 @@ export class UniswapSwapVenue implements SwapVenue {
           {
             tokenIn: getAddress(pool.tokenIn),
             tokenOut: getAddress(pool.tokenOut),
-            amount: exactOut.amount,
+            // The pool counts in what the token contract says, not in the domain's units.
+            amount: toChainUnits(pool.chain, to, exactOut.amount),
             fee: pool.fee,
             sqrtPriceLimitX96: 0n,
           },
@@ -138,9 +144,13 @@ export class UniswapSwapVenue implements SwapVenue {
       }),
     );
 
-    if (amountIn <= 0n) {
+    if (amountInOnChain <= 0n) {
       throw new ProviderError(`Uniswap quoted zero in for ${from} -> ${to}`, { from, to });
     }
+    // Back to the domain's units, rounded up: this is what the trade costs, and a cost must
+    // never be understated by the fraction of a domain unit that a finer token drops.
+    const inScale = chainUnitScale(pool.chain, from);
+    const amountIn = (amountInOnChain + inScale - 1n) / inScale;
 
     // The effective rate over the real trade, so a `minOut` derived from it is
     // one the pool can fill at that size rather than at one whole unit.
@@ -223,7 +233,7 @@ export class UniswapSwapVenue implements SwapVenue {
     }
 
     const client = this.#clientFor(pool.chain);
-    const [amountOut] = await this.#rpc(
+    const [amountOutOnChain] = await this.#rpc(
       pool.chain,
       client.readContract({
         address: getAddress(quoterAddress),
@@ -233,7 +243,9 @@ export class UniswapSwapVenue implements SwapVenue {
           {
             tokenIn: getAddress(pool.tokenIn),
             tokenOut: getAddress(pool.tokenOut),
-            amountIn: amount.amount,
+            // What the token contract counts: a 6-decimal domain unit of a token that carries 18
+            // would otherwise be priced as a trillionth of itself.
+            amountIn: toChainUnits(pool.chain, from, amount.amount),
             fee: pool.fee,
             sqrtPriceLimitX96: 0n,
           },
@@ -241,9 +253,11 @@ export class UniswapSwapVenue implements SwapVenue {
       }),
     );
 
-    if (amountOut <= 0n) {
+    if (amountOutOnChain <= 0n) {
       throw new ProviderError(`Uniswap quoted zero out for ${from} -> ${to}`, { from, to });
     }
+    // Rounded down, as the rate always is: an executable price must not be optimistic.
+    const amountOut = fromChainUnits(pool.chain, to, amountOutOnChain);
 
     const scaledRate = scaleSwapRate(amount.amount, amountOut, assetDecimals(from));
     if (scaledRate <= 0n) {
@@ -256,7 +270,7 @@ export class UniswapSwapVenue implements SwapVenue {
     return { from, to, scaledRate, source: this.name };
   }
 
-  #clientFor(chain: ChainId): PublicClient {
+  #clientFor(chain: ChainId): Pick<PublicClient, "readContract"> {
     const cached = this.#clients.get(chain);
     if (cached !== undefined) return cached;
 

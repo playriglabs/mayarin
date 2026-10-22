@@ -8,15 +8,18 @@ const DIAMOND = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE";
 const NATIVE = "0x0000000000000000000000000000000000000000";
 const BSC_USDC = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d";
 const BSC_CAKE = "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82";
+const BSC_USDT = "0x55d398326f99059fF775485246999027B3197955";
 
 /** What the deployment holds on BNB Smart Chain: CAKE and USDC as tokens, BNB as the coin. */
 const tokenAddress = (chain: string, asset: string): string | undefined => {
   if (chain !== "bsc") return undefined;
   if (asset === "BNB") return NATIVE;
-  return { USDC: BSC_USDC, CAKE: BSC_CAKE }[asset];
+  return { USDC: BSC_USDC, USDT: BSC_USDT, CAKE: BSC_CAKE }[asset];
 };
 
-const ONE_HUNDRED_USDC = 100n * 10n ** 18n;
+// A request counts in the domain's units (USDC is 6 decimals); BNB Smart Chain's USDC counts 18.
+const ONE_HUNDRED_USDC = 100_000_000n;
+const ONE_HUNDRED_USDC_ON_BSC = 100n * 10n ** 18n;
 
 function request(overrides: Partial<RouteRequest> = {}): RouteRequest {
   return {
@@ -77,7 +80,8 @@ describe("LifiRouteSource", () => {
       toChain: "56",
       fromToken: BSC_CAKE,
       toToken: BSC_USDC,
-      toAmount: ONE_HUNDRED_USDC.toString(),
+      // LiFi is asked in the token contract's units.
+      toAmount: ONE_HUNDRED_USDC_ON_BSC.toString(),
       // The router holds the input and receives the output: both are the router.
       fromAddress: PAYMENT_ROUTER,
       toAddress: PAYMENT_ROUTER,
@@ -104,7 +108,7 @@ describe("LifiRouteSource", () => {
 
   test("refuses a route whose guaranteed output is below the locked minOut", async () => {
     const { fn } = stubFetch(() =>
-      json(routeBody({ toAmountMin: (ONE_HUNDRED_USDC - 1n).toString() })),
+      json(routeBody({ toAmountMin: (ONE_HUNDRED_USDC_ON_BSC - 1n).toString() })),
     );
     await expect(source(fn).route(request())).rejects.toThrow(/below the locked/);
   });
@@ -140,5 +144,23 @@ describe("LifiRouteSource", () => {
   test("an unreadable answer is a provider error", async () => {
     const { fn } = stubFetch(() => json({ estimate: {} }));
     await expect(source(fn).route(request())).rejects.toThrow(/unreadable/);
+  });
+
+  test("a stablecoin payer's bound is the token contract's amount, and the spend is reported in the domain's", async () => {
+    // 60 USDT is 60_000_000 in the domain and 60e18 on BNB Smart Chain.
+    const bound = money(60_000_000n, "USDT");
+    const { fn } = stubFetch(() => json(routeBody({ fromAmount: (595n * 10n ** 17n).toString() })));
+    const route = await source(fn).route(request({ payerAsset: "USDT", maxIn: bound }));
+
+    // 59.5 USDT, back in the domain's six decimals.
+    expect(route.expectedIn).toEqual(money(59_500_000n, "USDT"));
+  });
+
+  test("refuses a stablecoin spend past the bound once both are in the same units", async () => {
+    const bound = money(60_000_000n, "USDT");
+    const { fn } = stubFetch(() => json(routeBody({ fromAmount: (61n * 10n ** 18n).toString() })));
+    await expect(source(fn).route(request({ payerAsset: "USDT", maxIn: bound }))).rejects.toThrow(
+      /above the .* bound/,
+    );
   });
 });

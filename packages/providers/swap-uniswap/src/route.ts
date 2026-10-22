@@ -17,7 +17,7 @@
  * nothing and reverts on `minOut`.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, toChainUnits } from "@mayarin/chain";
 import { rateKey } from "@mayarin/clearing";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, money } from "@mayarin/shared";
@@ -124,8 +124,15 @@ export class UniswapRouteSource implements SwapRouteSource {
             tokenOut: pool.tokenOut as `0x${string}`,
             fee: pool.fee,
             recipient: request.recipient as `0x${string}`,
-            amountOut: request.exactOut.amount,
-            amountInMaximum: request.maxIn.amount,
+            // The request counts in the domain's units; the router counts in the token's, which
+            // on BNB Smart Chain is 18 decimals for a stablecoin the domain counts in 6. The order's
+            // own `minOut` is converted the same way, so the two must agree here.
+            amountOut: toChainUnits(
+              request.chain,
+              request.settlementAsset,
+              request.exactOut.amount,
+            ),
+            amountInMaximum: toChainUnits(request.chain, request.payerAsset, request.maxIn.amount),
             // No price limit: `amountInMaximum` already bounds the payer's spend,
             // and a second bound would only add a way to fail for a reason the
             // caller did not choose.

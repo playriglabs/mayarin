@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { money, RATE_SCALE, ValidationError } from "@mayarin/shared";
+import { assetDecimals, money, RATE_SCALE, ValidationError } from "@mayarin/shared";
 import { type UniswapPool, UniswapSwapVenue } from "../src/adapter.ts";
 import { scaleSwapRate } from "../src/quoter.ts";
 
@@ -172,5 +172,117 @@ describe("UniswapSwapVenue.quoteExactOutput", () => {
     expect(venue.quoteExactOutput("ETH", "USDC", money(10n ** 18n, "ETH"))).rejects.toThrow(
       ValidationError,
     );
+  });
+});
+
+// A chain's read client that records what the quoter was asked and answers with a fixed tuple.
+function quoterReturning(result: readonly [bigint, bigint, number, bigint]) {
+  const calls: { functionName: string; args: readonly unknown[] }[] = [];
+  const client = {
+    readContract: async (call: { functionName: string; args: readonly unknown[] }) => {
+      calls.push({ functionName: call.functionName, args: call.args });
+      return result;
+    },
+  } as never;
+  return { client, calls };
+}
+
+/** What the quoter was first asked; a test that expects a call fails clearly when there was none. */
+function firstArgs<T>(calls: readonly { args: readonly unknown[] }[]): T {
+  const call = calls[0];
+  if (call === undefined) throw new Error("the quoter was never called");
+  return call.args[0] as T;
+}
+
+describe("UniswapSwapVenue token units", () => {
+  // USDC and USDT carry 18 decimals on BNB Smart Chain and 6 everywhere else; the quote must
+  // be read in what the token contract counts and returned in what the domain counts.
+  const BSC_BNB_USDC = {
+    chain: "bsc",
+    tokenIn: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    tokenOut: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    fee: 500,
+  } as const satisfies UniswapPool;
+
+  test("BNB to USDC on BSC reads 18-decimal USDC back as the domain's 6", async () => {
+    // 731 USDC, in BSC USDC's 18 decimals.
+    const { client, calls } = quoterReturning([731n * 10n ** 18n, 0n, 0, 0n]);
+    const venue = new UniswapSwapVenue({
+      rpcUrls: {},
+      quoters: { bsc: QUOTER },
+      pools: { "BNB/USDC": BSC_BNB_USDC },
+      clients: { bsc: client },
+    });
+
+    const quote = await venue.quote("BNB", "USDC", money(10n ** 18n, "BNB"), "bsc");
+
+    // Without the conversion this was 10^12 too large, and the deviation guard refused it.
+    expect(quote.scaledRate).toBe(731_000_000n * RATE_SCALE);
+    // BNB is not a stablecoin, so what is asked of the pool is unchanged.
+    expect(firstArgs<{ amountIn: bigint }>(calls).amountIn).toBe(10n ** 18n);
+  });
+
+  test("DAI to USDC on Ethereum sends the pool DAI's 18 decimals, not a trillionth of it", async () => {
+    const oneDai = money(10n ** BigInt(assetDecimals("DAI")), "DAI");
+    const { client, calls } = quoterReturning([999_900n, 0n, 0, 0n]);
+    const venue = new UniswapSwapVenue({
+      rpcUrls: {},
+      quoters: { ethereum: QUOTER },
+      pools: {
+        "DAI/USDC": {
+          chain: "ethereum",
+          tokenIn: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+          tokenOut: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          fee: 100,
+        },
+      },
+      clients: { ethereum: client },
+    });
+
+    const quote = await venue.quote("DAI", "USDC", oneDai, "ethereum");
+
+    expect(firstArgs<{ amountIn: bigint }>(calls).amountIn).toBe(10n ** 18n);
+    expect(quote.scaledRate).toBe(scaleSwapRate(oneDai.amount, 999_900n, assetDecimals("DAI")));
+  });
+
+  test("a chain whose tokens agree with the domain is untouched", async () => {
+    const { client, calls } = quoterReturning([3_700_000_000n, 0n, 0, 0n]);
+    const venue = new UniswapSwapVenue({
+      rpcUrls: {},
+      quoters: { base: QUOTER },
+      pools: ETH_USDC_POOL,
+      clients: { base: client },
+    });
+
+    const quote = await venue.quote("ETH", "USDC", ONE_ETH, "base");
+
+    expect(firstArgs<{ amountIn: bigint }>(calls).amountIn).toBe(10n ** 18n);
+    expect(quote.scaledRate).toBe(3_700_000_000n * RATE_SCALE);
+  });
+
+  test("exact output asks for the token contract's amount and rounds the cost up", async () => {
+    // Paying 100 USDC (BSC, 18 decimals) plus one wei: the domain cannot count the wei, so the
+    // cost is rounded up to the next domain unit rather than dropped.
+    const { client, calls } = quoterReturning([100n * 10n ** 18n + 1n, 0n, 0, 0n]);
+    const venue = new UniswapSwapVenue({
+      rpcUrls: {},
+      quoters: { bsc: QUOTER },
+      pools: {
+        "USDC/BNB": {
+          chain: "bsc",
+          tokenIn: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          tokenOut: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          fee: 500,
+        },
+      },
+      clients: { bsc: client },
+    });
+
+    const quote = await venue.quoteExactOutput("USDC", "BNB", money(10n ** 17n, "BNB"), "bsc");
+
+    // BNB is not a stablecoin, so the exact output goes to the pool as it is.
+    expect(firstArgs<{ amount: bigint }>(calls).amount).toBe(10n ** 17n);
+    // 100.000000 USDC plus a unit that was rounded up, over 0.1 BNB.
+    expect(quote.scaledRate).toBe(scaleSwapRate(100_000_001n, 10n ** 17n, assetDecimals("USDC")));
   });
 });
