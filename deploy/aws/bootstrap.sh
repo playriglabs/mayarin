@@ -2,7 +2,7 @@
 # Mainnet app host: run on the EC2 instance, from deploy/aws, as ec2-user.
 # Safe to run again. It stops at the first thing you still have to do, says what,
 # and carries on from there next time:
-#   1. adds swap (the image build needs it on a 4 GB host)
+#   1. adds swap (the image build needs it on a 4 GB host) and installs buildx
 #   2. writes .env.db (DATABASE_URL) from the RDS-managed secret
 #   3. stops until .env.core-api, .env.dashboard-api, .env.chain-worker and
 #      .env.cloudflared are filled in
@@ -20,6 +20,16 @@ if ! swapon --show | grep -q /swapfile; then
   sudo swapon /swapfile
   grep -q /swapfile /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
   echo "swap added"
+fi
+
+# Compose v5 builds through buildx 0.17+, and the Amazon Linux docker package has none.
+if ! docker buildx version >/dev/null 2>&1; then
+  BUILDX=v0.19.3
+  sudo mkdir -p /usr/local/lib/docker/cli-plugins
+  sudo curl -fsSL "https://github.com/docker/buildx/releases/download/$BUILDX/buildx-$BUILDX.linux-arm64" \
+    -o /usr/local/lib/docker/cli-plugins/docker-buildx
+  sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+  echo "buildx installed"
 fi
 
 if [ ! -s .env.db ]; then
