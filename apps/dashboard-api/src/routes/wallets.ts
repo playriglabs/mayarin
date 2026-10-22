@@ -205,8 +205,12 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
         // What the merchant may be paid in on this chain: its stablecoins. The
         // settings screen offers these rather than a list of its own, so a
         // stablecoin added to the deployment appears without a UI change.
+        // Narrowed to MERCHANT_SETTLEMENT_ASSETS when the deployment names them.
         settlementAssets: (Object.keys(receipt.tokens) as AssetCode[]).filter(
-          (asset) => getAsset(asset).kind === "stablecoin",
+          (asset) =>
+            getAsset(asset).kind === "stablecoin" &&
+            (container.config.merchantSettlementAssets.length === 0 ||
+              container.config.merchantSettlementAssets.includes(asset)),
         ),
       })),
       // The networks a local-currency payment can be delivered to; `null` when

@@ -148,6 +148,8 @@ export interface DashboardHarnessOptions {
   readonly merchantName?: string;
   /** Invoice delivery fake for failure-path tests. */
   readonly invoiceEmailSender?: InvoiceEmailSender;
+  /** Config variables layered over the harness defaults, for a test that needs a different deployment. */
+  readonly configEnv?: Readonly<Record<string, string>>;
 }
 
 export async function createDashboardHarness(options: DashboardHarnessOptions = {}) {
@@ -172,6 +174,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
       '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"},"arc-testnet":{"USDC":"0x3600000000000000000000000000000000000000"}}',
     CHAIN_NATIVE_ASSETS: '{"base-sepolia":"ETH"}',
     WALLET_PROVISION_CHAINS: "base-sepolia,arc-testnet",
+    ...options.configEnv,
   });
 
   const users = new InMemoryUserRepository();

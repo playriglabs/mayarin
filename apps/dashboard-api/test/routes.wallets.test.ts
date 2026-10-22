@@ -874,3 +874,38 @@ describe("withdrawing", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("the settlement assets a merchant is offered", () => {
+  const TOKENS =
+    '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e","USDT":"0x0000000000000000000000000000000000000002","EURC":"0x0000000000000000000000000000000000000003"}}';
+
+  async function offered(configEnv: Record<string, string>) {
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      configEnv: { CHAIN_ASSETS: TOKENS, ...configEnv },
+    });
+    const login = await harness.request("POST", "/v1/auth/login", {
+      body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    });
+    const res = await harness.request("GET", "/v1/wallets/rails", {
+      cookies: cookieJar(login.setCookies),
+    });
+    const { supported } = res.body as {
+      supported: { chain: string; settlementAssets: string[] }[];
+    };
+    const base = supported.find((entry) => entry.chain === "base-sepolia");
+    return base?.settlementAssets.slice().sort();
+  }
+
+  test("is every stablecoin the chain carries unless the deployment names them", async () => {
+    expect(await offered({})).toEqual(["EURC", "USDC", "USDT"]);
+  });
+
+  test("is only the ones MERCHANT_SETTLEMENT_ASSETS names", async () => {
+    expect(await offered({ MERCHANT_SETTLEMENT_ASSETS: '["USDC","USDT"]' })).toEqual([
+      "USDC",
+      "USDT",
+    ]);
+  });
+});

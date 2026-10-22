@@ -6,7 +6,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { CHAIN_IDS } from "@mayarin/chain";
+import { CHAIN_IDS, isMainnetChain } from "@mayarin/chain";
 import { parseHostList } from "@mayarin/http";
 import { type AssetCode, assetCodeSchema, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
@@ -233,6 +233,12 @@ const configSchema = z.object({
    * default would report rails a payer is never offered.
    */
   settlementAsset: assetCodeSchema.default("USDC"),
+  /**
+   * The stablecoins a merchant may choose to be paid in. Blank offers every stablecoin the
+   * deployment carries on a chain; a mainnet names the ones its routers settle, e.g.
+   * `["USDC","USDT"]`, so the settings screen never offers one the router would refuse.
+   */
+  merchantSettlementAssets: jsonObject<AssetCode[]>("MERCHANT_SETTLEMENT_ASSETS", "[]"),
   chainAssets: jsonObject<Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>>(
     "CHAIN_ASSETS",
     "{}",
@@ -351,6 +357,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
     turnkeySignerApiPublicKey: env.TURNKEY_SIGNER_API_PUBLIC_KEY,
     settlementAsset: env.SETTLEMENT_ASSET,
+    merchantSettlementAssets: env.MERCHANT_SETTLEMENT_ASSETS,
     chainAssets: env.CHAIN_ASSETS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,
@@ -370,8 +377,26 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   }
 
   assertWalletProvisioning(result.data);
+  assertNoTestnetOnMainnet(result.data);
   assertLogoStorage(result.data);
   return result.data;
+}
+
+/**
+ * `WALLET_PROVISION_CHAINS` defaults to `base-sepolia`, and every chain it names is a chain
+ * the settings screen lists and a settlement address is checked on. A mainnet that left it
+ * blank listed a testnet and refused addresses that exist on mainnet but not on it.
+ */
+function assertNoTestnetOnMainnet(data: Config): void {
+  const onMainnet = (Object.keys(data.chainAssets) as ChainId[]).some(isMainnetChain);
+  if (!onMainnet) return;
+  const testnets = data.walletProvisionChains.filter((chain) => !isMainnetChain(chain));
+  if (testnets.length > 0) {
+    throw new ConfigurationError(
+      `WALLET_PROVISION_CHAINS names ${testnets.join(", ")}, a testnet, on a deployment with mainnet tokens. Set it to a mainnet chain (the default is base-sepolia).`,
+      { testnets },
+    );
+  }
 }
 
 /** Logo storage is all five R2 variables or none of them. */
