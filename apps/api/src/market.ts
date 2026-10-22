@@ -127,7 +127,14 @@ const fxFeedsSchema = z.record(
 
 const coinbaseProductsSchema = z.record(z.string(), z.string());
 
-const chainlinkFeedsSchema = z.record(z.string(), z.unknown());
+const chainlinkFeedsSchema = z.record(
+  z.string(),
+  z.object({
+    chain: z.string(),
+    address: z.string(),
+    heartbeatSeconds: z.number().int().positive().optional(),
+  }),
+);
 const uniswapPoolsSchema = z.record(z.string(), z.unknown());
 
 /**

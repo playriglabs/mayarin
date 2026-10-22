@@ -73,6 +73,17 @@ describe("assertFresh", () => {
     );
   });
 
+  test("a source's own validity window replaces the deployment limit", () => {
+    const observed = new Date(NOW.getTime() - 3_600_000);
+
+    expect(() =>
+      assertFresh(reference({ observedAt: observed, validForMs: 86_400_000 }), 5_000, NOW),
+    ).not.toThrow();
+    expect(() =>
+      assertFresh(reference({ observedAt: observed, validForMs: 60_000 }), 5_000_000, NOW),
+    ).toThrow(/stale/i);
+  });
+
   test("a future-dated observation counts as fresh — clock skew is not staleness", () => {
     const observed = new Date(NOW.getTime() + 60_000);
     expect(() => assertFresh(reference({ observedAt: observed }), 5_000, NOW)).not.toThrow();

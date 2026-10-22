@@ -432,11 +432,10 @@ const configSchema = z.object({
   coinbaseProducts: jsonObject<Record<string, string>>("COINBASE_PRODUCTS", "{}"),
   /** Override the Coinbase endpoint; defaults to `api.exchange.coinbase.com`. */
   coinbaseEndpoint: z.string().url().optional(),
-  /** Chainlink pair to `{ chain, address }`. */
-  chainlinkFeeds: jsonObject<Record<string, { chain: ChainId; address: string }>>(
-    "CHAINLINK_FEEDS",
-    "{}",
-  ),
+  /** Chainlink pair to `{ chain, address, heartbeatSeconds? }`. */
+  chainlinkFeeds: jsonObject<
+    Record<string, { chain: ChainId; address: string; heartbeatSeconds?: number }>
+  >("CHAINLINK_FEEDS", "{}"),
   zeroExApiKey: z.string().min(1).optional(),
   zeroExChainId: z.coerce.number().int().positive().optional(),
   zeroExPairs: jsonObject<Record<string, unknown>>("ZERO_EX_PAIRS", "{}"),

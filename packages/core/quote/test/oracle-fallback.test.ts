@@ -88,6 +88,31 @@ describe("FallbackPriceOracle", () => {
     ).rejects.toThrow("No fresh oracle price");
   });
 
+  test("a source's own validity window carries a price older than the deployment limit", async () => {
+    const heartbeat = {
+      ...price("chainlink", 1_000_000n, 13 * 3_600_000, ["USDG", "USDC"]),
+      validForMs: 86_400_000,
+    };
+
+    const result = await fallback(new Error("pyth unavailable"), heartbeat).reference(
+      "USDG",
+      "USDC",
+    );
+
+    expect(result.source).toBe("chainlink");
+  });
+
+  test("a price older than its own validity window is dropped", async () => {
+    const lapsed = {
+      ...price("chainlink", 1_000_000n, 25 * 3_600_000, ["USDG", "USDC"]),
+      validForMs: 86_400_000,
+    };
+
+    expect(
+      fallback(new Error("pyth unavailable"), lapsed).reference("USDG", "USDC"),
+    ).rejects.toThrow("No fresh oracle price");
+  });
+
   test("fails closed when fresh sources materially disagree", async () => {
     expect(
       fallback(price("pyth", 56_000_000_000n), price("backup", 60_000_000_000n)).reference(

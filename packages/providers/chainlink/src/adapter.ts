@@ -31,6 +31,12 @@ export interface ChainlinkFeed {
   readonly chain: ChainId;
   /** AggregatorV3 (or proxy) contract address. */
   readonly address: string;
+  /**
+   * The feed's documented heartbeat. A feed publishes on a deviation or once per heartbeat, so an
+   * answer younger than this is current however old it looks; without it the deployment's
+   * reference age applies, which a stablecoin feed (24 h) never meets.
+   */
+  readonly heartbeatSeconds?: number;
 }
 
 export interface ChainlinkPriceOracleOptions {
@@ -85,6 +91,7 @@ export class ChainlinkPriceOracle implements PriceOracle {
       scaledRate,
       source: "chainlink",
       observedAt: new Date(Number(updatedAt) * 1_000),
+      ...(feed.heartbeatSeconds !== undefined && { validForMs: feed.heartbeatSeconds * 1_000 }),
     };
   }
 
