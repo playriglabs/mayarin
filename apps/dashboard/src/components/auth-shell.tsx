@@ -88,11 +88,14 @@ export function AuthSetup({
           )}
         </div>
 
-        <div className="flex flex-1 flex-col bg-background lg:rounded-2xl lg:border lg:border-border">
-          <div className="flex flex-1 justify-center px-6 py-6 lg:py-16">
+        <div className="flex min-h-0 flex-1 flex-col bg-background lg:rounded-2xl lg:border lg:border-border">
+          {/* The frame has a fixed height. Without min-h-0 this column cannot shrink below
+              its content, so a taller form (or an error line) pushes the footer past the
+              panel's border; scroll the form instead and keep the footer in place. */}
+          <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-6 lg:py-16">
             <div className="w-full max-w-lg">{children}</div>
           </div>
-          <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-border px-6 py-4">
             {footer}
           </div>
         </div>
