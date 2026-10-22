@@ -35,6 +35,10 @@ const DERIVED_KEYS = new Set(["DATABASE_URL", "PUBLIC_BASE_URL"]);
  * deploy/aws/bootstrap.sh builds it from the RDS-managed secret.
  */
 const AWS_DROPPED_OVERRIDES = new Set(["DASHBOARD_URL", "DATABASE_URL", "LEFTHOOK"]);
+// The origin has no public address on AWS: no inbound port, every request arrives
+// through the Cloudflare Tunnel, so the shared edge secret (SEC-13) has nothing to
+// close and would only 404 the tunnel's own requests.
+const AWS_DROPPED_KEYS = new Set(["ORIGIN_AUTH_SECRET"]);
 const AWS_PAYMENT_API_URL = "http://core-api:3000";
 
 /** A quoted value ends at its closing quote; an unquoted one at ` #`, like dotenv. */
@@ -327,7 +331,7 @@ for (const policy of selectedPolicies) {
   );
   const variables: Record<string, string> = { ...policy.overrides, ...local };
   if (awsDir !== undefined) {
-    for (const key of AWS_DROPPED_OVERRIDES) delete variables[key];
+    for (const key of [...AWS_DROPPED_OVERRIDES, ...AWS_DROPPED_KEYS]) delete variables[key];
     for (const key of ["DASHBOARD_URL", "PUBLIC_BASE_URL"]) {
       const value = values[key];
       if (value !== undefined && value !== "" && configuredKeys(source).includes(key)) {

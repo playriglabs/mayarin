@@ -495,8 +495,25 @@ reachable from outside the VPC, so the migration runs on the host, not from a
 workstation as in step 4 above. RDS Postgres 16 forces SSL, so the URL carries
 `sslmode=require`.
 
-In the Cloudflare Zero Trust dashboard, point the tunnel's public hostnames at
-`http://core-api:3000` and `http://dashboard-api:3001`.
+In the Cloudflare Zero Trust dashboard, add these public hostnames to the tunnel:
+
+| Hostname                   | Service                     |
+| -------------------------- | --------------------------- |
+| `api.mayarin.xyz`          | `http://core-api:3000`      |
+| `api-merchant.mayarin.xyz` | `http://dashboard-api:3001` |
+
+`PUBLIC_BASE_URL` is `https://api.mayarin.xyz` and `CHECKOUT_BASE_URL` is left
+unset, so checkout and invoice links are served by `core-api` itself until a
+mainnet pay proxy exists. `DASHBOARD_URL` is the dashboard Worker's origin,
+`https://dashboard.mayarin.xyz`; that Worker is a separate Cloudflare deploy and
+its `API_URL` must be `https://api-merchant.mayarin.xyz`.
+
+`ORIGIN_AUTH_SECRET` (SEC-13) is not written to the AWS env files. It closes the
+direct path to an origin's public address; here the origin has no public address,
+so every request already arrives through the tunnel and the secret would only
+turn the tunnel's own requests into 404s. `ALLOWED_HOSTS` stays blank for the
+same reason: `dashboard-api` calls `core-api` as `core-api:3000`, which a host
+list would have to name.
 
 ### Updating
 
