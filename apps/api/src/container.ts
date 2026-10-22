@@ -143,7 +143,14 @@ import type {
   X402Facilitator,
 } from "@mayarin/x402";
 import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
-import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  getAddress,
+  http,
+  parseAbi,
+} from "viem";
 import { type Config, isMainnetDeployment } from "./config.ts";
 import {
   ApiContractPlanner,
@@ -163,6 +170,8 @@ import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
+import { lifiGasRoute, rpcGasRefillPort } from "./services/gas-refill-chain.ts";
+import { GasRefiller } from "./services/gas-refiller.ts";
 import { LateDepositService } from "./services/late-deposits.ts";
 import { rpcMerchantRegistry } from "./services/merchant-registry.ts";
 import { rpcOperatorBumper } from "./services/operator-bumper.ts";
@@ -217,6 +226,8 @@ export interface Container {
   readonly operatorTransactions: OperatorTransactionReconciler;
   /** What the operator holds against its limits (SEC-06); absent without limits or an operator. */
   readonly operatorFloat?: OperatorFloatMonitor;
+  /** Pulls stablecoin from the treasury Safe and swaps it to native gas; absent without `GAS_REFILL`. */
+  readonly gasRefiller?: GasRefiller;
   /**
    * Live payment status for the hosted checkout (#13).
    *
@@ -1493,6 +1504,25 @@ export function createContainer({
           quoteTtlSeconds: config.x402QuoteTtlSeconds,
         });
   const escrowTreasuryPort = treasury?.evmPort;
+  const gasRefiller =
+    escrowTreasuryPort === undefined ||
+    operator === undefined ||
+    config.treasuryAddress === undefined ||
+    Object.keys(config.gasRefill).length === 0
+      ? undefined
+      : new GasRefiller({
+          chains: config.gasRefill as ConstructorParameters<typeof GasRefiller>[0]["chains"],
+          port: rpcGasRefillPort({
+            rpcUrls: config.chainRpcUrls,
+            send: (chain, to, data) => escrowTreasuryPort.call(chain, to, data),
+          }),
+          tokens: tokensOf(config.stablecoins),
+          safe: getAddress(config.treasuryAddress),
+          operator: operator.address,
+          route: lifiGasRoute({
+            ...(config.lifiApiKey === undefined ? {} : { apiKey: config.lifiApiKey }),
+          }),
+        });
 
   return {
     config,
@@ -1575,6 +1605,7 @@ export function createContainer({
     refunds,
     operatorTransactions,
     ...(operatorFloat === undefined ? {} : { operatorFloat }),
+    ...(gasRefiller === undefined ? {} : { gasRefiller }),
     ...(stream === undefined ? {} : { stream }),
     adapters,
     events,

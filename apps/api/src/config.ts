@@ -576,6 +576,16 @@ const configSchema = z.object({
     "{}",
   ),
   /**
+   * Keeps the operator in gas without a person (chain worker only): per chain, the
+   * stablecoin pulled from the treasury Safe through its Allowance Module and swapped
+   * to native, `amount` whole units at a time, when the native balance is under `min`
+   * whole units. The Safe's owners set the allowance that bounds it; see docs/chain.md.
+   */
+  gasRefill: jsonObject<Record<string, { asset: string; amount: string; min: string }>>(
+    "GAS_REFILL",
+    "{}",
+  ),
+  /**
    * The x402 rail (#207): endpoints payable per call by an agent that never
    * registered.
    *
@@ -1360,6 +1370,18 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
   if (hasEvmRouter && data.treasuryAddress === undefined) {
     issues.push("TREASURY_ADDRESS is required when TREASURY_EXECUTION_ENABLED is true");
   }
+  for (const [chain, entry] of Object.entries(data.gasRefill)) {
+    if (!isChainId(chain) || isSolanaChainId(chain)) {
+      issues.push(`GAS_REFILL names ${chain}, which is not an EVM chain`);
+    } else if (!/^\d+(\.\d+)?$/.test(entry.amount) || Number(entry.amount) <= 0) {
+      issues.push(`GAS_REFILL ${chain} amount must be a positive decimal, got "${entry.amount}"`);
+    } else if (!/^\d+(\.\d+)?$/.test(entry.min) || Number(entry.min) <= 0) {
+      issues.push(`GAS_REFILL ${chain} min must be a positive decimal, got "${entry.min}"`);
+    }
+  }
+  if (Object.keys(data.gasRefill).length > 0 && data.treasuryAddress === undefined) {
+    issues.push("GAS_REFILL pulls from the treasury Safe: TREASURY_ADDRESS is required");
+  }
   if (hasEvmRouter && !operatorConfigured(data)) {
     issues.push(
       "An operator signer is required when TREASURY_EXECUTION_ENABLED is true: OPERATOR_PRIVATE_KEY, or OPERATOR_SIGNER=turnkey or aws-kms",
@@ -1533,6 +1555,7 @@ export function loadConfig(
     operatorTurnkeySignWith: env.OPERATOR_TURNKEY_SIGN_WITH,
     operatorAddress: env.OPERATOR_ADDRESS,
     operatorFloatLimits: env.OPERATOR_FLOAT_LIMITS,
+    gasRefill: env.GAS_REFILL,
     operatorTurnkeyApiPublicKey: env.OPERATOR_TURNKEY_API_PUBLIC_KEY,
     operatorTurnkeyApiPrivateKey: env.OPERATOR_TURNKEY_API_PRIVATE_KEY,
     treasuryMaxAttempts: env.TREASURY_MAX_ATTEMPTS,
