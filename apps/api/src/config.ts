@@ -1186,7 +1186,25 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
  * evidence — so it exists only where no value can. Anything that is not
  * TransFi's sandbox host fails boot rather than quietly settling real payments.
  */
-function assertPaymentLimit(data: RawConfig): void {
+export type DeploymentNetwork = "testnet" | "mainnet";
+
+/** What the buyer-facing pages say they are: a mainnet if any chain is, else a testnet. */
+export function deploymentNetwork(
+  data: Pick<RawConfig, "chainAssets" | "paymentRouters">,
+): DeploymentNetwork {
+  return isMainnetDeployment(data) ? "mainnet" : "testnet";
+}
+
+/** True when any configured chain, token or router, is a mainnet. */
+export function isMainnetDeployment(
+  data: Pick<RawConfig, "chainAssets" | "paymentRouters">,
+): boolean {
+  return [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
+    (chain) => isChainId(chain) && isMainnetChain(chain),
+  );
+}
+
+function assertPaymentLimit(data: RawConfig, role: ConfigRole): void {
   const issues: string[] = [];
   const limits = {
     MAX_PAYMENT_SETTLEMENT: data.maxPaymentSettlement,
@@ -1205,9 +1223,7 @@ function assertPaymentLimit(data: RawConfig): void {
       }
     }
   }
-  const onMainnet = [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
-    (chain) => isChainId(chain) && isMainnetChain(chain),
-  );
+  const onMainnet = isMainnetDeployment(data);
   if (onMainnet && Object.keys(data.maxPaymentSettlement).length === 0) {
     issues.push(
       "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
@@ -1233,6 +1249,11 @@ function assertPaymentLimit(data: RawConfig): void {
         `RELAYER_GAS_FEE_MINIMUMS has no entry for ${chain}: a mainnet chain needs the least a relayed payment reimburses in gas`,
       );
     }
+  }
+  if (onMainnet && data.defaultProvider === "mock") {
+    issues.push(
+      "DEFAULT_SETTLEMENT_PROVIDER=mock moves no value and is refused when a mainnet chain is configured",
+    );
   }
   if (onMainnet && data.operatorSigner === "local" && data.operatorPrivateKey !== undefined) {
     issues.push(
@@ -1284,13 +1305,16 @@ function assertPaymentLimit(data: RawConfig): void {
       issues.push("OPERATOR_PRIVATE_KEY must not be set when OPERATOR_SIGNER=turnkey");
     }
   }
-  if (onMainnet && data.webhookSecretEncryptionKey === undefined) {
+  // The chain worker has no HTTP surface and never reads webhook endpoints or mints
+  // payer tokens, so its SEC-05 policy withholds these three from it. Only the API
+  // processes are refused without them.
+  if (onMainnet && role === "api" && data.webhookSecretEncryptionKey === undefined) {
     issues.push("WEBHOOK_SECRET_ENCRYPTION_KEY is required when a mainnet chain is configured");
   }
-  if (onMainnet && data.payerTokenKey === undefined) {
+  if (onMainnet && role === "api" && data.payerTokenKey === undefined) {
     issues.push("PAYER_TOKEN_KEY is required when a mainnet chain is configured");
   }
-  if (onMainnet && data.internalApiToken === undefined) {
+  if (onMainnet && role === "api" && data.internalApiToken === undefined) {
     issues.push("INTERNAL_API_TOKEN is required when a mainnet chain is configured");
   }
   if (issues.length > 0) {
@@ -1369,7 +1393,13 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
   }
 }
 
-export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
+/** Which process is loading the config: the HTTP API, or the chain worker (no HTTP surface). */
+export type ConfigRole = "api" | "worker";
+
+export function loadConfig(
+  rawEnv: Record<string, string | undefined> = process.env,
+  role: ConfigRole = "api",
+): Config {
   const env = withoutEmpty(rawEnv);
   const result = configSchema.safeParse({
     port: env.PORT,
@@ -1537,7 +1567,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   const contract = resolveContract(result.data, quote, stablecoins);
   assertTreasuryExecution(result.data, quote);
   assertTransfiSandboxSettle(result.data);
-  assertPaymentLimit(result.data);
+  assertPaymentLimit(result.data, role);
 
   if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
     throw new ConfigurationError(

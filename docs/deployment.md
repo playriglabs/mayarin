@@ -437,6 +437,136 @@ project only. A mainnet deploy path is a separate piece of work behind the
 
 ---
 
+## AWS Mainnet Host
+
+Mainnet runs on one EC2 instance with a private RDS Postgres, not on Railway.
+Testnet stays on Railway and keeps the procedure above.
+
+| Resource      | Value                                                                         |
+| ------------- | ----------------------------------------------------------------------------- |
+| Region        | `ap-southeast-2` — the only region the account's org policy allows EC2/RDS    |
+| App host      | `t4g.medium` (arm64), Amazon Linux 2023, no key pair, no inbound ports        |
+| Database      | RDS Postgres 16, `db.t4g.micro`, private, single-AZ, deletion protection on   |
+| Access        | SSM Session Manager (`aws ssm start-session`); needs `session-manager-plugin` |
+| Way in        | Cloudflare Tunnel (`cloudflared` container) to `core-api` and `dashboard-api` |
+| Master secret | Created and rotated by RDS in Secrets Manager; never copied into a file       |
+
+`deploy/aws/docker-compose.yml` runs the one image as `core-api` (port 3000),
+`dashboard-api` (3001) and `chain-worker`, selected by `RAILWAY_SERVICE_NAME`
+exactly as `scripts/start-railway.sh` does. Each service reads its own
+`deploy/aws/.env.<service>` (git-ignored), so a service holds only the secrets
+its policy in `scripts/railway-env-policy.ts` allows. `.env.cloudflared` holds
+`TUNNEL_TOKEN`.
+
+The Mainnet Gate above applies unchanged, including the `deploy mayarin
+mainnet` phrase, before the first migration or start.
+
+### First start
+
+On the host, through an SSM session:
+
+```bash
+git clone https://github.com/playriglabs/mayarin.git && cd mayarin/deploy/aws
+bash bootstrap.sh
+```
+
+`bootstrap.sh` can be run again. It adds swap, writes `.env.db` from the
+RDS-managed secret, then stops until `.env.core-api`, `.env.dashboard-api`,
+`.env.chain-worker` and `.env.cloudflared` are filled in. Run it again and it
+builds the image, migrates and starts the services.
+
+Generate the three service files on the workstation from `.env.mainnet`, with
+the same per-service key sets and credential policy as the Railway sync:
+
+```bash
+bun run scripts/sync-railway-env.ts --aws=deploy/aws/out
+```
+
+It reads `.env.mainnet` itself, never the development `.env`, and drops the
+Railway-only overrides. Then check that every service accepts its file before
+anything is copied: `bun run deploy/aws/check-env.ts` runs each service's own
+`loadConfig` (no server, no network) and prints the refusal, if any. Copy each file onto the host by pasting it into an SSM
+session, so the secrets never land in AWS command history. A terminal accepts
+at most 4095 bytes per line and silently cuts the rest, and `UNISWAP_POOLS` is
+longer than that, so paste base64 wrapped at 76 columns, never the file itself:
+`base64 -b 76 -i deploy/aws/out/.env.core-api | pbcopy` on the workstation, then
+`base64 -d > .env.core-api` on the host, paste, Ctrl-D. Check that no line was
+cut: `awk '{ if (length($0)>m) m=length($0) } END { print m }' .env.core-api`
+must print the same number as on the workstation.
+`.env.cloudflared` holds `TUNNEL_TOKEN=...` and is written by hand. Delete
+`deploy/aws/out` afterwards.
+
+The image build on this host skips `bun run typecheck` (`SKIP_TYPECHECK` in
+`deploy/aws/docker-compose.yml`): type-checking the whole monorepo needs more
+memory than the 4 GB host has and freezes it. The check still runs in the
+pre-push hook and in CI, so only a commit that passed them should be deployed.
+
+The instance role may read exactly one secret, the RDS master secret, and
+describe its own database; nothing else beyond SSM. The database is not
+reachable from outside the VPC, so the migration runs on the host, not from a
+workstation as in step 4 above. RDS Postgres 16 forces SSL, so the URL carries
+`sslmode=require`.
+
+In the Cloudflare Zero Trust dashboard, add these public hostnames to the tunnel:
+
+| Hostname                   | Service                     |
+| -------------------------- | --------------------------- |
+| `api.mayarin.xyz`          | `http://core-api:3000`      |
+| `api-merchant.mayarin.xyz` | `http://dashboard-api:3001` |
+
+`PUBLIC_BASE_URL` is `https://api.mayarin.xyz`, `CHECKOUT_BASE_URL` is
+`https://pay.mayarin.xyz` (checkout and invoice links the API and dashboard hand
+out), and `DASHBOARD_URL` is `https://dashboard.mayarin.xyz`. The last two are
+Cloudflare Workers, deployed as below.
+
+### Cloudflare surfaces (mainnet)
+
+The dashboard and the pay proxy stay on Cloudflare. One command builds and
+publishes both, after the Mainnet Gate phrase and a health check of the API each
+one fronts:
+
+```bash
+bunx wrangler login
+bun run deploy:cloudflare:mainnet --dry-run   # build and validate, publish nothing
+bun run deploy:cloudflare:mainnet             # both; --only dashboard | pay
+```
+
+| Surface   | Worker              | Host                    | Fronts                     |
+| --------- | ------------------- | ----------------------- | -------------------------- |
+| dashboard | `mayarin-dashboard` | `dashboard.mayarin.xyz` | `api-merchant.mayarin.xyz` |
+| pay       | `mayarin-pay`       | `pay.mayarin.xyz`       | `api.mayarin.xyz`          |
+
+The dashboard's testnet `wrangler.jsonc` is never edited: the script copies the
+config the build generates, replaces the name, `API_URL`, route and session
+store, and refuses to publish anything that still mentions testnet. The mainnet
+dashboard gets its own KV namespace (`mayarin-dashboard-session`), created on
+first run, so a testnet session never opens a mainnet dashboard. The pay proxy
+publishes from `apps/pay-proxy/wrangler.mainnet.jsonc`; the default
+`wrangler.jsonc` there is testnet. A custom domain needs the hostname to carry
+no hand-managed DNS record (Cloudflare error 100117).
+
+Which network the pages say they are on comes from configuration, not from the
+build. The dashboard reads the Worker var `NETWORK` (`testnet` in
+`apps/dashboard/wrangler.jsonc`, `mainnet` written by the deploy script): on a
+mainnet the register page drops "sandbox" and "test assets", and the testnet
+banner is not rendered. Anything but exactly `mainnet` counts as a testnet, so a
+lost variable keeps the warning. The buyer pages get the same flag from
+`core-api`, which reports `mainnet` whenever any configured chain is one.
+
+`ORIGIN_AUTH_SECRET` (SEC-13) is not written to the AWS env files. It closes the
+direct path to an origin's public address; here the origin has no public address,
+so every request already arrives through the tunnel and the secret would only
+turn the tunnel's own requests into 404s. `ALLOWED_HOSTS` stays blank for the
+same reason: `dashboard-api` calls `core-api` as `core-api:3000`, which a host
+list would have to name.
+
+### Updating
+
+Pull the commit the operator reviewed, then `docker compose build core-api &&
+docker compose up -d`. Run one `chain-worker`: nothing here has verified that two are safe.
+
+---
+
 ## Mainnet Gate
 
 Create `mayarin-mainnet` as a new Railway project; do not clone the testnet

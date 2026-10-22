@@ -42,6 +42,7 @@ import { currencyOfCountry } from "@/lib/country-currency";
 import { ICON_NAV } from "@/lib/icons";
 import { localRailsFor } from "@/lib/local-rails";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
+import { type Network, registerCopy } from "@/lib/network-copy";
 import { withQuery } from "@/lib/with-query";
 
 /** Mirrors the API's floor. Stated up front rather than only on rejection. */
@@ -61,7 +62,7 @@ type FormState =
   | { readonly status: "submitting" }
   | { readonly status: "error"; readonly reason: string };
 
-function RegisterForm() {
+function RegisterForm({ network }: { readonly network: Network }) {
   const [step, setStep] = useState<Step>("account");
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [merchantName, setMerchantName] = useState("");
@@ -127,17 +128,16 @@ function RegisterForm() {
     setStep("business");
   }
 
+  const copy = registerCopy(network);
+
   if (step === "account") {
     return (
       <AuthCard>
         <form onSubmit={onContinue} className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">Step 1 of 2</p>
-            <h1 className="text-2xl text-foreground">Create your sandbox account</h1>
-            <p className="text-base text-muted-foreground">
-              This is a testing environment. Transactions use test assets and have no real-world
-              value.
-            </p>
+            <h1 className="text-2xl text-foreground">{copy.title}</h1>
+            <p className="text-base text-muted-foreground">{copy.intro}</p>
           </div>
 
           <div className="mt-2 flex flex-col gap-3">

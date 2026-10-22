@@ -9,7 +9,10 @@ import type { PayBootstrap } from "./features/pay/types.ts";
  * page paints from data it already has — no fetch, no spinner. Each feature owns
  * the shape of its own page; this is only the union the entry point switches on.
  */
-export type Bootstrap = LinkBootstrap | PayBootstrap | InvoiceBootstrap;
+export type Bootstrap = (LinkBootstrap | PayBootstrap | InvoiceBootstrap) & {
+  /** Which network this deployment is on; absent reads as a testnet, the safe thing to say. */
+  readonly network?: "testnet" | "mainnet";
+};
 
 declare global {
   interface Window {

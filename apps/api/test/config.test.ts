@@ -294,6 +294,8 @@ describe("contract path configuration", () => {
     WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
     PAYER_TOKEN_KEY: "p".repeat(32),
     INTERNAL_API_TOKEN: "i".repeat(32),
+    // The mock provider moves no value, so a mainnet will not boot on it as the default.
+    DEFAULT_SETTLEMENT_PROVIDER: "stablecoin",
   } as const;
 
   test("is absent unless enabled", () => {
@@ -957,6 +959,7 @@ describe("TransFi sandbox auto-settle", () => {
       CHAIN_RPC_URLS: '{"base":"https://mainnet.base.org"}',
       CHAIN_ASSETS: '{"base":{"USDC":"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}}',
       DEPOSIT_XPUB: "xpub-test",
+      DEFAULT_SETTLEMENT_PROVIDER: "stablecoin",
     };
 
     test("a mainnet chain without MAX_PAYMENT_SETTLEMENT will not boot", () => {
@@ -981,6 +984,32 @@ describe("TransFi sandbox auto-settle", () => {
       expect(() => loadConfig({ ...sealed, PAYER_TOKEN_KEY: "p".repeat(32) })).toThrow(
         /INTERNAL_API_TOKEN is required/,
       );
+    });
+
+    test("a mainnet chain refuses the mock settlement provider as the default", () => {
+      const sealed = {
+        ...mainnet,
+        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
+        WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
+        PAYER_TOKEN_KEY: "p".repeat(32),
+        INTERNAL_API_TOKEN: "i".repeat(32),
+      };
+      expect(() => loadConfig({ ...sealed, DEFAULT_SETTLEMENT_PROVIDER: "mock" })).toThrow(
+        /DEFAULT_SETTLEMENT_PROVIDER=mock moves no value/,
+      );
+      expect(() =>
+        loadConfig({ ...sealed, DEFAULT_SETTLEMENT_PROVIDER: "stablecoin" }),
+      ).not.toThrow();
+    });
+
+    test("the chain worker boots on mainnet without the three HTTP-side secrets, the API still will not", () => {
+      const withoutSecrets = { ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' };
+      expect(() => loadConfig(withoutSecrets, "worker")).not.toThrow();
+      expect(() => loadConfig(withoutSecrets, "api")).toThrow(
+        /WEBHOOK_SECRET_ENCRYPTION_KEY is required/,
+      );
+      // The worker is still held to every other mainnet rule.
+      expect(() => loadConfig(mainnet, "worker")).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
     });
 
     test("a mainnet chain with all of them boots, and the cap is read", () => {

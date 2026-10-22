@@ -3,6 +3,11 @@
 .env
 .env.*
 !.env.example
+# Without **/ a pattern only matches at the context root, so deploy/aws/.env.* (the
+# host's secrets) would be copied into an image layer.
+**/.env
+**/.env.*
+!**/.env.example
 .astro
 .bun
 .turbo

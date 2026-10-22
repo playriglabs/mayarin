@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { join, normalize } from "node:path";
 import { ConfigurationError, NotFoundError } from "@mayarin/shared";
 import { type Context, Hono } from "hono";
+import type { DeploymentNetwork } from "../config.ts";
 import type { Container } from "../container.ts";
 
 /** What the shell's `<head>` carries in place of this exact comment. */
@@ -69,8 +70,11 @@ export function shellCsp(bootstrap: object): string {
  */
 export async function renderShell(
   distDir: string,
-  bootstrap: object,
+  network: DeploymentNetwork,
+  pageBootstrap: object,
 ): Promise<{ html: string; headers: Record<string, string> }> {
+  // One place says which network every buyer page is on, so no route has to remember to.
+  const bootstrap = { ...pageBootstrap, network };
   const shell = Bun.file(join(distDir, "index.html"));
   if (!(await shell.exists())) {
     throw new ConfigurationError(
@@ -99,9 +103,10 @@ export async function renderShell(
 export async function shellResponse(
   c: Context,
   distDir: string,
+  network: DeploymentNetwork,
   bootstrap: object,
 ): Promise<Response> {
-  const page = await renderShell(distDir, bootstrap);
+  const page = await renderShell(distDir, network, bootstrap);
   return c.html(page.html, 200, page.headers);
 }
 

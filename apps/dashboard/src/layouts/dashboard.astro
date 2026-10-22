@@ -25,6 +25,7 @@ import SocialMeta from "../components/social-meta.astro";
 import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
 import { getApiBase, originAuthHeaders } from "../lib/api/origin";
+import { getNetwork } from "../lib/network";
 import type { SettingsResponse } from "../types/settings";
 import type { UserDto } from "../types/user";
 
@@ -33,6 +34,7 @@ interface Props {
 }
 
 const { title } = Astro.props;
+const network = getNetwork();
 
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
@@ -86,7 +88,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-network={network}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -115,7 +117,9 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
         storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme;
       document.documentElement.dataset.sidebarCollapsed =
         localStorage.getItem("mayarin-sidebar-collapsed") === "true" ? "true" : "false";
+      // A mainnet has no notice, so it takes the dismissed layout: no banner, no gap above the frame.
       document.documentElement.dataset.testnetNoticeDismissed =
+        document.documentElement.dataset.network === "mainnet" ||
         localStorage.getItem("mayarin-testnet-notice-v1-dismissed") === "true"
           ? "true"
           : "false";
@@ -142,27 +146,31 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     <OnboardingTour client:load userId={user.id} permissions={user.permissions} />
 
 
-    <aside
-      data-testnet-notice
-      aria-label="Testnet notice"
-      class="fixed inset-x-0 top-0 z-60 flex h-11 items-center justify-center border-b border-brand/20 bg-brand-muted px-14 text-brand"
-    >
-      <p class="flex min-w-0 items-center gap-2 text-center text-xs font-medium sm:text-sm">
-        <InfoIcon size={16} weight="bold" aria-hidden="true" className="shrink-0" />
-        <span class="truncate">
-          <strong class="font-medium">Mayarin Testnet {" "}</strong>
-          — Transactions use test assets and have no real-world value.
-        </span>
-      </p>
-      <button
-        type="button"
-        data-testnet-notice-close
-        aria-label="Dismiss testnet notice"
-        class="absolute right-0 top-0 flex cursor-pointer size-11 items-center justify-center text-brand/70 transition-colors hover:bg-brand/10 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
-      >
-        <XIcon size={17} weight="regular" aria-hidden="true" />
-      </button>
-    </aside>
+    {
+      network === "testnet" && (
+        <aside
+          data-testnet-notice
+          aria-label="Testnet notice"
+          class="fixed inset-x-0 top-0 z-60 flex h-11 items-center justify-center border-b border-brand/20 bg-brand-muted px-14 text-brand"
+        >
+          <p class="flex min-w-0 items-center gap-2 text-center text-xs font-medium sm:text-sm">
+            <InfoIcon size={16} weight="bold" aria-hidden="true" className="shrink-0" />
+            <span class="truncate">
+              <strong class="font-medium">Mayarin Testnet {" "}</strong>
+              — Transactions use test assets and have no real-world value.
+            </span>
+          </p>
+          <button
+            type="button"
+            data-testnet-notice-close
+            aria-label="Dismiss testnet notice"
+            class="absolute right-0 top-0 flex cursor-pointer size-11 items-center justify-center text-brand/70 transition-colors hover:bg-brand/10 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
+          >
+            <XIcon size={17} weight="regular" aria-hidden="true" />
+          </button>
+        </aside>
+      )
+    }
 
     <button
       type="button"

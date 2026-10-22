@@ -6,6 +6,7 @@
  *   bun run scripts/sync-railway-env.ts --dry-run        show, change nothing
  *   bun run scripts/sync-railway-env.ts --prune          also delete variables the service no longer takes
  *   bun run scripts/sync-railway-env.ts --keep-database-url  leave DATABASE_URL alone (per-service roles, SEC-05)
+ *   bun run scripts/sync-railway-env.ts --aws=<dir>      write .env.<service> files for the AWS host from .env.mainnet
  *
  * This overwrites the deployed environment with whatever is in the local `.env`,
  * one key at a time, and there is no undo. `--dry-run` exists because the
@@ -13,6 +14,7 @@
  * feature the deployment has switched on is a silent regression, not an error.
  */
 
+import { chmodSync } from "node:fs";
 import {
   type SecretPolicy,
   unexpectedRemoteSecrets,
@@ -20,6 +22,51 @@ import {
 } from "./railway-env-policy.ts";
 
 const DERIVED_KEYS = new Set(["DATABASE_URL", "PUBLIC_BASE_URL"]);
+
+/**
+ * AWS mode (`--aws=<dir>`): the same per-service key sets and credential
+ * policy, but written to env files for deploy/aws/docker-compose.yml.
+ *
+ * Values come from `.env.mainnet` itself, never from `process.env`: Bun also
+ * loads the development `.env`, and a mainnet key missing from the mainnet file
+ * must stay missing, not quietly take the development value. The Railway-only
+ * overrides (testnet dashboard URL, Railway database reference, Railway
+ * internal hostname) are replaced or dropped. The database URL is not written:
+ * deploy/aws/bootstrap.sh builds it from the RDS-managed secret.
+ */
+const AWS_DROPPED_OVERRIDES = new Set(["DASHBOARD_URL", "DATABASE_URL", "LEFTHOOK"]);
+// The origin has no public address on AWS: no inbound port, every request arrives
+// through the Cloudflare Tunnel, so the shared edge secret (SEC-13) has nothing to
+// close and would only 404 the tunnel's own requests.
+const AWS_DROPPED_KEYS = new Set(["ORIGIN_AUTH_SECRET"]);
+const AWS_PAYMENT_API_URL = "http://core-api:3000";
+
+/** A quoted value ends at its closing quote; an unquoted one at ` #`, like dotenv. */
+function parseValue(raw: string): string {
+  const quote = raw[0];
+  if (quote === '"' || quote === "'") {
+    const end = raw.indexOf(quote, 1);
+    if (end !== -1) return raw.slice(1, end);
+  }
+  return raw.replace(/\s+#.*$/, "").trim();
+}
+
+function parseEnvFile(text: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line.trim());
+    if (match?.[1] === undefined || match[2] === undefined) continue;
+    values[match[1]] = parseValue(match[2]);
+  }
+  return values;
+}
+
+/** One `KEY=value` line that docker compose's env_file reads back literally. */
+function envLine(key: string, value: string): string {
+  if (!/[$#\s"'\\]/.test(value)) return `${key}=${value}`;
+  if (value.includes("'")) throw new Error(`${key}: a value with a single quote cannot be written`);
+  return `${key}='${value}'`;
+}
 
 interface ServicePolicy {
   readonly name: "core-api" | "dashboard-api" | "chain-worker";
@@ -250,6 +297,7 @@ const args = process.argv.slice(2);
 const prune = args.includes("--prune");
 const keepDatabaseUrl = args.includes("--keep-database-url");
 const dryRun = args.includes("--dry-run");
+const awsDir = args.find((arg) => arg.startsWith("--aws="))?.slice("--aws=".length);
 const requestedService = args.find((arg) => !arg.startsWith("--"));
 const selectedPolicies =
   requestedService === undefined
@@ -259,6 +307,9 @@ const selectedPolicies =
 if (selectedPolicies.length === 0) {
   throw new Error(`Unknown Railway service: ${requestedService}`);
 }
+
+const values: Record<string, string | undefined> =
+  awsDir === undefined ? process.env : parseEnvFile(await Bun.file(".env.mainnet").text());
 
 for (const policy of selectedPolicies) {
   const source = await Bun.file(policy.configPath).text();
@@ -275,10 +326,28 @@ for (const policy of selectedPolicies) {
         (key) =>
           !DERIVED_KEYS.has(key) && !policy.secrets.withheld.has(key) && !(key in policy.overrides),
       )
-      .map((key) => [key, process.env[key]])
+      .map((key) => [key, values[key]])
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
   );
   const variables: Record<string, string> = { ...policy.overrides, ...local };
+  if (awsDir !== undefined) {
+    for (const key of [...AWS_DROPPED_OVERRIDES, ...AWS_DROPPED_KEYS]) delete variables[key];
+    for (const key of ["DASHBOARD_URL", "PUBLIC_BASE_URL"]) {
+      const value = values[key];
+      if (value !== undefined && value !== "" && configuredKeys(source).includes(key)) {
+        variables[key] = value;
+      }
+    }
+    if (policy.name === "dashboard-api") variables.PAYMENT_API_URL = AWS_PAYMENT_API_URL;
+    const path = `${awsDir}/.env.${policy.name}`;
+    const lines = Object.entries(variables)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => envLine(key, value));
+    await Bun.write(path, `${lines.join("\n")}\n`);
+    chmodSync(path, 0o600);
+    console.log(`[aws] ${policy.name}: ${lines.length} keys -> ${path}`);
+    continue;
+  }
   // Once a service connects as its own database role, the shared reference
   // would overwrite that role's connection string with the owner's.
   if (keepDatabaseUrl) delete variables.DATABASE_URL;

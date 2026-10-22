@@ -8,7 +8,7 @@ import { createContainer, watchedPairs } from "./container.ts";
 import { startEscrowKeeper } from "./services/escrow-keeper.ts";
 import { startIndexerLoops, startWatcherLoops } from "./services/watcher-loops.ts";
 
-const config = loadConfig();
+const config = loadConfig(process.env, "worker");
 const chain = config.chain;
 
 if (chain === undefined || chain.intervalMs <= 0) {
