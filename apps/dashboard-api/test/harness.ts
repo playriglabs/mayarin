@@ -527,6 +527,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     customers,
     invoices,
     emails: invoiceEmails,
+    webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries },
     checkoutBaseUrl: config.checkoutBaseUrl,
     clock,
   });

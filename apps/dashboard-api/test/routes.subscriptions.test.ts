@@ -84,6 +84,37 @@ describe("subscriptions", () => {
     expect(harness.invoiceEmailCalls[0]).toMatchObject({ buyerEmail: "finance@sr.co.id" });
   });
 
+  test("a billed cycle is told to the merchant's endpoints once, with its pay URL", async () => {
+    const { harness, auth, customerId } = await seed();
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    await harness.webhookEndpoints.insert({
+      id: "whe_1",
+      merchantId: harness.merchantId,
+      url: "https://merchant.example/hooks",
+      secret: "s",
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const subscription = await subscribe(harness, auth, customerId);
+
+    await harness.container.subscriptions.tick();
+    await harness.container.subscriptions.tick();
+
+    const queued = await harness.webhookDeliveries.listByMerchant({
+      merchantId: harness.merchantId,
+      limit: 10,
+    });
+    expect(queued).toHaveLength(1);
+    const event = JSON.parse(queued[0]?.body ?? "");
+    expect(event).toMatchObject({
+      id: `${subscription.id}:2026-01-01T00:00:00.000Z`,
+      type: "subscription.cycle_created",
+      data: { subscriptionId: subscription.id, customerId, amount: "49000.00", asset: "IDR" },
+    });
+    expect(event.data.payUrl).toContain(`/invoices/${event.data.invoiceId}/view`);
+  });
+
   test("the next month bills the next cycle", async () => {
     const { harness, auth, customerId } = await seed();
     const subscription = await subscribe(harness, auth, customerId);
