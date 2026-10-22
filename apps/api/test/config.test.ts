@@ -983,6 +983,16 @@ describe("TransFi sandbox auto-settle", () => {
       );
     });
 
+    test("the chain worker boots on mainnet without the three HTTP-side secrets, the API still will not", () => {
+      const withoutSecrets = { ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' };
+      expect(() => loadConfig(withoutSecrets, "worker")).not.toThrow();
+      expect(() => loadConfig(withoutSecrets, "api")).toThrow(
+        /WEBHOOK_SECRET_ENCRYPTION_KEY is required/,
+      );
+      // The worker is still held to every other mainnet rule.
+      expect(() => loadConfig(mainnet, "worker")).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
+    });
+
     test("a mainnet chain with all of them boots, and the cap is read", () => {
       const config = loadConfig({
         ...mainnet,

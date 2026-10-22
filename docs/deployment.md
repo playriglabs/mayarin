@@ -483,7 +483,9 @@ bun run scripts/sync-railway-env.ts --aws=deploy/aws/out
 ```
 
 It reads `.env.mainnet` itself, never the development `.env`, and drops the
-Railway-only overrides. Copy each file onto the host by pasting it into an SSM
+Railway-only overrides. Then check that every service accepts its file before
+anything is copied: `bun run deploy/aws/check-env.ts` runs each service's own
+`loadConfig` (no server, no network) and prints the refusal, if any. Copy each file onto the host by pasting it into an SSM
 session, so the secrets never land in AWS command history. A terminal accepts
 at most 4095 bytes per line and silently cuts the rest, and `UNISWAP_POOLS` is
 longer than that, so paste base64 wrapped at 76 columns, never the file itself:
