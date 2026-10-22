@@ -40,6 +40,7 @@
     "demo:agent": "bun run scripts/demo-agent.ts",
     "deploy:demo": "bun run scripts/deploy-demo.ts",
     "deploy:dashboard:testnet": "bun run --cwd apps/dashboard deploy:testnet",
+    "deploy:cloudflare:mainnet": "bun run scripts/deploy-cloudflare-mainnet.ts",
     "deploy:landing": "bun run --cwd apps/landing deploy",
     "deploy:testnet": "bun run scripts/deploy-testnet.ts",
     "dev": "bun run --cwd apps/api dev",

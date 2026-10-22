@@ -514,11 +514,36 @@ In the Cloudflare Zero Trust dashboard, add these public hostnames to the tunnel
 | `api.mayarin.xyz`          | `http://core-api:3000`      |
 | `api-merchant.mayarin.xyz` | `http://dashboard-api:3001` |
 
-`PUBLIC_BASE_URL` is `https://api.mayarin.xyz` and `CHECKOUT_BASE_URL` is left
-unset, so checkout and invoice links are served by `core-api` itself until a
-mainnet pay proxy exists. `DASHBOARD_URL` is the dashboard Worker's origin,
-`https://dashboard.mayarin.xyz`; that Worker is a separate Cloudflare deploy and
-its `API_URL` must be `https://api-merchant.mayarin.xyz`.
+`PUBLIC_BASE_URL` is `https://api.mayarin.xyz`, `CHECKOUT_BASE_URL` is
+`https://pay.mayarin.xyz` (checkout and invoice links the API and dashboard hand
+out), and `DASHBOARD_URL` is `https://dashboard.mayarin.xyz`. The last two are
+Cloudflare Workers, deployed as below.
+
+### Cloudflare surfaces (mainnet)
+
+The dashboard and the pay proxy stay on Cloudflare. One command builds and
+publishes both, after the Mainnet Gate phrase and a health check of the API each
+one fronts:
+
+```bash
+bunx wrangler login
+bun run deploy:cloudflare:mainnet --dry-run   # build and validate, publish nothing
+bun run deploy:cloudflare:mainnet             # both; --only dashboard | pay
+```
+
+| Surface   | Worker              | Host                    | Fronts                     |
+| --------- | ------------------- | ----------------------- | -------------------------- |
+| dashboard | `mayarin-dashboard` | `dashboard.mayarin.xyz` | `api-merchant.mayarin.xyz` |
+| pay       | `mayarin-pay`       | `pay.mayarin.xyz`       | `api.mayarin.xyz`          |
+
+The dashboard's testnet `wrangler.jsonc` is never edited: the script copies the
+config the build generates, replaces the name, `API_URL`, route and session
+store, and refuses to publish anything that still mentions testnet. The mainnet
+dashboard gets its own KV namespace (`mayarin-dashboard-session`), created on
+first run, so a testnet session never opens a mainnet dashboard. The pay proxy
+publishes from `apps/pay-proxy/wrangler.mainnet.jsonc`; the default
+`wrangler.jsonc` there is testnet. A custom domain needs the hostname to carry
+no hand-managed DNS record (Cloudflare error 100117).
 
 `ORIGIN_AUTH_SECRET` (SEC-13) is not written to the AWS env files. It closes the
 direct path to an origin's public address; here the origin has no public address,
