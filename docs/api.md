@@ -105,7 +105,7 @@ with access already vouched for the address.
 | `GET/POST /invoices`, `/:id/issue`, `/:id/void`, `/:id/send`                 | `catalog:manage`  | Numbered invoices and their lifecycle                           |
 | `GET/POST/PATCH/DELETE /customers[/:id]`                                     | `catalog:manage`  | Merchant-managed directory, linked to orders                    |
 | `GET/POST /x402-resources`, `/:id/list`, `/:id/unlist`, `DELETE /:id`        | `catalog:manage`  | The merchant's own agent-payable endpoints                      |
-| `GET/POST /subscriptions`, `/:id/pause`, `/:id/resume`, `/:id/cancel`        | `catalog:manage`  | Recurring plans, one invoice per cycle (#296)                   |
+| `GET/POST /subscriptions`, `/:id/pause`, `/:id/resume`, `/:id/cancel`        | `catalog:manage`  | Recurring plans, an invoice and webhook per cycle (#303)        |
 | `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail               |
 | `PUT/DELETE /settings/logo`                                                  | `settings:manage` | Upload or remove the company logo (R2)                          |
 | `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                           |

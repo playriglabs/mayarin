@@ -624,6 +624,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     customers,
     invoices,
     emails: invoiceEmails,
+    webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries },
     checkoutBaseUrl: config.checkoutBaseUrl,
     clock,
   });

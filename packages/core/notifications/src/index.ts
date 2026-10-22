@@ -35,6 +35,10 @@ export {
   WEBHOOK_TIMESTAMP_HEADER,
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
 } from "./signature.ts";
+export {
+  type SubscriptionCycleFacts,
+  subscriptionCycleCreatedEvent,
+} from "./subscription-events.ts";
 export type { WebhookRequest, WebhookResponse, WebhookTransport } from "./transport.ts";
 export {
   activePreviousSecret,

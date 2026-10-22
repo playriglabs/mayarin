@@ -17,6 +17,11 @@
 import type { MerchantRepository } from "@mayarin/auth";
 import type { Invoice, InvoiceService } from "@mayarin/invoicing";
 import {
+  enqueueMerchantEvent,
+  type MerchantEventSink,
+  subscriptionCycleCreatedEvent,
+} from "@mayarin/notifications";
+import {
   type AssetCode,
   type Clock,
   ConcurrencyError,
@@ -26,6 +31,7 @@ import {
   isMayarinError,
   type Money,
   NotFoundError,
+  toDecimalString,
 } from "@mayarin/shared";
 import {
   cancelSubscription,
@@ -62,6 +68,8 @@ export interface SubscriptionServiceOptions {
   };
   readonly invoices: InvoiceService;
   readonly emails: InvoiceEmailSender;
+  /** Where `subscription.cycle_created` is told (#303). */
+  readonly webhooks: MerchantEventSink;
   /** Origin of the hosted invoice page a cycle's email links to. */
   readonly checkoutBaseUrl: string;
   readonly clock: Clock;
@@ -94,6 +102,7 @@ export class SubscriptionService {
   readonly #customers: SubscriptionServiceOptions["customers"];
   readonly #invoices: InvoiceService;
   readonly #emails: InvoiceEmailSender;
+  readonly #webhooks: MerchantEventSink;
   readonly #checkoutBaseUrl: string;
   readonly #clock: Clock;
 
@@ -103,6 +112,7 @@ export class SubscriptionService {
     this.#customers = options.customers;
     this.#invoices = options.invoices;
     this.#emails = options.emails;
+    this.#webhooks = options.webhooks;
     this.#checkoutBaseUrl = options.checkoutBaseUrl;
     this.#clock = options.clock;
   }
@@ -222,6 +232,27 @@ export class SubscriptionService {
           })
         : draft;
 
+    const payUrl = `${this.#checkoutBaseUrl}/invoices/${invoice.id}/view`;
+
+    // Before the email: a throw here fails the cycle and the next tick retries.
+    // The cycle key is the event id, so a replay enqueues nothing new.
+    await enqueueMerchantEvent(
+      this.#webhooks,
+      subscription.merchantId,
+      subscriptionCycleCreatedEvent({
+        cycleKey: key,
+        subscriptionId: subscription.id,
+        customerId: subscription.subscriber.customerId,
+        invoiceId: invoice.id,
+        payUrl,
+        amount: toDecimalString(invoice.total),
+        asset: invoice.total.asset,
+        dueAt: invoice.dueAt,
+        createdAt: now,
+      }),
+      now,
+    );
+
     const email = subscription.subscriber.email;
     if (email !== undefined && invoice.number !== undefined) {
       const total = formatMoneyLocale(invoice.total, { trimTrailingZeros: true });
@@ -238,7 +269,7 @@ export class SubscriptionService {
           total,
           outstanding: total,
           dueAt: invoice.dueAt?.toISOString() ?? null,
-          url: `${this.#checkoutBaseUrl}/invoices/${invoice.id}/view`,
+          url: payUrl,
           subscription: { plan: subscription.description, interval: subscription.interval },
         })
         .catch((error: unknown) => {

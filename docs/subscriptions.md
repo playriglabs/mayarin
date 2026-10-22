@@ -47,8 +47,23 @@ Any other email failure fails the cycle, and the next tick retries it.
 Payments on a cycle carry `metadata.subscriptionId` (the invoice's metadata
 rides onto its intents), so the existing `payment.*` webhooks already name the
 subscription. `SUBSCRIPTION_METADATA_KEY` (`@mayarin/subscriptions`) names
-the key for both surfaces. A dedicated `subscription.cycle_created` event would need the
-webhook model to carry non-payment events, and is left for later.
+the key for both surfaces.
+
+The tick also tells the merchant's webhook endpoints that the cycle exists:
+`subscription.cycle_created`, sent through the same signed, retried queue as
+payment events, once the invoice is issued and before the email. The event `id`
+is the cycle key, so a replayed tick queues nothing new; a failure to queue
+fails the cycle and the next tick retries it.
+
+| `data` field     | Meaning                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `subscriptionId` | the subscription                                         |
+| `customerId`     | the subscriber                                           |
+| `invoiceId`      | the cycle's invoice                                      |
+| `payUrl`         | the hosted invoice page, the same link the email carries |
+| `amount`         | decimal string of the invoice total (`49000.00`)         |
+| `asset`          | the invoice currency                                     |
+| `dueAt`          | ISO timestamp, or `null`                                 |
 
 ## Public API (`apps/api`, secret key)
 
