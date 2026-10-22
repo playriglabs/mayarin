@@ -16,6 +16,8 @@ services:
   core-api:
     build:
       context: ../..
+      args:
+        SKIP_TYPECHECK: "1"
     image: mayarin:mainnet
     restart: unless-stopped
     logging: *logging

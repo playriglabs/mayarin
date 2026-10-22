@@ -494,6 +494,11 @@ must print the same number as on the workstation.
 `.env.cloudflared` holds `TUNNEL_TOKEN=...` and is written by hand. Delete
 `deploy/aws/out` afterwards.
 
+The image build on this host skips `bun run typecheck` (`SKIP_TYPECHECK` in
+`deploy/aws/docker-compose.yml`): type-checking the whole monorepo needs more
+memory than the 4 GB host has and freezes it. The check still runs in the
+pre-push hook and in CI, so only a commit that passed them should be deployed.
+
 The instance role may read exactly one secret, the RDS master secret, and
 describe its own database; nothing else beyond SSM. The database is not
 reachable from outside the VPC, so the migration runs on the host, not from a
