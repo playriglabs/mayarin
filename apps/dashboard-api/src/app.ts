@@ -13,6 +13,7 @@ import {
   originSecret,
   rateLimit,
   securityEvents,
+  slowRequests,
 } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
@@ -53,6 +54,8 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
 
   app.use("*", originSecret({ secret: container.config.originAuthSecret }));
   app.use("*", allowedHosts({ hosts: container.config.allowedHosts }));
+  // Any request over a second, so "it is slow" can be traced to a route.
+  app.use("*", slowRequests({ service: "dashboard-api" }));
   app.onError(errorHandler);
   app.notFound(() => {
     throw new NotFoundError("Route not found");
