@@ -140,10 +140,9 @@ export function useVerifyWallet() {
 /**
  * The on-chain balance of the settlement address.
  *
- * A successful withdrawal invalidates this query immediately. No poll of its
- * own: the `payments` refresh stream in `live-updates.tsx` refetches it on
- * every tick, which also covers an RPC node briefly returning its previous
- * `latest` block and a balance that changes outside this dashboard.
+ * Read when a page mounts (the query client keeps it for thirty seconds), and again whenever a
+ * successful withdrawal invalidates it. Not polled and not tied to the payments refresh stream:
+ * that ticks every three seconds, and this is an on-chain read across every chain.
  */
 export function useWalletBalance() {
   return useEffectQuery<WalletBalanceResponse, ApiError>({
