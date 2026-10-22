@@ -104,4 +104,59 @@ describe("UniswapRouteSource", () => {
       ConfigurationError,
     );
   });
+
+  describe("on a chain whose stablecoins carry more decimals than the domain counts", () => {
+    // BNB Smart Chain's USDC and USDT are 18 decimals; the domain counts them in 6, and the
+    // order's own minOut is converted to 18, so the swap calldata must be too.
+    const BSC_SWAP_ROUTER = "0x1b81D678ffb9C0263b24A97847620C99d213eB14";
+    const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
+    const BSC_USDC = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d";
+    const BSC_USDT = "0x55d398326f99059fF775485246999027B3197955";
+    const bsc = new UniswapRouteSource({
+      swapRouters: { bsc: BSC_SWAP_ROUTER },
+      pools: {
+        "BNB/USDC": { chain: "bsc", tokenIn: WBNB, tokenOut: BSC_USDC, fee: 500 },
+        "USDT/USDC": { chain: "bsc", tokenIn: BSC_USDT, tokenOut: BSC_USDC, fee: 100 },
+      },
+    });
+
+    async function paramsOf(route: RouteRequest) {
+      const built = await bsc.route(route);
+      const decoded = decodeFunctionData({ abi: swapRouter02Abi, data: built.callData });
+      return {
+        built,
+        params: (decoded.args as readonly unknown[])[0] as Record<string, unknown>,
+      };
+    }
+
+    test("a native payer: the settlement amount is the token's, the bound is untouched", async () => {
+      const { params } = await paramsOf({
+        payerAsset: "BNB",
+        settlementAsset: "USDC",
+        exactOut: money(100_000_000n, "USDC"),
+        maxIn: money(2n * 10n ** 17n, "BNB"),
+        recipient: PAYMENT_ROUTER,
+        chain: "bsc",
+      });
+
+      expect(params.amountOut).toBe(100n * 10n ** 18n);
+      expect(params.amountInMaximum).toBe(2n * 10n ** 17n);
+    });
+
+    test("a stablecoin payer: both sides are the token's, and the spend is reported in the domain's", async () => {
+      const { built, params } = await paramsOf({
+        payerAsset: "USDT",
+        settlementAsset: "USDC",
+        exactOut: money(100_000_000n, "USDC"),
+        maxIn: money(100_500_000n, "USDT"),
+        recipient: PAYMENT_ROUTER,
+        chain: "bsc",
+      });
+
+      expect(params.amountOut).toBe(100n * 10n ** 18n);
+      expect(params.amountInMaximum).toBe(100_500_000n * 10n ** 12n);
+      // What the caller reads back is what the caller sent: the domain's units.
+      expect(built.expectedIn).toEqual(money(100_500_000n, "USDT"));
+    });
+  });
 });

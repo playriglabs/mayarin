@@ -15,7 +15,15 @@
  * matching the other price seams.
  */
 
-import { type ChainId, evmChainIdOf } from "@mayarin/chain";
+import {
+  CHAIN_IDS,
+  type ChainId,
+  chainUnitScale,
+  evmChainIdOf,
+  fromChainUnits,
+  isEvmChainId,
+  toChainUnits,
+} from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -127,10 +135,22 @@ export class LifiSwapVenue implements SwapVenue {
       );
     }
 
-    const body = await this.#quote(pair, from, to, amount.amount);
+    // LiFi counts in what the token contract says, which on a chain like BNB Smart Chain is 18
+    // decimals for a stablecoin the domain counts in 6. Cross to the contract's units going
+    // out and back to the domain's coming in, or the rate is off by the difference.
+    const unitsChain = chain ?? chainOfEvmId(pair.chainId);
+    const sellOnChain =
+      unitsChain === undefined ? amount.amount : toChainUnits(unitsChain, from, amount.amount);
+    const body = await this.#quote(pair, from, to, sellOnChain);
 
-    const fromAmount = BigInt(body.estimate.fromAmount);
-    const toAmount = BigInt(body.estimate.toAmount);
+    const fromOnChain = BigInt(body.estimate.fromAmount);
+    const toOnChain = BigInt(body.estimate.toAmount);
+    // What was sold is rounded up and what comes back is rounded down: the rate must not be
+    // optimistic, and a rate derived from either extreme of the rounding would be.
+    const fromScale = unitsChain === undefined ? 1n : chainUnitScale(unitsChain, from);
+    const fromAmount = (fromOnChain + fromScale - 1n) / fromScale;
+    const toAmount =
+      unitsChain === undefined ? toOnChain : fromChainUnits(unitsChain, to, toOnChain);
     if (fromAmount <= 0n) {
       throw new ProviderError(`LiFi priced a zero sell amount for ${from} -> ${to}`, { from, to });
     }
@@ -208,4 +228,9 @@ export class LifiSwapVenue implements SwapVenue {
     }
     return parsed.data;
   }
+}
+
+/** The chain a numeric EVM chain id names, for a pair configured by id alone. */
+function chainOfEvmId(id: number): ChainId | undefined {
+  return CHAIN_IDS.find((chain) => isEvmChainId(chain) && evmChainIdOf(chain) === BigInt(id));
 }

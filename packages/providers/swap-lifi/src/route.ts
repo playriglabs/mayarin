@@ -21,7 +21,7 @@
  * so a route that misbehaves reverts instead of paying less.
  */
 
-import { evmChainIdOf } from "@mayarin/chain";
+import { chainUnitScale, evmChainIdOf, toChainUnits } from "@mayarin/chain";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, money, ProviderError } from "@mayarin/shared";
 import { DEFAULT_LIFI_ENDPOINT, type LifiTokenResolver } from "./adapter.ts";
@@ -87,13 +87,21 @@ export class LifiRouteSource implements SwapRouteSource {
       });
     }
 
+    // The request counts in the domain's units; LiFi and the chain count in the token's.
+    const exactOutOnChain = toChainUnits(
+      request.chain,
+      request.settlementAsset,
+      request.exactOut.amount,
+    );
+    const maxInOnChain = toChainUnits(request.chain, request.payerAsset, request.maxIn.amount);
+
     const chainId = String(evmChainIdOf(request.chain));
     const query = new URLSearchParams({
       fromChain: chainId,
       toChain: chainId,
       fromToken,
       toToken,
-      toAmount: request.exactOut.amount.toString(),
+      toAmount: exactOutOnChain.toString(),
       fromAddress: request.recipient,
       toAddress: request.recipient,
       slippage: String(this.#slippage),
@@ -143,19 +151,19 @@ export class LifiRouteSource implements SwapRouteSource {
     }
 
     const expectedIn = BigInt(estimate.fromAmount);
-    if (expectedIn > request.maxIn.amount) {
+    if (expectedIn > maxInOnChain) {
       throw new ProviderError(
-        `LiFi route would spend ${expectedIn} of ${request.payerAsset}, above the ${request.maxIn.amount} bound`,
-        { pair, expectedIn: expectedIn.toString(), maxIn: request.maxIn.amount.toString() },
+        `LiFi route would spend ${expectedIn} of ${request.payerAsset}, above the ${maxInOnChain} bound`,
+        { pair, expectedIn: expectedIn.toString(), maxIn: maxInOnChain.toString() },
       );
     }
     // What LiFi guarantees after its own slippage must still clear `minOut`; a route that
     // might deliver less would revert on chain against it, and catching it here costs the
     // payer nothing instead of costing them gas.
     const guaranteed = BigInt(estimate.toAmountMin);
-    if (guaranteed < request.exactOut.amount) {
+    if (guaranteed < exactOutOnChain) {
       throw new ProviderError(
-        `LiFi guarantees ${guaranteed}, below the locked ${request.exactOut.amount}`,
+        `LiFi guarantees ${guaranteed}, below the locked ${exactOutOnChain}`,
         { pair, toAmountMin: guaranteed.toString() },
       );
     }
@@ -163,8 +171,16 @@ export class LifiRouteSource implements SwapRouteSource {
     return {
       router: transactionRequest.to,
       callData: transactionRequest.data as `0x${string}`,
-      expectedIn: money(expectedIn, request.payerAsset),
+      // Back in the domain's units, rounded up: this is a spend, and it must not be understated.
+      expectedIn: money(
+        ceilDiv(expectedIn, chainUnitScale(request.chain, request.payerAsset)),
+        request.payerAsset,
+      ),
       source: this.name,
     };
   }
+}
+
+function ceilDiv(numerator: bigint, denominator: bigint): bigint {
+  return (numerator + denominator - 1n) / denominator;
 }
