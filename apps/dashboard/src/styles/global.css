@@ -780,7 +780,10 @@ body[data-mfa-step-up] [data-slot="dialog-content"]:not([data-mfa-step-up-dialog
  * rows would have taken instead of stopping partway down. The island is `display: contents`, so
  * its root is the flex item. Only a section that holds an `Empty` has anything to stretch: the
  * rest keep their height and leave the extra space below.
+ *
+ * Only the last island grows. A page with a form above its table (Admin) would otherwise split
+ * the spare height between them and open a gap under the form.
  */
-[data-page-body] > astro-island > :first-child {
+[data-page-body] > astro-island:last-of-type > :first-child {
   flex: 1 1 auto;
 }
