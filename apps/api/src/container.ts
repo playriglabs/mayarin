@@ -750,7 +750,8 @@ function createTreasuryExecutor(deps: {
  *
  * The stablecoin registry names the ERC-20s, and the chain's own currency is
  * not in it — a native asset has no contract to register. Both have to be
- * polled or an ETH rail issues a deposit address that nothing ever scans.
+ * polled or an ETH rail issues a deposit address that nothing ever scans. So does
+ * every other token in `CHAIN_ASSETS` a payer may send.
  */
 export function watchedPairs(config: Config): readonly { chain: ChainId; asset: AssetCode }[] {
   const pairs = pairsOf(config.stablecoins).map((pair) => ({
@@ -761,6 +762,16 @@ export function watchedPairs(config: Config): readonly { chain: ChainId; asset: 
   for (const [chain, asset] of Object.entries(config.chainNativeAssets)) {
     if (asset === undefined) continue;
     pairs.push({ chain: chain as ChainId, asset });
+  }
+
+  // A payer-only ERC-20 (CAKE, WETH, cbBTC) is in `CHAIN_ASSETS` but not the
+  // stablecoin registry. The client already filters its logs, but nothing ticked
+  // the pair, so a deposit in it was sent, confirmed on chain and never seen.
+  for (const [chain, tokens] of Object.entries(config.chainAssets)) {
+    for (const asset of Object.keys(tokens ?? {}) as AssetCode[]) {
+      if (pairs.some((pair) => pair.chain === chain && pair.asset === asset)) continue;
+      pairs.push({ chain: chain as ChainId, asset });
+    }
   }
 
   return pairs;
