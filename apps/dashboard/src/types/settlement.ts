@@ -56,6 +56,8 @@ export interface SettlementDto {
 }
 
 export interface SettlementListResponse {
+  /** The currency the dollar summary is shown in, and what one dollar buys in it. */
+  readonly display: { readonly currency: string; readonly perUsd: string };
   readonly settlements: readonly SettlementDto[];
   readonly nextCursor: string | null;
   readonly summary: {

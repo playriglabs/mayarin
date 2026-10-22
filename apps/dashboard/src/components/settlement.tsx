@@ -60,6 +60,7 @@ import { useMerchantRails } from "@/hooks/settings";
 import { useSettlements } from "@/hooks/settlements";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
+import { formatUsdCents, setDisplayCurrency } from "@/lib/display-currency";
 import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
@@ -364,7 +365,9 @@ function Settlement() {
 
   const rows = settlements.data?.settlements ?? [];
   const summary = settlements.data?.summary;
-  const totals = summary?.totals ?? [];
+  if (settlements.data !== undefined) setDisplayCurrency(settlements.data.display);
+  // Zero in the merchant's own currency until something has settled, never a dash.
+  const inDisplay = (cents: string | undefined) => formatUsdCents(BigInt(cents ?? "0"));
   const failed = summary?.failedCount ?? 0;
 
   return (
@@ -385,18 +388,14 @@ function Settlement() {
               ornament={<MoneyIcon size={140} weight="thin" />}
               footer={`Net across ${summary?.settledCount ?? 0} settlement`}
             >
-              <span className={FIGURE}>
-                {totals.length === 0 ? "—" : (summary?.usd.netAmount.display ?? "—")}
-              </span>
+              <span className={FIGURE}>{inDisplay(summary?.usd.netAmount.amount)}</span>
             </Well>
             <Well
               label="Fees taken"
               footer="Split at settlement, not held by Mayarin."
               ornament={<PercentIcon size={140} weight="thin" />}
             >
-              <span className={FIGURE}>
-                {totals.length === 0 ? "—" : (summary?.usd.fee.display ?? "—")}
-              </span>
+              <span className={FIGURE}>{inDisplay(summary?.usd.fee.amount)}</span>
             </Well>
             <Well
               label="In flight"

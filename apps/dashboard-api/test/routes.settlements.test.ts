@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { Permission, User } from "@mayarin/auth";
+import type { Merchant, Permission, User } from "@mayarin/auth";
 import type { ClearingTransaction } from "@mayarin/clearing";
 import { generateId, money } from "@mayarin/shared";
 import { cookieJar, createDashboardHarness } from "./harness.ts";
@@ -82,6 +82,16 @@ async function makeUser(
     updatedAt: now,
   };
   await harness.users.insert(user);
+  // A signed-in user always has a merchant, and the summary reads its display currency.
+  await harness.merchants.insert({
+    id: merchantId,
+    name: merchantId,
+    settlementAsset: "USDC",
+    acceptedAssets: ["USDC"],
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  } as Merchant);
   return user;
 }
 
@@ -201,6 +211,8 @@ describe("GET /settlements", () => {
       ["USDC", "2990000"],
       ["USDG", "4970000"],
     ]);
+    // A merchant on dollars reads the summary in dollars.
+    expect(res.body?.display).toEqual({ currency: "USD", perUsd: "1" });
     // 2.99 USDC + 4.97 USDG, both a dollar each: one figure in cents.
     expect(res.body?.summary.usd).toMatchObject({
       netAmount: { amount: "796", asset: "USD" },
