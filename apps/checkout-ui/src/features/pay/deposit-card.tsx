@@ -64,7 +64,7 @@ export function DepositCard({
                   a row that never wraps the button under the figure. */}
               <div className="mt-1 flex items-center justify-center gap-1.5 sm:justify-start">
                 <AssetLogo symbol={deposit.amount.asset} size={22} />
-                <strong className="text-xl font-medium tracking-tight tabular-nums">
+                <strong className="text-xl font-medium tracking-tight whitespace-nowrap tabular-nums">
                   {amount} {deposit.amount.asset}
                 </strong>
                 <CopyButton
