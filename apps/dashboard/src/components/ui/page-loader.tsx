@@ -13,7 +13,9 @@ export function PageLoader({ label, className, size = 48 }: PageLoaderProps) {
     <div
       role="status"
       aria-live="polite"
-      className={cn("flex min-h-64 items-center justify-center", className)}
+      // `flex-1`: in a page that grows to the bottom of the frame the loader takes the spare height, so it
+      // sits in the middle of the page. Inside a card nothing grows, and `min-h-64` is all it gets.
+      className={cn("flex min-h-64 flex-1 items-center justify-center", className)}
     >
       <span className="sr-only">{label}</span>
       <span aria-hidden="true" className="mayarin-square-loader">

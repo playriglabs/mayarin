@@ -1085,7 +1085,11 @@ function Wallets() {
 
   return (
     <section className="flex flex-col gap-4">
-      <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(value as WalletTab)}>
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as WalletTab)}
+        className="flex flex-1 flex-col"
+      >
         <Tabs.List
           aria-label="Wallet sections"
           className="flex w-full overflow-x-auto border-border border-b"
@@ -1108,7 +1112,7 @@ function Wallets() {
 
         <Tabs.Panel
           value="addresses"
-          className="flex flex-col gap-4 pt-6 focus-visible:outline-none"
+          className="flex flex-1 flex-col gap-4 pt-6 focus-visible:outline-none"
         >
           {addressesPending ? (
             <PageLoader label="Loading wallets" />
@@ -1357,7 +1361,10 @@ function Wallets() {
           )}
         </Tabs.Panel>
 
-        <Tabs.Panel value="history" className="flex flex-col gap-3 pt-6 focus-visible:outline-none">
+        <Tabs.Panel
+          value="history"
+          className="flex flex-1 flex-col gap-3 pt-6 focus-visible:outline-none"
+        >
           <SectionHeader title="Withdrawal history" />
           {match(withdrawalHistory)
             .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
