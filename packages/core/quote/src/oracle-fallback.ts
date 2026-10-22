@@ -90,7 +90,7 @@ export class FallbackPriceOracle implements PriceOracle {
 }
 
 function isFresh(price: OraclePrice, maxAgeMs: number, now: Date): boolean {
-  return now.getTime() - price.observedAt.getTime() <= maxAgeMs;
+  return now.getTime() - price.observedAt.getTime() <= (price.validForMs ?? maxAgeMs);
 }
 
 function describeResult(

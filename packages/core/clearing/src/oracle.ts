@@ -26,6 +26,13 @@ export interface OraclePrice {
   readonly source: string;
   /** When the oracle observed the price — publish time, not fetch time. */
   readonly observedAt: Date;
+  /**
+   * How long the source vouches for this observation, when that is longer than the deployment's
+   * reference age. A Chainlink stablecoin feed only publishes on a deviation or at its heartbeat,
+   * so a price hours old is still current by the feed's own guarantee. Absent: the deployment's
+   * limit applies.
+   */
+  readonly validForMs?: number;
 }
 
 /** Price oracle port: the seam Pyth/Chainlink adapters implement. */
@@ -70,15 +77,16 @@ export interface DeviationPolicy {
  */
 export function assertFresh(reference: OraclePrice, maxAgeMs: number, now: Date): void {
   const ageMs = now.getTime() - reference.observedAt.getTime();
-  if (ageMs > maxAgeMs) {
+  const limitMs = reference.validForMs ?? maxAgeMs;
+  if (ageMs > limitMs) {
     throw new ProviderError(
-      `Oracle price for ${reference.from} -> ${reference.to} is stale: observed ${ageMs}ms ago, limit ${maxAgeMs}ms`,
+      `Oracle price for ${reference.from} -> ${reference.to} is stale: observed ${ageMs}ms ago, limit ${limitMs}ms`,
       {
         from: reference.from,
         to: reference.to,
         source: reference.source,
         ageMs,
-        maxAgeMs,
+        maxAgeMs: limitMs,
       },
     );
   }
