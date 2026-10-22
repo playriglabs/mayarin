@@ -484,8 +484,13 @@ bun run scripts/sync-railway-env.ts --aws=deploy/aws/out
 
 It reads `.env.mainnet` itself, never the development `.env`, and drops the
 Railway-only overrides. Copy each file onto the host by pasting it into an SSM
-session (`pbcopy < deploy/aws/out/.env.core-api`, then `cat > .env.core-api`
-on the host, paste, Ctrl-D), so the secrets never land in AWS command history.
+session, so the secrets never land in AWS command history. A terminal accepts
+at most 4095 bytes per line and silently cuts the rest, and `UNISWAP_POOLS` is
+longer than that, so paste base64 wrapped at 76 columns, never the file itself:
+`base64 -b 76 -i deploy/aws/out/.env.core-api | pbcopy` on the workstation, then
+`base64 -d > .env.core-api` on the host, paste, Ctrl-D. Check that no line was
+cut: `awk '{ if (length($0)>m) m=length($0) } END { print m }' .env.core-api`
+must print the same number as on the workstation.
 `.env.cloudflared` holds `TUNNEL_TOKEN=...` and is written by hand. Delete
 `deploy/aws/out` afterwards.
 
