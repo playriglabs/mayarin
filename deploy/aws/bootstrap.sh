@@ -22,14 +22,17 @@ if ! swapon --show | grep -q /swapfile; then
   echo "swap added"
 fi
 
-# Compose v5 builds through buildx 0.17+, and the Amazon Linux docker package has none.
-if ! docker buildx version >/dev/null 2>&1; then
+# Compose v5 builds through buildx 0.17+. The Amazon Linux docker package ships
+# 0.12, so a plugin that exists is not enough: install a newer one beside it
+# (/usr/local/lib is searched before /usr/libexec).
+buildx_version=$(docker buildx version 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+if [ "$(printf '%s\n0.17.0\n' "${buildx_version:-0}" | sort -V | head -1)" != "0.17.0" ]; then
   BUILDX=v0.19.3
   sudo mkdir -p /usr/local/lib/docker/cli-plugins
   sudo curl -fsSL "https://github.com/docker/buildx/releases/download/$BUILDX/buildx-$BUILDX.linux-arm64" \
     -o /usr/local/lib/docker/cli-plugins/docker-buildx
   sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
-  echo "buildx installed"
+  echo "buildx upgraded to $BUILDX (was ${buildx_version:-none})"
 fi
 
 if [ ! -s .env.db ]; then
