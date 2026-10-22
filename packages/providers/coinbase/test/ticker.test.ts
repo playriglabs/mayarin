@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { scaledRateFrom, ValidationError } from "@mayarin/shared";
-import { scaleTickerPrice, splitDecimalPrice } from "../src/ticker.ts";
+import { compareDecimal, midpoint, scaleTickerPrice, splitDecimalPrice } from "../src/ticker.ts";
 
 describe("splitDecimalPrice", () => {
   test("splits a decimal string into an exact integer pair", () => {
@@ -52,5 +52,33 @@ describe("scaleTickerPrice", () => {
   test("rounds half-up past the rate's nine fractional digits", () => {
     // A 0-decimal target forces the division: .5 rounds away from zero.
     expect(scaleTickerPrice(splitDecimalPrice("1.2345678905"), 0)).toBe(1_234_567_891n);
+  });
+});
+
+describe("midpoint", () => {
+  test("is exact, carried as one more decimal place", () => {
+    expect(midpoint(splitDecimalPrice("2455.31"), splitDecimalPrice("2455.33"))).toEqual({
+      significand: 245_532n * 10n,
+      expo: -3,
+    });
+  });
+
+  test("aligns prices of different precision", () => {
+    expect(midpoint(splitDecimalPrice("1.00002"), splitDecimalPrice("1.0001"))).toEqual({
+      significand: (100_002n + 100_010n) * 5n,
+      expo: -6,
+    });
+    expect(midpoint(splitDecimalPrice("3"), splitDecimalPrice("4"))).toEqual({
+      significand: 35n,
+      expo: -1,
+    });
+  });
+});
+
+describe("compareDecimal", () => {
+  test("orders prices of different precision", () => {
+    expect(compareDecimal(splitDecimalPrice("1.5"), splitDecimalPrice("1.50"))).toBe(0);
+    expect(compareDecimal(splitDecimalPrice("1.49"), splitDecimalPrice("1.5"))).toBe(-1);
+    expect(compareDecimal(splitDecimalPrice("10"), splitDecimalPrice("9.99"))).toBe(1);
   });
 });
