@@ -3,7 +3,7 @@ import { XIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { dialogVariants, overlayVariants } from "@/lib/motion";
+import { dialogVariants, leftDrawerVariants, overlayVariants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -144,6 +144,42 @@ function DialogContent({
   );
 }
 
+/** The same dialog, as a panel sliding in from the left edge. For a phone, where a popover is cramped. */
+function DialogDrawer({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+  const { open, actionsRef } = React.useContext(DialogContext);
+  return (
+    <AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>
+      {open && (
+        <DialogPrimitive.Portal keepMounted>
+          <DialogOverlay />
+          <DialogPrimitive.Popup
+            data-slot="dialog-drawer"
+            className={cn(
+              "fixed inset-y-0 left-0 z-70 flex w-[min(22rem,calc(100vw-3rem))] flex-col border-r border-border bg-popover text-popover-foreground",
+              className,
+            )}
+            render={
+              <motion.div
+                variants={leftDrawerVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              />
+            }
+            {...props}
+          >
+            {children}
+          </DialogPrimitive.Popup>
+        </DialogPrimitive.Portal>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -188,6 +224,7 @@ export {
   DialogClose,
   DialogContent,
   DialogDescription,
+  DialogDrawer,
   DialogFooter,
   DialogHeader,
   DialogOverlay,

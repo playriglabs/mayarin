@@ -83,6 +83,16 @@ export const dialogVariants: Variants = {
 };
 
 /**
+ * A panel that slides in from the left edge, as the navigation menu does on a phone.
+ * Animates `x` alone, so the class that pins it to the edge is never overwritten.
+ */
+export const leftDrawerVariants: Variants = {
+  initial: { x: "-100%" },
+  animate: { x: 0, transition: enter },
+  exit: { x: "-100%", transition: exit },
+};
+
+/**
  * Inline panels that open in place and push the content below them — the
  * counter's rail list. Height animates to `auto`, so the parent must clip.
  */
