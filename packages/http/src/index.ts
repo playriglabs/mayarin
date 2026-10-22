@@ -5,3 +5,4 @@ export * from "./payer-token.ts";
 export * from "./rate-limit.ts";
 export * from "./security-events.ts";
 export * from "./security-headers.ts";
+export * from "./slow-requests.ts";
