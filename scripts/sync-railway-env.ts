@@ -37,14 +37,22 @@ const DERIVED_KEYS = new Set(["DATABASE_URL", "PUBLIC_BASE_URL"]);
 const AWS_DROPPED_OVERRIDES = new Set(["DASHBOARD_URL", "DATABASE_URL", "LEFTHOOK"]);
 const AWS_PAYMENT_API_URL = "http://core-api:3000";
 
+/** A quoted value ends at its closing quote; an unquoted one at ` #`, like dotenv. */
+function parseValue(raw: string): string {
+  const quote = raw[0];
+  if (quote === '"' || quote === "'") {
+    const end = raw.indexOf(quote, 1);
+    if (end !== -1) return raw.slice(1, end);
+  }
+  return raw.replace(/\s+#.*$/, "").trim();
+}
+
 function parseEnvFile(text: string): Record<string, string> {
   const values: Record<string, string> = {};
   for (const line of text.split("\n")) {
     const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line.trim());
     if (match?.[1] === undefined || match[2] === undefined) continue;
-    const raw = match[2];
-    const quoted = /^(["'])(.*)\1$/.exec(raw);
-    values[match[1]] = quoted?.[2] ?? raw;
+    values[match[1]] = parseValue(match[2]);
   }
   return values;
 }
