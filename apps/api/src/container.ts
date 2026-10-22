@@ -1199,7 +1199,7 @@ export function createContainer({
     deposits = new DrizzleDepositRepository(handle.db);
     const client = new EvmChainClient({
       rpcUrls: chain.rpcUrls,
-      tokens: tokensOf(config.stablecoins),
+      tokens: depositTokens(config),
       nativeAssets: config.chainNativeAssets,
       logRange: chain.logRange,
       logRanges: chain.logRanges,
@@ -1672,6 +1672,22 @@ export function createContainer({
       await handle.close();
     },
   };
+}
+
+/**
+ * Every token a deposit may arrive in: the registry's stablecoins, and the
+ * payer-only tokens (CAKE, WETH, cbBTC) that only `CHAIN_ASSETS` names. The
+ * watcher's client filters its logs by this map, so a token left out of it is
+ * never seen.
+ */
+export function depositTokens(
+  config: Pick<Config, "stablecoins" | "chainAssets">,
+): Partial<Record<ChainId, Partial<Record<AssetCode, string>>>> {
+  const tokens = tokensOf(config.stablecoins);
+  for (const [chain, assets] of Object.entries(config.chainAssets)) {
+    tokens[chain as ChainId] = { ...tokens[chain as ChainId], ...assets };
+  }
+  return tokens;
 }
 
 /** Rebuilds the `chain → asset → address` token map the EVM client filters logs by. */

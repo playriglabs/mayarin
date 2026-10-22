@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Config } from "../src/config.ts";
-import { watchedPairs } from "../src/container.ts";
+import { depositTokens, watchedPairs } from "../src/container.ts";
 
 const CAKE = "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82";
 const USDC = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d";
@@ -29,5 +29,13 @@ describe("watchedPairs", () => {
   test("lists a token once even when the registry and CHAIN_ASSETS both name it", () => {
     const pairs = watchedPairs(configOf({}));
     expect(pairs.filter((pair) => pair.asset === "USDC")).toHaveLength(1);
+  });
+});
+
+describe("depositTokens", () => {
+  test("gives the watcher's client the payer-only token's address as well as the registry's", () => {
+    const tokens = depositTokens(configOf({}));
+    expect(tokens.bsc?.CAKE).toBe(CAKE);
+    expect(tokens.bsc?.USDC).toBe(USDC);
   });
 });
