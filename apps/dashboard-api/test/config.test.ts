@@ -104,4 +104,35 @@ describe("loadConfig", () => {
       }),
     ).toThrow(/WALLET_PROVISION_RPC_URL/);
   });
+
+  describe("a mainnet deployment", () => {
+    const MAINNET = {
+      ...MINIMAL,
+      CHAIN_ASSETS: '{"base":{"USDC":"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}}',
+    };
+
+    test("refuses the testnet that WALLET_PROVISION_CHAINS defaults to", () => {
+      expect(() => loadConfig(MAINNET)).toThrow(/WALLET_PROVISION_CHAINS names base-sepolia/);
+      expect(() =>
+        loadConfig({ ...MAINNET, WALLET_PROVISION_CHAINS: "base-sepolia,base" }),
+      ).toThrow(ConfigurationError);
+    });
+
+    test("boots once it names a mainnet chain", () => {
+      const config = loadConfig({ ...MAINNET, WALLET_PROVISION_CHAINS: "base" });
+      expect(config.walletProvisionChains).toEqual(["base"]);
+    });
+
+    test("a testnet deployment keeps its testnet default", () => {
+      expect(loadConfig(MINIMAL).walletProvisionChains).toEqual(["base-sepolia"]);
+    });
+  });
+
+  test("MERCHANT_SETTLEMENT_ASSETS is blank unless a deployment names the assets", () => {
+    expect(loadConfig(MINIMAL).merchantSettlementAssets).toEqual([]);
+    expect(
+      loadConfig({ ...MINIMAL, MERCHANT_SETTLEMENT_ASSETS: '["USDC","USDT"]' })
+        .merchantSettlementAssets,
+    ).toEqual(["USDC", "USDT"]);
+  });
 });

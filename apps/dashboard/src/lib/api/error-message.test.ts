@@ -26,6 +26,15 @@ describe("dashboardErrorMessage", () => {
     ).toBe("Add a client email address.");
   });
 
+  test("keeps a long validation message whole, because it tells the user how to fix it", () => {
+    const message =
+      "0x616e2b9bc83d60790e70cbaac6c8612afc6a7896 is a contract on base and has no code on polygon, bsc, ethereum, arbitrum. A contract does not exist on a chain it was not deployed to, so paying it there would strand the funds. Deploy it on every network you take payment on, or use an address you hold the key to.";
+    expect(message.length).toBeGreaterThan(120);
+    expect(dashboardErrorMessage({ error: { code: "VALIDATION_ERROR", message } }, 400)).toBe(
+      message,
+    );
+  });
+
   test("does not expose an unexpectedly long unclassified message", () => {
     expect(
       dashboardErrorMessage({ error: { code: "UNKNOWN", message: "x".repeat(121) } }, 500),

@@ -27,6 +27,10 @@ export function dashboardErrorMessage(data: unknown, status: number): string {
 
   const message = error.message?.replace(/\s+/g, " ").trim();
   if (message === undefined || message === "") return `Request failed (${status})`;
+  // A validation refusal is written for the person who can fix it ("this address is a contract
+  // on Base and has no code on Polygon..."), so the length cap that hides an internal error's
+  // detail must not hide this one's.
+  if (error.code === "VALIDATION_ERROR") return message;
   return message.length <= MAX_VISIBLE_MESSAGE_LENGTH ? message : FALLBACK_MESSAGE;
 }
 

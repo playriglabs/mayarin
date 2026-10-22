@@ -237,7 +237,9 @@ export function isTokenizedCrypto(asset: AssetCode): boolean {
 const ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
   ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
-  WETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png",
+  // Trust Wallet serves ETH's own file for WETH, byte for byte, so the two are
+  // indistinguishable in a list; the token has its own mark on CoinGecko.
+  WETH: "https://coin-images.coingecko.com/coins/images/2518/large/weth.png",
   WBTC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599/logo.png",
   CBBTC:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf/logo.png",
