@@ -242,6 +242,37 @@ export class DrizzleClearingRepository implements ClearingRepository {
     return rows.map(toDomain);
   }
 
+  async listPendingDepositReturns(
+    failedBefore: Date,
+    limit: number,
+  ): Promise<ClearingTransaction[]> {
+    const rows = await this.#db
+      .select()
+      .from(clearingTransactions)
+      .where(sql`
+        ${clearingTransactions.state} = 'FAILED'
+        and ${clearingTransactions.failureAt} <= ${failedBefore}
+        and (${clearingTransactions.executionPath} is null
+          or ${clearingTransactions.executionPath} = 'deposit-match')
+        and ${clearingTransactions.depositAddress} is not null
+        and ${clearingTransactions.contractIntentId} is not null
+        and ${clearingTransactions.contractTxHash} is null
+        and exists (
+          select 1 from ${clearingEvents}
+          where ${clearingEvents.clearingTransactionId} = ${clearingTransactions.id}
+            and ${clearingEvents.toState} = 'ASSET_RECEIVED'
+        )
+        and not exists (
+          select 1 from ${clearingEvents}
+          where ${clearingEvents.clearingTransactionId} = ${clearingTransactions.id}
+            and ${clearingEvents.type} = 'deposit.return.confirmed'
+        )
+      `)
+      .orderBy(asc(clearingTransactions.failureAt))
+      .limit(limit);
+    return rows.map(toDomain);
+  }
+
   async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
     const rows = await this.#db
       .select()

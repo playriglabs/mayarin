@@ -266,6 +266,21 @@ export function sweepGasPosting(
   };
 }
 
+/**
+ * A failed deposit went back to the payer: the obligation to convert it is
+ * discharged by returning it, the mirror of `swapPosting`'s payer-asset legs.
+ */
+export function depositReturnedPosting(transaction: ClearingTransaction): DraftTransaction {
+  const held = requireDepositAmount(transaction);
+
+  return {
+    description: `Returned payer asset for failed payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: `${transaction.id}:RETURNED`,
+    entries: [debit("PAYER_ASSET_OBLIGATION", held), credit("PAYER_ASSET_HELD", held)],
+  };
+}
+
 export function clearingPosting(transaction: ClearingTransaction): DraftTransaction {
   const { netAmount } = requirePricedAmounts(transaction);
 

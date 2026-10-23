@@ -53,6 +53,7 @@ export const paymentIntents = pgTable(
     paymentAsset: text("payment_asset"),
     paymentChain: text("payment_chain"),
     payerAddress: text("payer_address"),
+    returnAddress: text("return_address"),
     // How the payment rail is executed. Null for a fiat-only intent.
     executionPath: text("execution_path"),
     /** Conditional settlement terms (#304). Null for an ordinary payment. */

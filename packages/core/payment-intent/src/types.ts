@@ -64,6 +64,12 @@ export interface PaymentRail {
    * fund a deposit address.
    */
   readonly payerAddress?: string;
+  /**
+   * Where a failed deposit-match payment's deposit is sent back to, if the
+   * payer names an address. Not `payerAddress`: that one turns on buyer
+   * protection, and an address typed into a return field must not.
+   */
+  readonly returnAddress?: string;
 }
 
 /**

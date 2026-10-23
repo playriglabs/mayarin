@@ -6,6 +6,7 @@
  * implementation writes them in one database transaction.
  */
 
+import { usesDepositAddress } from "@mayarin/payment-intent";
 import {
   type AssetCode,
   ConcurrencyError,
@@ -213,6 +214,26 @@ export class InMemoryClearingRepository implements ClearingRepository {
           transaction.failure.at.getTime() >= since.getTime(),
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, limit);
+  }
+
+  async listPendingDepositReturns(
+    failedBefore: Date,
+    limit: number,
+  ): Promise<ClearingTransaction[]> {
+    return [...this.#byId.values()]
+      .filter((transaction) => {
+        if (transaction.state !== "FAILED" || transaction.failure === undefined) return false;
+        if (transaction.failure.at.getTime() > failedBefore.getTime()) return false;
+        if (!usesDepositAddress(transaction.executionPath)) return false;
+        if (transaction.deposit === undefined || transaction.contract === undefined) return false;
+        if (transaction.contract.txHash !== undefined) return false;
+        const events = this.#events.get(transaction.id) ?? [];
+        const received = events.some((event) => event.toState === "ASSET_RECEIVED");
+        const returned = events.some((event) => event.type === "deposit.return.confirmed");
+        return received && !returned;
+      })
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit);
   }
 

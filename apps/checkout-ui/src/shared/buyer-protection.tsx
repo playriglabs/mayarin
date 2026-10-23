@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { offersReturnAddress } from "./return-address.tsx";
 import type { Protection, Rail } from "./types.ts";
 import { chevron, errorText } from "./ui.ts";
 import { connectWallet } from "./wallet.ts";
@@ -167,10 +168,14 @@ export function railBody(
   rail: Rail,
   protection: Protection | null,
   payerAddress: string | null,
-): { asset: string; chain: string; payerAddress?: string } {
-  return protectionApplies(protection, rail) && payerAddress !== null
-    ? { asset: rail.asset, chain: rail.chain, payerAddress }
-    : { asset: rail.asset, chain: rail.chain };
+  returnAddress: string | null = null,
+): { asset: string; chain: string; payerAddress?: string; returnAddress?: string } {
+  return {
+    asset: rail.asset,
+    chain: rail.chain,
+    ...(protectionApplies(protection, rail) && payerAddress !== null ? { payerAddress } : {}),
+    ...(returnAddress !== null && offersReturnAddress(rail.chain) ? { returnAddress } : {}),
+  };
 }
 
 export function holdDuration(seconds: number): string {

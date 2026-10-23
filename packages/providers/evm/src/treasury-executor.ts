@@ -19,6 +19,9 @@
 
 import { type ChainId, fromChainUnits, toChainUnits } from "@mayarin/chain";
 import type {
+  DepositReturnPort,
+  DepositReturnReceipt,
+  DepositReturnRequest,
   ExecuteRequest,
   ExecutionResult,
   SweepRequest,
@@ -44,6 +47,7 @@ import {
   getAddress,
   type Hex,
   type PublicClient,
+  WaitForTransactionReceiptTimeoutError,
   type WalletClient,
 } from "viem";
 import { shortReason } from "./errors.ts";
@@ -112,6 +116,23 @@ const erc20Abi = [
       { name: "amount", type: "uint256" },
     ],
     outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
 
@@ -194,7 +215,7 @@ export interface IndexedSettlement {
   readonly refundAmount: bigint;
 }
 
-export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
+export class EvmTreasuryExecutionPort implements TreasuryExecutionPort, DepositReturnPort {
   readonly #options: EvmTreasuryExecutionPortOptions;
   constructor(options: EvmTreasuryExecutionPortOptions) {
     validateNativeAssets(options.nativeAssets ?? {});
@@ -275,6 +296,126 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
           });
 
     return await this.#submit(request.chain, factory, data, 0n);
+  }
+
+  supports(chain: ChainId): boolean {
+    return this.#options.clients[chain] !== undefined;
+  }
+
+  /**
+   * Everything that can be checked before a failed deposit goes back to the
+   * payer. Nothing here moves value except the sweep, which moves it to the
+   * operator, where it already was going.
+   */
+  async prepare(request: DepositReturnRequest): Promise<SweepResult> {
+    const { chain, amount } = request;
+    const paymentRouter = this.#addressFor(this.#options.paymentRouters, chain, "PaymentRouter");
+    // The router consumes an intent once it has paid. A consumed intent means the
+    // merchant was paid, and returning the deposit as well would pay it twice.
+    if (await this.#consumed(chain, paymentRouter, request.intentId as Hex)) {
+      throw new ProviderError(
+        `The router consumed intent ${request.intentId}; the payment settled and its deposit cannot be returned`,
+        { intentId: request.intentId },
+        { retryable: false },
+      );
+    }
+
+    const to = getAddress(request.to);
+    const own: Address[] = [
+      this.#options.account.address,
+      getAddress(request.depositAddress),
+      paymentRouter,
+      this.#addressFor(this.#options.forwarderFactories, chain, "forwarder factory"),
+    ];
+    const token = this.#tokenAddress(chain, amount.asset);
+    if (token !== undefined) own.push(token);
+    if (own.some((address) => address === to)) {
+      throw new ProviderError(
+        `Refusing to return a deposit to ${to}: it is one of Mayarin's own addresses`,
+        { to },
+        { retryable: false },
+      );
+    }
+
+    const sweep = await this.sweep({
+      clearingTransactionId: request.clearingTransactionId,
+      chain,
+      depositAddress: request.depositAddress,
+      asset: amount.asset,
+    });
+
+    const wanted = toChainUnits(chain, amount.asset, amount.amount);
+    const held = await this.#operatorBalance(chain, token);
+    if (held < wanted) {
+      throw new ProviderError(
+        `The operator holds ${held} ${amount.asset} base units after the sweep, less than the ${wanted} to return`,
+        { clearingTransactionId: request.clearingTransactionId },
+        { retryable: false },
+      );
+    }
+    return sweep;
+  }
+
+  async send(request: DepositReturnRequest): Promise<string> {
+    const { chain, amount } = request;
+    const { account } = this.#options;
+    const { publicClient, walletClient } = this.#clientsFor(chain);
+    const token = this.#tokenAddress(chain, amount.asset);
+    const to = getAddress(request.to);
+    const value = toChainUnits(chain, amount.asset, amount.amount);
+
+    const call =
+      token === undefined
+        ? { to, data: "0x" as Hex, value }
+        : {
+            to: token,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "transfer",
+              args: [to, value],
+            }),
+            value: 0n,
+          };
+
+    return await this.#send(() =>
+      this.#options.nonces.broadcast(
+        `${chain}:${account.address.toLowerCase()}`,
+        () => publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
+        (nonce) => walletClient.sendTransaction({ account, ...call, nonce, chain: null }),
+        call,
+      ),
+    );
+  }
+
+  async receipt(chain: ChainId, txHash: string): Promise<DepositReturnReceipt> {
+    const { publicClient } = this.#clientsFor(chain);
+    const receipt = await publicClient
+      .waitForTransactionReceipt({
+        hash: txHash as Hex,
+        confirmations: this.#options.confirmations?.[chain] ?? 2,
+        timeout: 30_000,
+      })
+      .catch((error: unknown) => {
+        if (error instanceof WaitForTransactionReceiptTimeoutError) return undefined;
+        throw error;
+      });
+    if (receipt === undefined) return { status: "pending" };
+    if (receipt.status !== "success") return { status: "reverted" };
+    const gasCost = await this.#gasCost(chain, receipt);
+    return gasCost === undefined ? { status: "success" } : { status: "success", gasCost };
+  }
+
+  async #operatorBalance(chain: ChainId, token: Address | undefined): Promise<bigint> {
+    const { publicClient } = this.#clientsFor(chain);
+    const owner = this.#options.account.address;
+    return token === undefined
+      ? await publicClient.getBalance({ address: owner })
+      : await publicClient.readContract({
+          address: token,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [owner],
+        });
   }
 
   async execute(request: ExecuteRequest): Promise<ExecutionResult> {

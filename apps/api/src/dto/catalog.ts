@@ -17,7 +17,7 @@ import {
 } from "@mayarin/shared";
 import { z } from "zod";
 import { type MoneyDto, toMoneyDto } from "./money.ts";
-import { merchantSchema } from "./payment-intent.ts";
+import { merchantSchema, returnAddressSchema } from "./payment-intent.ts";
 
 const metadataSchema = z.record(z.string(), z.string()).optional();
 const merchantReferenceSchema = z.string().min(1).max(255).optional();
@@ -67,12 +67,14 @@ export const intentOptionsSchema = z.object({
         .string()
         .regex(/^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/)
         .optional(),
+      returnAddress: returnAddressSchema.optional(),
     })
     // `exactOptionalPropertyTypes`: the rail's optional field must be absent,
     // never an explicit `undefined`.
-    .transform(({ asset, chain, payerAddress }) => ({
+    .transform(({ asset, chain, payerAddress, returnAddress }) => ({
       asset,
       chain,
+      ...(returnAddress === undefined ? {} : { returnAddress }),
       ...(payerAddress === undefined ? {} : { payerAddress }),
     }))
     .optional(),

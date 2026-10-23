@@ -339,6 +339,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     }),
     ledger,
     engine,
+    depositReturns: undefined,
     rates,
     paymentApp,
     analytics: new AnalyticsService({

@@ -18,6 +18,7 @@ import {
 } from "@mayarin/payment-intent";
 import { type AssetCode, assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
 import { z } from "zod";
+import { badChecksumAddresses } from "../address-check.ts";
 import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export const merchantSchema = z.object({
@@ -40,6 +41,18 @@ export function toMerchantSnapshot(body: z.infer<typeof merchantSchema>): Mercha
   return { ...merchant, ...(categoryCode === undefined ? {} : { categoryCode }) };
 }
 
+/**
+ * Where a failed deposit is sent back to. EVM only, and a mixed-case address
+ * must carry its EIP-55 checksum: a mistyped letter would send the money to an
+ * address nobody holds, and a return cannot be taken back.
+ */
+export const returnAddressSchema = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{40}$/, "A return address is a 0x EVM address")
+  .refine((value) => badChecksumAddresses(value).length === 0, {
+    message: "The address has the wrong capitalisation; copy it again from your wallet",
+  });
+
 /** The rail the payer intends to pay on, e.g. USDC on Base. */
 export const paymentRailSchema = z
   .object({
@@ -50,13 +63,15 @@ export const paymentRailSchema = z
       .string()
       .regex(/^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/)
       .optional(),
+    returnAddress: returnAddressSchema.optional(),
   })
   // `exactOptionalPropertyTypes`: the rail's optional field must be absent,
   // never an explicit `undefined`.
-  .transform(({ asset, chain, payerAddress }) => ({
+  .transform(({ asset, chain, payerAddress, returnAddress }) => ({
     asset,
     chain,
     ...(payerAddress === undefined ? {} : { payerAddress }),
+    ...(returnAddress === undefined ? {} : { returnAddress }),
   }));
 
 /**

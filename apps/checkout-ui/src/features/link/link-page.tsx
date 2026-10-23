@@ -12,6 +12,11 @@ import {
 } from "../../shared/local-currency-option.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import {
+  offersReturnAddress,
+  ReturnAddressField,
+  validReturnAddress,
+} from "../../shared/return-address.tsx";
 import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
@@ -53,6 +58,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [payerAddress, setPayerAddress] = useState<string | null>(null);
+  const [returnAddress, setReturnAddress] = useState("");
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
@@ -61,6 +67,8 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   // offering a button whose only outcome is a refusal.
   const payableNow = payable && rail !== undefined;
   const quoteReady = canContinueWithQuote(estimate);
+  const returnAddressInvalid =
+    returnAddress.trim() !== "" && validReturnAddress(returnAddress) === null;
   const localRail = useLocalCurrencyRail(rails, bootstrap.protection, {
     linkId: bootstrap.linkId,
   });
@@ -81,7 +89,13 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          checkoutBody(bootstrap, amount, target, localCurrency ? null : payerAddress),
+          checkoutBody(
+            bootstrap,
+            amount,
+            target,
+            localCurrency ? null : payerAddress,
+            localCurrency ? null : validReturnAddress(returnAddress),
+          ),
         ),
       });
       const payload = await response.json();
@@ -121,7 +135,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   }
 
   function pay() {
-    if (rail === undefined || !quoteReady) return;
+    if (rail === undefined || !quoteReady || returnAddressInvalid) return;
     void start(rail, false);
   }
 
@@ -213,11 +227,14 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 payerAddress={payerAddress}
                 onPayerAddress={setPayerAddress}
               />
+              {offersReturnAddress(rail.chain) && (
+                <ReturnAddressField value={returnAddress} onChange={setReturnAddress} />
+              )}
 
               <button
                 type="button"
                 className={`${primaryButton} mt-6`}
-                disabled={busy || !quoteReady}
+                disabled={busy || !quoteReady || returnAddressInvalid}
                 onClick={pay}
               >
                 {busy

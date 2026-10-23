@@ -21,6 +21,8 @@ export function checkoutBody(
   rail: Rail | undefined,
   /** The wallet a buyer connected to take up the merchant's protection (#304). */
   payerAddress: string | null = null,
+  /** Where a failed payment's deposit is sent back to; optional. */
+  returnAddress: string | null = null,
 ): Record<string, unknown> {
   return {
     ...(bootstrap.total !== null || bootstrap.currency === null
@@ -29,7 +31,7 @@ export function checkoutBody(
     ...(rail === undefined
       ? {}
       : {
-          payment: railBody(rail, bootstrap.protection, payerAddress),
+          payment: railBody(rail, bootstrap.protection, payerAddress, returnAddress),
           executionPath: "deposit-match",
         }),
   };

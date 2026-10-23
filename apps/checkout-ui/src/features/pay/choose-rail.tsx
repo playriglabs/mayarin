@@ -9,6 +9,11 @@ import {
 } from "../../shared/local-currency-option.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import {
+  offersReturnAddress,
+  ReturnAddressField,
+  validReturnAddress,
+} from "../../shared/return-address.tsx";
 import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
@@ -45,12 +50,15 @@ export function ChooseRail({
   // An escrowed payment names the payer's wallet in its terms (#304): that
   // wallet releases or disputes later, and receives a refund.
   const [payerAddress, setPayerAddress] = useState<string | null>(null);
+  const [returnAddress, setReturnAddress] = useState("");
   const { protection } = bootstrap;
   const needsWallet =
     protection?.required === true && protectionApplies(protection, rail) && payerAddress === null;
 
   const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
   const quoteReady = canContinueWithQuote(estimate);
+  const returnAddressInvalid =
+    returnAddress.trim() !== "" && validReturnAddress(returnAddress) === null;
 
   const localRail = useLocalCurrencyRail(rails, protection, { paymentId: bootstrap.intentId });
   const [method, setMethod] = useState<PaymentMethod>("crypto");
@@ -69,7 +77,12 @@ export function ChooseRail({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            payment: railBody(target, protection, localCurrency ? null : payerAddress),
+            payment: railBody(
+              target,
+              protection,
+              localCurrency ? null : payerAddress,
+              localCurrency ? null : validReturnAddress(returnAddress),
+            ),
             executionPath: "deposit-match",
           }),
         },
@@ -95,7 +108,7 @@ export function ChooseRail({
   }
 
   function pay() {
-    if (rail === undefined || !quoteReady || needsWallet) return;
+    if (rail === undefined || !quoteReady || needsWallet || returnAddressInvalid) return;
     void confirm(rail, false);
   }
 
@@ -153,10 +166,13 @@ export function ChooseRail({
                 payerAddress={payerAddress}
                 onPayerAddress={setPayerAddress}
               />
+              {offersReturnAddress(rail.chain) && (
+                <ReturnAddressField value={returnAddress} onChange={setReturnAddress} />
+              )}
               <button
                 type="button"
                 className={`${primaryButton} mt-6`}
-                disabled={busy || !quoteReady || needsWallet}
+                disabled={busy || !quoteReady || needsWallet || returnAddressInvalid}
                 onClick={pay}
               >
                 {busy

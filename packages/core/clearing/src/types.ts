@@ -190,6 +190,16 @@ export const CLEARING_EVENT_TYPES = [
   /** The payer-surplus return was read back and its liability was cleared. */
   "payer-surplus.refund.confirmed",
   /**
+   * A failed deposit is about to be sent back to the payer. Written before the
+   * transfer goes out, so a crash between the two leaves a record that says a
+   * send may have happened and nothing sends again.
+   */
+  "deposit.return.started",
+  /** The return transfer was broadcast and awaits chain confirmation. */
+  "deposit.return.broadcast",
+  /** The return was read back as successful and the payer's asset left the books. */
+  "deposit.return.confirmed",
+  /**
    * A failed transaction reopened for a retried settlement: `FAILED` back to
    * `ASSET_RECEIVED`, allowed only when the payer's funds had arrived. The
    * payload carries the failure it replaces, so the log still says what went
