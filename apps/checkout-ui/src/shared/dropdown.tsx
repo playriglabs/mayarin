@@ -129,7 +129,19 @@ export function Dropdown({
         >
           <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)]">
             {searchable && (
-              <div className="border-b border-line p-2">
+              <div className="flex items-center gap-2 border-b border-line px-3">
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
                 <input
                   ref={searchRef}
                   type="search"
@@ -139,7 +151,7 @@ export function Dropdown({
                   aria-label="Search asset or network"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="w-full rounded-lg border border-line bg-field px-3 py-2 text-sm text-ink"
+                  className="w-full border-0 bg-transparent py-3 text-sm text-ink outline-none placeholder:text-muted"
                 />
               </div>
             )}

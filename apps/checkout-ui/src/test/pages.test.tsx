@@ -667,7 +667,7 @@ describe("the return address field", () => {
 
     expect(html).toContain("optional");
     // Whether there is a wallet is read after mount, so the first render shows none.
-    expect(html).not.toContain("Use my wallet");
+    expect(html).not.toContain("Use wallet");
   });
 
   test("a browser has a wallet only when one injected itself", () => {
