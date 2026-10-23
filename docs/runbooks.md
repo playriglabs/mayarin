@@ -181,6 +181,15 @@ deposit. The ledger is cleared only after the transfer is read back as successfu
 | `reverted`     | The transfer reverted.                                        | Find out why (balance, token pause); return by hand.                                                            |
 | `error`        | A guard refused or the node failed. The detail is in the log. | Read it. A consumed intent means the payment settled: do not return.                                            |
 
+When the payer named no address and `AUTO_RETURN_TO_SENDER` is on, the deposit goes back to the account that
+sent it, but only when every one of these holds: the payment is priced at or below `AUTO_RETURN_TO_SENDER_MAX`
+(default 100 units of its settlement asset), the transfer came from that account itself rather than through a
+router, a Safe or an exchange withdrawal, every deposit came from one account, the account holds no code
+(contract or delegated), and it has sent no more than `AUTO_RETURN_SENDER_MAX_NONCE` transactions (default 2000;
+an exchange hot wallet has sent hundreds of thousands). Otherwise the outcome is `no-address` with the reason in
+the log, looked up once per process, not every minute. The started event records `source: "sender"` or
+`"declared"`. The checkout also fills the return address from the connected wallet ("Use my wallet").
+
 A payment whose return has started cannot be retried.
 
 ## Rotating a deposit-forwarder destination

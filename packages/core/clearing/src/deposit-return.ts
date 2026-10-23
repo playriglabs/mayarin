@@ -29,7 +29,12 @@ import { generateId, type Money, serializeMoney } from "@mayarin/shared";
 import { depositReturnedPosting, sweepGasPosting } from "./postings.ts";
 import type { ClearingRepository } from "./repository.ts";
 import type { SweepResult } from "./treasury.ts";
-import type { ClearingEvent, ClearingEventType, ClearingTransaction } from "./types.ts";
+import type {
+  ClearingDeposit,
+  ClearingEvent,
+  ClearingEventType,
+  ClearingTransaction,
+} from "./types.ts";
 
 export interface DepositReturnRequest {
   readonly clearingTransactionId: string;
@@ -47,6 +52,9 @@ export type DepositReturnReceipt =
   | { readonly status: "reverted" }
   | { readonly status: "success"; readonly gasCost?: Money };
 
+/** The sender of a deposit when it is safe to return to, otherwise why it is not. */
+export type SenderLookup = { readonly address: string } | { readonly refused: string };
+
 /** The only seam that moves a failed deposit; it holds the operator key. */
 export interface DepositReturnPort {
   supports(chain: ChainId): boolean;
@@ -57,6 +65,13 @@ export interface DepositReturnPort {
    * Throws when any of that fails.
    */
   prepare(request: DepositReturnRequest): Promise<SweepResult | undefined>;
+  /**
+   * The address a deposit came from, when that address can be trusted to belong to
+   * the payer: it sent the transfer itself, is an ordinary account rather than a
+   * contract, and is not a wallet that moves volume like an exchange's. Absent on a
+   * port that cannot tell, which leaves a payer who named no address for a person.
+   */
+  senderOf?(request: Omit<DepositReturnRequest, "to" | "intentId">): Promise<SenderLookup>;
   /** Broadcasts the transfer and returns its hash without waiting for it. */
   send(request: DepositReturnRequest): Promise<string>;
   receipt(chain: ChainId, txHash: string): Promise<DepositReturnReceipt>;
@@ -85,10 +100,19 @@ export interface DepositReturnServiceOptions {
   readonly clock: { now(): Date };
   /** How long a failed payment stays retryable before its deposit is sent back. */
   readonly graceSeconds: number;
+  /**
+   * Returns to the deposit's sender when the payer named no address. Off unless
+   * given: a sender is a guess about who the payer is, so it is only used for a
+   * payment priced at or below `maxSettlement` (minor units of its settlement
+   * asset), which bounds what a wrong guess can cost.
+   */
+  readonly returnToSender?: { readonly maxSettlement: bigint };
 }
 
 export class DepositReturnService {
   readonly #options: DepositReturnServiceOptions;
+  /** Why a payment's sender was refused, so a refusal costs one lookup per process rather than one a minute. */
+  readonly #refusals = new Map<string, string>();
 
   constructor(options: DepositReturnServiceOptions) {
     this.#options = options;
@@ -134,8 +158,19 @@ export class DepositReturnService {
           detail: "a return was started and no transfer was recorded; check the operator wallet",
         };
       }
-      const to = (await intents.getById(start.paymentIntentId)).payment?.returnAddress;
-      if (to === undefined) return { transaction, outcome: "no-address" };
+      const declared = (await intents.getById(start.paymentIntentId)).payment?.returnAddress;
+      const target =
+        declared !== undefined
+          ? { to: declared, source: "declared" }
+          : await this.#senderFor(start, deposit);
+      if ("refused" in target) {
+        return {
+          transaction,
+          outcome: "no-address",
+          ...(target.refused === "" ? {} : { detail: target.refused }),
+        };
+      }
+      const { to, source } = target;
 
       const request: DepositReturnRequest = {
         clearingTransactionId: start.id,
@@ -149,11 +184,12 @@ export class DepositReturnService {
       if (sweep?.gasCost !== undefined) {
         await ledger.post(sweepGasPosting(start, sweep.gasCost, sweep.txHash));
       }
-      transaction = await this.#record(transaction, "deposit.return.started", { to });
+      transaction = await this.#record(transaction, "deposit.return.started", { to, source });
       txHash = await port.send(request);
       transaction = await this.#record(transaction, "deposit.return.broadcast", {
         providerReference: txHash,
         to,
+        source,
       });
     }
 
@@ -171,6 +207,38 @@ export class DepositReturnService {
       providerReference: txHash,
     });
     return { transaction, outcome: "returned" };
+  }
+
+  /** The deposit's sender, when the payer named no address and returning to the sender is on and safe. */
+  async #senderFor(
+    transaction: ClearingTransaction,
+    deposit: ClearingDeposit,
+  ): Promise<{ to: string; source: string } | { refused: string }> {
+    const { port, returnToSender } = this.#options;
+    // Not an event: a payer who named no address and a deployment that returns only to
+    // named ones is the ordinary case, and it has nothing to say.
+    if (returnToSender === undefined || port.senderOf === undefined) return { refused: "" };
+
+    const earlier = this.#refusals.get(transaction.id);
+    if (earlier !== undefined) return { refused: earlier };
+
+    const limit = returnToSender.maxSettlement;
+    const priced = transaction.settlementAmount?.amount;
+    const refuse = (reason: string) => {
+      this.#refusals.set(transaction.id, reason);
+      return { refused: reason };
+    };
+    if (priced === undefined || priced > limit) {
+      return refuse("the payment is above the limit for returning to the sender");
+    }
+
+    const found = await port.senderOf({
+      clearingTransactionId: transaction.id,
+      chain: deposit.chain,
+      depositAddress: deposit.address,
+      amount: deposit.amount,
+    });
+    return "refused" in found ? refuse(found.refused) : { to: found.address, source: "sender" };
   }
 
   async #record(

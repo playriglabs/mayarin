@@ -21,6 +21,7 @@ import { timelineSteps } from "../features/pay/status-timeline.tsx";
 import type { PayBootstrap } from "../features/pay/types.ts";
 import { holdDuration, railBody } from "../shared/buyer-protection.tsx";
 import { RailPicker } from "../shared/rail-picker.tsx";
+import { ReturnAddressField } from "../shared/return-address.tsx";
 import type { MoneyDto } from "../shared/types.ts";
 
 function idr(display: string): MoneyDto {
@@ -656,5 +657,22 @@ describe("the rail picker", () => {
 
   test("leaves a short list without one", () => {
     expect(render(rails(4))).not.toContain("Search asset or network");
+  });
+});
+
+describe("the return address field", () => {
+  test("offers the connected wallet as the address, and says the field is optional", () => {
+    const html = renderToStaticMarkup(<ReturnAddressField value="" onChange={() => {}} />);
+
+    expect(html).toContain("Use my wallet");
+    expect(html).toContain("optional");
+  });
+
+  test("warns about an address that is not a 0x address", () => {
+    const html = renderToStaticMarkup(
+      <ReturnAddressField value="not-an-address" onChange={() => {}} />,
+    );
+
+    expect(html).toContain("not a valid 0x address");
   });
 });

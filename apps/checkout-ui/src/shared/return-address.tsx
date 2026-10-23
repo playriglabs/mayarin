@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { errorText } from "./ui.ts";
+import { connectWallet } from "./wallet.ts";
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -28,6 +30,17 @@ export function ReturnAddressField({
   readonly onChange: (value: string) => void;
 }) {
   const invalid = value.trim() !== "" && validReturnAddress(value) === null;
+  const [walletError, setWalletError] = useState("");
+
+  async function fillFromWallet() {
+    setWalletError("");
+    try {
+      onChange(await connectWallet());
+    } catch (cause) {
+      setWalletError(cause instanceof Error ? cause.message : "Unable to connect a wallet");
+    }
+  }
+
   return (
     <div className="mt-6">
       <div className="mb-2 flex items-center gap-1.5">
@@ -63,6 +76,18 @@ export function ReturnAddressField({
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-sm text-ink"
       />
+      <button
+        type="button"
+        className="mt-2 border-0 bg-transparent p-0 text-xs text-muted underline hover:text-ink"
+        onClick={() => void fillFromWallet()}
+      >
+        Use my wallet
+      </button>
+      {walletError !== "" && (
+        <p className={errorText} role="alert">
+          {walletError}
+        </p>
+      )}
       {invalid && (
         <p className={errorText} role="alert">
           That is not a valid 0x address.

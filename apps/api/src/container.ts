@@ -95,6 +95,7 @@ import {
 import {
   type ChainClients,
   Create2DepositAddressDeriver,
+  type DepositTransactionLookup,
   ESCROW_CHAINS,
   EvmChainClient,
   EvmContractCodeReader,
@@ -636,6 +637,8 @@ function createTreasuryExecutor(deps: {
   nonces: NonceSequencer;
   /** What the settlement indexer has recorded, for a payment the router already settled. */
   settlements: DrizzleSettlementEventRepository;
+  /** The transactions behind a deposit address, to read who sent them. */
+  depositTransactions: DepositTransactionLookup;
 }):
   | {
       executor: TreasuryExecutor;
@@ -695,6 +698,8 @@ function createTreasuryExecutor(deps: {
           lookup,
           routes,
           forwarderFactories: config.depositForwarders,
+          depositTransactions: deps.depositTransactions,
+          senderMaxNonce: config.autoReturnSenderMaxNonce,
           paymentRouters: config.paymentRouters,
           tokens: config.chainAssets,
           nativeAssets: config.chainNativeAssets,
@@ -1135,6 +1140,17 @@ export function createContainer({
     solanaRuntime,
     uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
     settlements: new DrizzleSettlementEventRepository(handle.db),
+    depositTransactions: {
+      async txHashesAt(depositChain, address, asset) {
+        const deposits = await new DrizzleDepositRepository(handle.db).listByAddress(
+          depositChain,
+          address,
+        );
+        return deposits
+          .filter((deposit) => deposit.amount.asset === asset && deposit.status !== "ORPHANED")
+          .map((deposit) => deposit.txHash);
+      },
+    },
   });
   const treasuryExecutor = treasury?.executor;
 
@@ -1183,6 +1199,14 @@ export function createContainer({
           port: treasury.evmPort,
           clock,
           graceSeconds: config.autoReturnGraceSeconds,
+          ...(config.autoReturnToSender
+            ? {
+                // Settlement assets are all six-decimal, so this is minor units in any of them.
+                returnToSender: {
+                  maxSettlement: fromDecimalString(config.autoReturnToSenderMax, "USDC").amount,
+                },
+              }
+            : {}),
         })
       : undefined;
 
