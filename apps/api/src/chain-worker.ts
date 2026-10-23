@@ -233,6 +233,7 @@ const stopWatcherLoops = startWatcherLoops({
 const stopIndexerLoops = startIndexerLoops({
   indexers: container.indexers,
   intervalMs: chain.indexerIntervalMs,
+  catchUpIntervalMs: chain.catchUpIntervalMs,
   maxBackoffMs: chain.indexerMaxBackoffMs,
 });
 
