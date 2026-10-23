@@ -473,35 +473,39 @@ function PerformanceTable({
   }
 
   return (
-    <table className="mx-6 mt-4 text-base">
-      <thead className="text-left text-sm text-muted-foreground">
-        <tr>
-          <th className="pb-3 font-normal">Name</th>
-          <th className="pb-3 text-right font-normal">Success</th>
-          <th className="pb-3 text-right font-normal">Median time</th>
-          <th className="pb-3 text-right font-normal">Finished</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.key}>
-            <td className="py-2 pr-3">
-              <span className="flex min-w-0 items-center gap-2.5">
-                {markOf?.(row.key)}
-                <span className="truncate text-foreground">{labelOf(row.key)}</span>
-              </span>
-            </td>
-            <td className="py-2 text-right tabular-nums">
-              {row.successRate === undefined ? "—" : `${Math.round(row.successRate * 100)}%`}
-            </td>
-            <td className="py-2 text-right text-muted-foreground tabular-nums">
-              {row.medianSeconds === undefined ? "—" : formatDuration(row.medianSeconds)}
-            </td>
-            <td className="py-2 text-right text-muted-foreground tabular-nums">{row.finished}</td>
+    // Bounded, so a merchant on four chains with a dozen assets scrolls the table
+    // instead of stretching the page; the header stays put while the rows move.
+    <div className="mx-6 mt-4 max-h-80 overflow-y-auto overscroll-contain">
+      <table className="w-full text-base">
+        <thead className="sticky top-0 bg-background text-left text-sm text-muted-foreground">
+          <tr>
+            <th className="pb-3 font-normal">Name</th>
+            <th className="pb-3 text-right font-normal">Success</th>
+            <th className="pb-3 text-right font-normal">Median time</th>
+            <th className="pb-3 text-right font-normal">Finished</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <td className="py-2 pr-3">
+                <span className="flex min-w-0 items-center gap-2.5">
+                  {markOf?.(row.key)}
+                  <span className="truncate text-foreground">{labelOf(row.key)}</span>
+                </span>
+              </td>
+              <td className="py-2 text-right tabular-nums">
+                {row.successRate === undefined ? "—" : `${Math.round(row.successRate * 100)}%`}
+              </td>
+              <td className="py-2 text-right text-muted-foreground tabular-nums">
+                {row.medianSeconds === undefined ? "—" : formatDuration(row.medianSeconds)}
+              </td>
+              <td className="py-2 text-right text-muted-foreground tabular-nums">{row.finished}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

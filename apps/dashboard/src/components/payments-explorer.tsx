@@ -265,6 +265,7 @@ function PaymentsExplorer() {
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Customer amount</TableHead>
                     <TableHead>Network</TableHead>
+                    <TableHead>Paid with</TableHead>
                     <TableHead>Settles in</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
@@ -297,6 +298,14 @@ function PaymentsExplorer() {
                           <span className="text-subtle-foreground text-xs">—</span>
                         ) : (
                           <ChainLabel chain={p.payment.chain} size={18} />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {p.funding !== null || p.payment === null ? (
+                          // A rupiah QR is not paid in an asset the payer holds.
+                          <span className="text-subtle-foreground text-xs">—</span>
+                        ) : (
+                          <AssetLabel symbol={p.payment.asset} size={18} />
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
