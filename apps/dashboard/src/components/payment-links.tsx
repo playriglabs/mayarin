@@ -84,7 +84,7 @@ import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/co
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { QueryError, TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -1050,7 +1050,7 @@ function PaymentLinks() {
       {match(links)
         .with({ isPending: true }, () => <TableSkeleton bigSize rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void links.refetch()}
             retrying={links.isFetching}

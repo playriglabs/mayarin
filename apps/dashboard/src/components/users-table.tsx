@@ -20,7 +20,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Table,
   TableBody,
@@ -53,7 +53,7 @@ function UsersTable() {
       {match(users)
         .with({ status: "pending" }, () => <PageLoader label="Loading accounts" />)
         .with({ status: "error" }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void users.refetch()}
             retrying={users.isFetching}

@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -273,7 +273,7 @@ function Catalog() {
       {match(products)
         .with({ isPending: true }, () => <TableSkeleton bigSize rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void products.refetch()}
             retrying={products.isFetching}

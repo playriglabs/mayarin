@@ -12,7 +12,7 @@ import { deadlineTone } from "@/components/disputes-queue";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Table,
   TableBody,
@@ -43,7 +43,7 @@ function MerchantDisputes() {
   return match(disputes)
     .with({ status: "pending" }, () => <PageLoader label="Loading disputes" />)
     .with({ status: "error" }, ({ error }) => (
-      <QueryError
+      <TableError
         message={error instanceof ApiError ? error.message : "Failed to load disputes"}
         retry={() => void disputes.refetch()}
         retrying={disputes.isFetching}

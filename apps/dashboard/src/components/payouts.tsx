@@ -27,7 +27,7 @@ import { Card } from "@/components/ui/card";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   Select,
@@ -395,7 +395,7 @@ function History() {
       {match(history)
         .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={messageOf(error)}
             retry={() => void history.refetch()}
             retrying={history.isFetching}

@@ -9,6 +9,7 @@
  */
 
 import {
+  AddressBookIcon,
   ArrowClockwiseIcon,
   ArrowSquareOutIcon,
   PauseIcon,
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { QueryError } from "@/components/ui/query-error";
+import { QueryError, TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -179,6 +180,9 @@ function Subscriptions() {
       label: customer.email === null ? customer.name : `${customer.name} · ${customer.email}`,
     }),
   );
+  // Nobody to bill yet: the form has nothing it can do, so it says so instead of
+  // showing an empty picker under a hint.
+  const noCustomers = customers.status === "success" && customerOptions.length === 0;
   const canCreate =
     draft.customerId !== "" &&
     draft.description.trim() !== "" &&
@@ -237,7 +241,7 @@ function Subscriptions() {
       {match(subscriptions)
         .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void subscriptions.refetch()}
             retrying={subscriptions.isFetching}
@@ -374,115 +378,137 @@ function Subscriptions() {
 
           {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="subscription-customer">Customer</FieldLabel>
-              <Select
-                items={customerOptions}
-                value={draft.customerId}
-                onValueChange={(value) => setDraft({ ...draft, customerId: value })}
-              >
-                <SelectTrigger id="subscription-customer">
-                  <SelectValue placeholder="Choose a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customerOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {customers.status === "success" && customerOptions.length === 0 && (
-                <FieldDescription>Add a customer on the Customers page first.</FieldDescription>
-              )}
-            </Field>
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="subscription-description">Plan</FieldLabel>
-              <Input
-                id="subscription-description"
-                placeholder="Pro plan"
-                maxLength={200}
-                value={draft.description}
-                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-              />
-              <FieldDescription>Printed on every cycle&apos;s invoice.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="subscription-currency">Currency</FieldLabel>
-              <Select
-                items={CURRENCY_OPTIONS}
-                value={draft.currency}
-                onValueChange={(value) => setDraft({ ...draft, currency: value })}
-              >
-                <SelectTrigger id="subscription-currency">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="subscription-amount">Amount per cycle</FieldLabel>
-              <CurrencyInput
-                id="subscription-amount"
-                asset={draft.currency}
-                placeholder="49.000,00"
-                value={draft.amount}
-                onValueChange={(amount) => setDraft({ ...draft, amount })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="subscription-interval">Billing</FieldLabel>
-              <Select
-                items={INTERVAL_OPTIONS}
-                value={draft.interval}
-                onValueChange={(value) =>
-                  setDraft({ ...draft, interval: value as SubscriptionInterval })
-                }
-              >
-                <SelectTrigger id="subscription-interval">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {INTERVAL_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="subscription-due">Days to pay</FieldLabel>
-              <Input
-                id="subscription-due"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={90}
-                value={draft.daysUntilDue}
-                onChange={(event) => setDraft({ ...draft, daysUntilDue: event.target.value })}
-                aria-invalid={!validDays(draft.daysUntilDue)}
-              />
-            </Field>
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="subscription-start">First bill</FieldLabel>
-              <DatePicker
-                id="subscription-start"
-                value={draft.startDate}
-                onValueChange={(value) => setDraft({ ...draft, startDate: value })}
-              />
-              <FieldDescription>
-                Leave empty to bill the first cycle now. Later cycles follow on the same day.
-              </FieldDescription>
-            </Field>
-          </div>
+          {customers.status === "error" ? (
+            <QueryError
+              message={
+                customers.error instanceof Error
+                  ? customers.error.message
+                  : "Customers could not be loaded."
+              }
+              retry={() => void customers.refetch()}
+              retrying={customers.isFetching}
+            />
+          ) : noCustomers ? (
+            <Empty className="py-10">
+              <EmptyMedia>
+                <AddressBookIcon size={ICON_CARD} aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>No customers yet.</EmptyTitle>
+              <EmptyDescription>Add a customer first, then bill them every cycle.</EmptyDescription>
+              <EmptyAction>
+                <a href="/customers" className={buttonVariants()}>
+                  Add a customer
+                </a>
+              </EmptyAction>
+            </Empty>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field className="sm:col-span-2">
+                <FieldLabel htmlFor="subscription-customer">Customer</FieldLabel>
+                <Select
+                  items={customerOptions}
+                  value={draft.customerId}
+                  onValueChange={(value) => setDraft({ ...draft, customerId: value })}
+                >
+                  <SelectTrigger id="subscription-customer">
+                    <SelectValue placeholder="Choose a customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customerOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className="sm:col-span-2">
+                <FieldLabel htmlFor="subscription-description">Plan</FieldLabel>
+                <Input
+                  id="subscription-description"
+                  placeholder="Pro plan"
+                  maxLength={200}
+                  value={draft.description}
+                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                />
+                <FieldDescription>Printed on every cycle&apos;s invoice.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="subscription-currency">Currency</FieldLabel>
+                <Select
+                  items={CURRENCY_OPTIONS}
+                  value={draft.currency}
+                  onValueChange={(value) => setDraft({ ...draft, currency: value })}
+                >
+                  <SelectTrigger id="subscription-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="subscription-amount">Amount per cycle</FieldLabel>
+                <CurrencyInput
+                  id="subscription-amount"
+                  asset={draft.currency}
+                  placeholder="49.000,00"
+                  value={draft.amount}
+                  onValueChange={(amount) => setDraft({ ...draft, amount })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="subscription-interval">Billing</FieldLabel>
+                <Select
+                  items={INTERVAL_OPTIONS}
+                  value={draft.interval}
+                  onValueChange={(value) =>
+                    setDraft({ ...draft, interval: value as SubscriptionInterval })
+                  }
+                >
+                  <SelectTrigger id="subscription-interval">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INTERVAL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="subscription-due">Days to pay</FieldLabel>
+                <Input
+                  id="subscription-due"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={90}
+                  value={draft.daysUntilDue}
+                  onChange={(event) => setDraft({ ...draft, daysUntilDue: event.target.value })}
+                  aria-invalid={!validDays(draft.daysUntilDue)}
+                />
+              </Field>
+              <Field className="sm:col-span-2">
+                <FieldLabel htmlFor="subscription-start">First bill</FieldLabel>
+                <DatePicker
+                  id="subscription-start"
+                  value={draft.startDate}
+                  onValueChange={(value) => setDraft({ ...draft, startDate: value })}
+                />
+                <FieldDescription>
+                  Leave empty to bill the first cycle now. Later cycles follow on the same day.
+                </FieldDescription>
+              </Field>
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setCreating(false)}>
@@ -516,7 +542,7 @@ function Cycles({ id }: { readonly id: string | null }) {
       {match(detail)
         .with({ isPending: true }, () => <TableSkeleton rows={3} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void detail.refetch()}
             retrying={detail.isFetching}

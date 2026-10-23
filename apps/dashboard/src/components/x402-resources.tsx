@@ -59,7 +59,7 @@ import {
 import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -296,7 +296,7 @@ function X402Resources() {
       {match(resources)
         .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void resources.refetch()}
             retrying={resources.isFetching}
