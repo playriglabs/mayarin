@@ -4,8 +4,10 @@ import { encodeAbiParameters, encodeEventTopics } from "viem";
 import { EvmChainClient } from "../src/client.ts";
 
 const RPC_URLS = process.env.CHAIN_RPC_URLS;
+/** Live RPC tests run only on request: a `.env` full of RPC URLs must not tie `bun test` to a network. */
+const LIVE_RPC = RPC_URLS !== undefined && process.env.TEST_LIVE_RPC === "1";
 
-describe.skipIf(RPC_URLS === undefined)("EvmChainClient", () => {
+describe.skipIf(!LIVE_RPC)("EvmChainClient", () => {
   const client = new EvmChainClient({
     rpcUrls: JSON.parse(RPC_URLS ?? "{}"),
     tokens: JSON.parse(process.env.CHAIN_ASSETS ?? "{}"),

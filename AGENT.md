@@ -81,6 +81,9 @@ bun test packages/shared/test/money.test.ts
 bun test -t "rejects a fee that would consume the whole payment"
 ```
 
+The live RPC tests (`EvmChainClient`, `ChainlinkPriceOracle live`) read base-sepolia over the network and run only
+with `TEST_LIVE_RPC=1` and a `CHAIN_RPC_URLS` that serves it; a `.env` with RPC URLs alone no longer runs them.
+
 `packages/db/test/postgres.test.ts` skips itself unless `TEST_DATABASE_URL` is set. The suite
 truncates every table it touches, so it is opt-in on purpose: `DATABASE_URL` alone never runs it,
 which keeps a plain `bun test` (and the pre-push hook) away from the development database. To run
