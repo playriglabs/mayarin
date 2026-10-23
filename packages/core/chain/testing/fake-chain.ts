@@ -16,6 +16,7 @@ import type {
   ChainId,
   SettlementLog,
   SettlementQuery,
+  SettlementTransactionQuery,
   TransferLog,
   TransferQuery,
 } from "../src/index.ts";
@@ -211,6 +212,16 @@ export class FakeChainClient implements ChainClient {
     }
 
     return logs;
+  }
+
+  async settlementsInTransaction(query: SettlementTransactionQuery): Promise<SettlementLog[]> {
+    const everything = await this.settlements({
+      chain: query.chain,
+      router: query.router,
+      fromBlock: 0n,
+      toBlock: BigInt(Number.MAX_SAFE_INTEGER),
+    });
+    return everything.filter((log) => log.txHash === query.txHash);
   }
 
   async settlements(query: SettlementQuery): Promise<SettlementLog[]> {

@@ -115,6 +115,15 @@ export interface SettlementEventRepository {
   markCompleted(id: string, at: Date): Promise<void>;
   findByIntentId(intentId: string): Promise<SettlementEvent | null>;
   /**
+   * Transactions a payment says settled it on `chain` that have no settlement
+   * recorded, newest first and no older than `since`.
+   *
+   * The ones the indexer's own scan has not reached, or never will: the hash is
+   * known from the payment, so the receipt can be read instead of the blocks
+   * around it.
+   */
+  listUnindexedTransactions(chain: ChainId, since: Date, limit: number): Promise<readonly string[]>;
+  /**
    * The settlements behind a page of on-chain intent ids, in one round trip.
    *
    * What a merchant-facing settlement listing needs: it already holds the page

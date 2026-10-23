@@ -15,13 +15,22 @@ import {
   fromChainUnits,
   type SettlementLog,
   type SettlementQuery,
+  type SettlementTransactionQuery,
   type TransferLog,
   type TransferQuery,
 } from "@mayarin/chain";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, ConfigurationError, ProviderError } from "@mayarin/shared";
-import { createPublicClient, getAddress, http, type PublicClient, parseAbiItem } from "viem";
+import {
+  createPublicClient,
+  getAddress,
+  http,
+  type PublicClient,
+  parseAbiItem,
+  parseEventLogs,
+  TransactionReceiptNotFoundError,
+} from "viem";
 import { shortReason } from "./errors.ts";
 import { validateNativeAssets } from "./native-assets.ts";
 
@@ -247,6 +256,52 @@ export class EvmChainClient implements ChainClient {
       );
     }
 
+    return this.#settlementLogs(query.chain, logs);
+  }
+
+  async settlementsInTransaction(query: SettlementTransactionQuery): Promise<SettlementLog[]> {
+    if (PAYMENT_COMPLETED_EVENT === undefined) {
+      throw new ConfigurationError("The PaymentRouter ABI declares no PaymentCompleted event", {});
+    }
+
+    const client = this.#clientFor(query.chain);
+    const receipt = await this.#rpc(
+      query.chain,
+      // A transaction the node has not mined yet is the ordinary answer for a payment
+      // submitted a moment ago; anything else is a fault worth surfacing.
+      client.getTransactionReceipt({ hash: query.txHash as `0x${string}` }).catch((error) => {
+        if (error instanceof TransactionReceiptNotFoundError) return undefined;
+        throw error;
+      }),
+    );
+    if (receipt === undefined || receipt.status !== "success") return [];
+
+    const router = getAddress(query.router);
+    const logs = parseEventLogs({
+      abi: paymentRouterAbi,
+      eventName: "PaymentCompleted",
+      logs: receipt.logs.filter((log) => getAddress(log.address) === router),
+    });
+    return this.#settlementLogs(query.chain, logs);
+  }
+
+  #settlementLogs(
+    chain: ChainId,
+    logs: readonly {
+      blockNumber: bigint | null;
+      blockHash: `0x${string}` | null;
+      transactionHash: `0x${string}` | null;
+      logIndex: number | null;
+      args: {
+        readonly intentId?: string | undefined;
+        readonly merchantSafe?: string | undefined;
+        readonly settlementAsset?: string | undefined;
+        readonly settledAmount?: bigint | undefined;
+        readonly fee?: bigint | undefined;
+        readonly refundAmount?: bigint | undefined;
+      };
+    }[],
+  ): SettlementLog[] {
     return logs.flatMap((log) => {
       // A log without a block or a transaction is a pending log, which
       // `getLogs` over a closed range should never return. Dropping it is
@@ -271,20 +326,20 @@ export class EvmChainClient implements ChainClient {
 
       // The token contract counts in its own decimals, and two stablecoins on one chain
       // can disagree, so the amounts are read in the asset the log names.
-      const asset = this.#assetAt(query.chain, settlementAsset);
+      const asset = this.#assetAt(chain, settlementAsset);
 
       return [
         {
-          chain: query.chain,
+          chain: chain,
           txHash: log.transactionHash,
           logIndex: log.logIndex,
           blockNumber: log.blockNumber,
           blockHash: log.blockHash,
           intentId: intentId.toLowerCase(),
           merchantSafe: merchantSafe.toLowerCase(),
-          settledAmount: fromChainUnits(query.chain, asset, settledAmount),
-          fee: fromChainUnits(query.chain, asset, fee),
-          refundAmount: fromChainUnits(query.chain, asset, refundAmount),
+          settledAmount: fromChainUnits(chain, asset, settledAmount),
+          fee: fromChainUnits(chain, asset, fee),
+          refundAmount: fromChainUnits(chain, asset, refundAmount),
         },
       ];
     });
