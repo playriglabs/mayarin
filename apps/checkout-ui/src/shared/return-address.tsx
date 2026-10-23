@@ -30,9 +30,29 @@ export function ReturnAddressField({
   const invalid = value.trim() !== "" && validReturnAddress(value) === null;
   return (
     <div className="mt-6">
-      <label className="mb-2 block text-sm text-ink" htmlFor="return-address">
-        Return address <span className="text-muted">· optional</span>
-      </label>
+      <div className="mb-2 flex items-center gap-1.5">
+        <label className="text-sm text-ink" htmlFor="return-address">
+          Return address <span className="text-muted">· optional</span>
+        </label>
+        <span className="group relative inline-flex">
+          <button
+            type="button"
+            aria-label="About the return address"
+            aria-describedby="return-address-hint"
+            className="flex size-4 items-center justify-center rounded-full border border-line bg-transparent p-0 text-[10px] leading-none text-muted hover:text-ink focus-visible:text-ink"
+          >
+            i
+          </button>
+          <span
+            id="return-address-hint"
+            role="tooltip"
+            className="pointer-events-none invisible absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-xl border border-line bg-panel p-3 text-xs leading-relaxed text-muted opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+          >
+            If the payment fails after you have sent the funds, they go back to this address. Use a
+            wallet you control, not an exchange deposit address.
+          </span>
+        </span>
+      </div>
       <input
         id="return-address"
         type="text"
@@ -43,10 +63,6 @@ export function ReturnAddressField({
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-sm text-ink"
       />
-      <p className="mt-1.5 mb-0 text-xs leading-relaxed text-muted">
-        If the payment fails after you have sent the funds, they go back to this address. Use a
-        wallet you control, not an exchange deposit address.
-      </p>
       {invalid && (
         <p className={errorText} role="alert">
           That is not a valid 0x address.
