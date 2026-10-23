@@ -20,6 +20,7 @@ import { PayPage } from "../features/pay/pay-page.tsx";
 import { timelineSteps } from "../features/pay/status-timeline.tsx";
 import type { PayBootstrap } from "../features/pay/types.ts";
 import { holdDuration, railBody } from "../shared/buyer-protection.tsx";
+import { RailPicker } from "../shared/rail-picker.tsx";
 import type { MoneyDto } from "../shared/types.ts";
 
 function idr(display: string): MoneyDto {
@@ -635,5 +636,25 @@ describe("escrow (#304)", () => {
     expect(holdDuration(7 * 86_400)).toBe("7 days");
     expect(holdDuration(86_400)).toBe("1 day");
     expect(holdDuration(2 * 3_600)).toBe("2 hours");
+  });
+});
+
+describe("the rail picker", () => {
+  const rail = (asset: string) => ({
+    chain: "base",
+    asset,
+    contract: null,
+    settlementAsset: "USDC",
+  });
+  const rails = (count: number) => Array.from({ length: count }, (_, at) => rail(`TKN${at}`));
+  const render = (list: ReturnType<typeof rails>) =>
+    renderToStaticMarkup(<RailPicker rails={list} selected={list[0]} onSelect={() => {}} />);
+
+  test("offers a search field once the list is long", () => {
+    expect(render(rails(9))).toContain("Search asset or network");
+  });
+
+  test("leaves a short list without one", () => {
+    expect(render(rails(4))).not.toContain("Search asset or network");
   });
 });
