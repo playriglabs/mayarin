@@ -62,7 +62,9 @@ function executingPort(output = money(5_000_000n, "USDC")): TreasuryExecutionPor
   const results: ExecutionResult[] = [];
   return {
     results,
-    async sweep() {},
+    async sweep() {
+      return undefined;
+    },
     async execute() {
       const result = { txHash: `0x${"fe".repeat(32)}`, output, gasCost: GAS };
       results.push(result);
@@ -105,6 +107,7 @@ function recordingPort(): TreasuryExecutionPort & {
         failures.sweeps -= 1;
         throw new ProviderError("the node refused the sweep broadcast", {});
       }
+      return undefined;
     },
     async execute(request: ExecuteRequest) {
       if (failures.attempts > 0) {
@@ -261,7 +264,9 @@ describe("the indexer's log for an executed deposit", () => {
 describe("a terminal router failure", () => {
   test("keeps the decoded revert in the state.failed event payload", async () => {
     const port: TreasuryExecutionPort = {
-      async sweep() {},
+      async sweep() {
+        return undefined;
+      },
       async execute() {
         throw new ProviderError(
           "Transaction reverted with ExpiredOrder",

@@ -22,12 +22,14 @@ import type {
   ExecuteRequest,
   ExecutionResult,
   SweepRequest,
+  SweepResult,
   TreasuryExecutionPort,
 } from "@mayarin/clearing";
 import { type PaymentCompletedEvent, paymentRouterAbi } from "@mayarin/contracts";
 import type { SwapRouteSource } from "@mayarin/execution";
 import {
   type AssetCode,
+  add,
   ConfigurationError,
   money,
   type NonceSequencer,
@@ -234,7 +236,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     return clients;
   }
 
-  async sweep(request: SweepRequest): Promise<void> {
+  async sweep(request: SweepRequest): Promise<SweepResult> {
     const factory = this.#addressFor(
       this.#options.forwarderFactories,
       request.chain,
@@ -272,7 +274,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             args: [salt, token],
           });
 
-    await this.#submit(request.chain, factory, data, 0n);
+    return await this.#submit(request.chain, factory, data, 0n);
   }
 
   async execute(request: ExecuteRequest): Promise<ExecutionResult> {
@@ -330,8 +332,18 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
           chain: request.chain,
         });
 
-    const call =
+    const approval =
       inputToken === undefined
+        ? undefined
+        : await this.#permitFor(
+            request.chain,
+            inputToken,
+            paymentRouter,
+            toChainUnits(request.chain, request.inputAmount.asset, request.inputAmount.amount),
+          );
+
+    const call =
+      inputToken === undefined || approval === undefined
         ? buildPayEthCall({
             paymentRouter,
             order,
@@ -349,20 +361,21 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             paymentRouter,
             order,
             signature,
-            ...(await this.#permitFor(
-              request.chain,
-              inputToken,
-              paymentRouter,
-              toChainUnits(request.chain, request.inputAmount.asset, request.inputAmount.amount),
-            )),
+            permit: approval.permit,
+            permitSignature: approval.permitSignature,
             ...(route === undefined ? {} : { route }),
           });
 
     try {
-      return await this.#submit(request.chain, call.to, call.data, call.value, {
+      const result = await this.#submit(request.chain, call.to, call.data, call.value, {
         paymentRouter,
         settlementAsset,
       });
+      // The one-off Permit2 approval is a transaction of its own, paid for by
+      // the same payment.
+      return approval?.gasCost === undefined || result.gasCost === undefined
+        ? result
+        : { ...result, gasCost: add(result.gasCost, approval.gasCost) };
     } catch (error) {
       // The router consumes an intent once. `AlreadyConsumed` therefore means an
       // earlier transaction of ours settled this payment — a crash between the
@@ -461,13 +474,11 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     const receipt = await this.#clientsFor(chain).publicClient.getTransactionReceipt({
       hash: txHash,
     });
-    const gasAsset = this.#options.nativeAssets[chain];
+    const gasCost = await this.#gasCost(chain, receipt);
     return {
       txHash,
       output: money(output, settlementAsset),
-      ...(gasAsset === undefined
-        ? {}
-        : { gasCost: money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset) }),
+      ...(gasCost === undefined ? {} : { gasCost }),
     };
   }
 
@@ -486,7 +497,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     token: Address,
     paymentRouter: Address,
     amount: bigint,
-  ): Promise<{ permit: Permit2Single; permitSignature: Hex }> {
+  ): Promise<{ permit: Permit2Single; permitSignature: Hex; gasCost?: Money }> {
     const { account } = this.#options;
     const { publicClient, walletClient } = this.#clientsFor(chain);
 
@@ -497,13 +508,14 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       args: [account.address, PERMIT2],
     });
 
+    let gasCost: Money | undefined;
     if (approved < amount) {
       const data = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
         args: [PERMIT2, 2n ** 256n - 1n],
       });
-      await this.#submit(chain, token, data, 0n);
+      gasCost = (await this.#submit(chain, token, data, 0n)).gasCost;
     }
 
     const [, , nonce] = await publicClient.readContract({
@@ -546,7 +558,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       },
     });
 
-    return { permit, permitSignature };
+    return { permit, permitSignature, ...(gasCost === undefined ? {} : { gasCost }) };
   }
 
   /**
@@ -592,11 +604,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     // rather than a number labelled with the wrong asset: the ledger would post
     // it, and a posting in an asset the chain does not have is worse than an
     // unmeasured cost.
-    const gasAsset = this.#options.nativeAssets[chain];
-    const gasCost =
-      gasAsset === undefined
-        ? undefined
-        : money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset);
+    const gasCost = await this.#gasCost(chain, receipt);
 
     if (receipt.status !== "success") {
       throw await this.#revertedTransaction({
@@ -622,6 +630,36 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       output: this.#outputFrom(chain, receipt.logs, measure.paymentRouter, measure.settlementAsset),
       ...(gasCost === undefined ? {} : { gasCost }),
     };
+  }
+
+  /**
+   * What a transaction cost in the chain's native currency.
+   *
+   * `gasUsed * effectiveGasPrice` is the whole bill on most chains, and on
+   * Arbitrum, where the L1 share is folded into `gasUsed`. On an OP-stack chain
+   * (Base) the L1 data fee is a separate receipt field that viem drops unless the
+   * client was built with that chain's formatters, so it is read from the raw
+   * receipt — otherwise every Base payment books its gas short.
+   */
+  async #gasCost(
+    chain: ChainId,
+    receipt: { transactionHash: Hex; gasUsed: bigint; effectiveGasPrice: bigint },
+  ): Promise<Money | undefined> {
+    const gasAsset = this.#options.nativeAssets[chain];
+    if (gasAsset === undefined) return undefined;
+
+    // The transaction is already confirmed, so a node that cannot answer this
+    // must not fail the step: a retry would only resubmit work that is done.
+    const l1Fee = await this.#clientsFor(chain)
+      .publicClient.request({
+        method: "eth_getTransactionReceipt",
+        params: [receipt.transactionHash],
+      })
+      .then((raw) => (raw as { l1Fee?: Hex } | null)?.l1Fee ?? "0x0")
+      .then(BigInt)
+      .catch(() => 0n);
+
+    return money(receipt.gasUsed * receipt.effectiveGasPrice + l1Fee, gasAsset);
   }
 
   /** Replays a reverted call to recover the router's custom-error selector. */

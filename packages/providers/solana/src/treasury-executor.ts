@@ -75,7 +75,7 @@ export class SolanaTreasuryExecutionPort implements TreasuryExecutionPort {
     this.#options = options;
   }
 
-  async sweep(request: SweepRequest): Promise<void> {
+  async sweep(request: SweepRequest): Promise<undefined> {
     const payer = await this.#payerFor(request.clearingTransactionId);
     if (payer.publicKey.toBase58() !== request.depositAddress) {
       throw new ValidationError(
@@ -93,7 +93,7 @@ export class SolanaTreasuryExecutionPort implements TreasuryExecutionPort {
     const ownerRent = await connection.getMinimumBalanceForRentExemption(0);
     const required = rent + ownerRent + PAYMENT_FEE_RESERVE_LAMPORTS;
     const balance = await connection.getBalance(payer.publicKey, "confirmed");
-    if (balance >= required) return;
+    if (balance >= required) return undefined;
 
     const { blockhash } = await connection.getLatestBlockhash("confirmed");
     const funding = new Transaction({
@@ -107,6 +107,7 @@ export class SolanaTreasuryExecutionPort implements TreasuryExecutionPort {
       }),
     );
     await this.#submit(connection, funding, payer);
+    return undefined;
   }
 
   async execute(request: ExecuteRequest): Promise<ExecutionResult> {
