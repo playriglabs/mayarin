@@ -23,6 +23,7 @@ import { CheckIcon, CopyIcon, QrCodeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,7 +151,7 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
             <div className="flex flex-col gap-1">
               <dt className="text-xs text-subtle-foreground">Network</dt>
               <dd>
-                <Badge>{deposit.chain}</Badge>
+                <ChainLabel chain={deposit.chain} size={18} className="text-sm text-foreground" />
               </dd>
             </div>
           </dl>

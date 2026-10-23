@@ -30,7 +30,7 @@ export function RailGroups({ rails }: { readonly rails: readonly RailLike[] }) {
       {groupRailsByChain(rails).map(([chain, assets]) => (
         <Fragment key={chain}>
           <span className="whitespace-nowrap text-muted-foreground">{chainLabel(chain)}</span>
-          <span className="whitespace-nowrap">{assets.join(" · ")}</span>
+          <span className="min-w-0">{assets.join(" · ")}</span>
         </Fragment>
       ))}
     </span>
