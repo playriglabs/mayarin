@@ -35,10 +35,12 @@ describe("ChainlinkPriceOracle configuration", () => {
 });
 
 // A live read needs a real aggregator; gate it exactly like the EVM client's
-// network tests so `bun test` stays offline by default.
+// network tests so `bun test` stays offline by default. Opt in with TEST_LIVE_RPC=1
+// and a CHAIN_RPC_URLS that serves base-sepolia.
 const RPC_URLS = process.env.CHAIN_RPC_URLS;
+const LIVE_RPC = RPC_URLS !== undefined && process.env.TEST_LIVE_RPC === "1";
 
-describe.skipIf(RPC_URLS === undefined)("ChainlinkPriceOracle live", () => {
+describe.skipIf(!LIVE_RPC)("ChainlinkPriceOracle live", () => {
   test("reads an ETH/USD reference on base-sepolia", async () => {
     const oracle = new ChainlinkPriceOracle({
       rpcUrls: JSON.parse(RPC_URLS ?? "{}"),
