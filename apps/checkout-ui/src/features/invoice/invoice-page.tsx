@@ -10,6 +10,11 @@ import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import {
+  offersReturnAddress,
+  ReturnAddressField,
+  validReturnAddress,
+} from "../../shared/return-address.tsx";
+import {
   errorText,
   estimateRow,
   noteText,
@@ -48,6 +53,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
   const [error, setError] = useState("");
   const [rail, setRail] = useState(bootstrap.rails[0]);
   const [payerAddress, setPayerAddress] = useState<string | null>(null);
+  const [returnAddress, setReturnAddress] = useState("");
 
   // The outstanding balance in the asset the payer picked, from the same rate
   // source the lock reads — so "Pay Rp 49.000" also says how much PYUSD that is.
@@ -57,9 +63,11 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
     payable ? rail : undefined,
   );
   const quoteReady = canContinueWithQuote(estimate);
+  const returnAddressInvalid =
+    returnAddress.trim() !== "" && validReturnAddress(returnAddress) === null;
 
   async function pay() {
-    if (rail === undefined || !quoteReady || busy) return;
+    if (rail === undefined || !quoteReady || busy || returnAddressInvalid) return;
     setBusy(true);
     setError("");
     try {
@@ -67,7 +75,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          payment: railBody(rail, bootstrap.protection, payerAddress),
+          payment: railBody(
+            rail,
+            bootstrap.protection,
+            payerAddress,
+            validReturnAddress(returnAddress),
+          ),
           executionPath: "deposit-match",
         }),
       });
@@ -292,11 +305,14 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         payerAddress={payerAddress}
         onPayerAddress={setPayerAddress}
       />
+      {rail !== undefined && offersReturnAddress(rail.chain) && (
+        <ReturnAddressField value={returnAddress} onChange={setReturnAddress} />
+      )}
 
       <button
         type="button"
         className={`${primaryButton} mt-6`}
-        disabled={busy || rail === undefined || !quoteReady}
+        disabled={busy || rail === undefined || !quoteReady || returnAddressInvalid}
         onClick={() => void pay()}
       >
         {busy

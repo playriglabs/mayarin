@@ -24,6 +24,7 @@ import {
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
+  DepositReturnService,
   LiquidityRouter,
   type RateProvider,
   RefundService,
@@ -209,6 +210,8 @@ export interface Container {
   readonly subscriptions: SubscriptionApiService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
+  /** Sends a failed deposit back to the payer; absent unless `AUTO_RETURN_ENABLED` and an EVM executor exist. */
+  readonly depositReturns: DepositReturnService | undefined;
   /**
    * The rate provider the engine prices with (#15).
    *
@@ -1168,6 +1171,18 @@ export function createContainer({
     ]),
   });
 
+  const depositReturns =
+    config.autoReturnEnabled && treasury?.evmPort !== undefined
+      ? new DepositReturnService({
+          repository: new DrizzleClearingRepository(handle.db),
+          intents,
+          ledger,
+          port: treasury.evmPort,
+          clock,
+          graceSeconds: config.autoReturnGraceSeconds,
+        })
+      : undefined;
+
   const checkout =
     config.contract === undefined
       ? undefined
@@ -1550,6 +1565,7 @@ export function createContainer({
     subscriptions,
     ledger,
     engine,
+    depositReturns,
     rates,
     paymentApp,
     analytics: new AnalyticsService({

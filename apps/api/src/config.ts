@@ -533,6 +533,17 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  /**
+   * Sends a failed deposit back to the address the payer named on the rail,
+   * once the payment has been failed for `AUTO_RETURN_GRACE_SECONDS`. Off by
+   * default: it moves money without a person.
+   */
+  autoReturnEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** How long a failed payment stays retryable before its deposit is returned. */
+  autoReturnGraceSeconds: z.coerce.number().int().nonnegative().default(3_600),
   /** Deployed `DepositForwarderFactory` per chain. */
   depositForwarders: jsonObject<Partial<Record<ChainId, string>>>("DEPOSIT_FORWARDERS", "{}"),
   /** `DepositForwarderFactory.INIT_CODE_HASH()`, which deposit addresses derive from. */
@@ -1553,6 +1564,8 @@ export function loadConfig(
     solanaOrcaPools: env.SOLANA_ORCA_POOLS,
     solanaOrcaLookupTables: env.SOLANA_ORCA_LOOKUP_TABLES,
     treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
+    autoReturnEnabled: env.AUTO_RETURN_ENABLED,
+    autoReturnGraceSeconds: env.AUTO_RETURN_GRACE_SECONDS,
     x402Enabled: env.X402_ENABLED,
     x402QuoteTtlSeconds: env.X402_QUOTE_TTL_SECONDS,
     depositForwarders: env.DEPOSIT_FORWARDERS,

@@ -219,6 +219,7 @@ function toPaymentRail(row: Row): PaymentRail | undefined {
     asset: toAsset(row.paymentAsset),
     chain: row.paymentChain,
     ...present("payerAddress", row.payerAddress),
+    ...present("returnAddress", row.returnAddress),
   };
 }
 
@@ -227,5 +228,6 @@ function paymentRailColumns(intent: PaymentIntent) {
     paymentAsset: intent.payment?.asset ?? null,
     paymentChain: intent.payment?.chain ?? null,
     payerAddress: intent.payment?.payerAddress ?? null,
+    returnAddress: intent.payment?.returnAddress ?? null,
   };
 }

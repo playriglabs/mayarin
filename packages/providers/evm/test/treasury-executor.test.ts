@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ExecuteRequest, SweepRequest } from "@mayarin/clearing";
+import type { DepositReturnRequest, ExecuteRequest, SweepRequest } from "@mayarin/clearing";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, InMemoryNonceSequencer, money, ProviderError } from "@mayarin/shared";
@@ -103,6 +103,8 @@ function harness(
     l1Fee?: bigint;
     /** The operator's ERC-20 allowance to Permit2; below the amount, an approve is sent. */
     allowance?: bigint;
+    /** What the operator holds, in base units, of whichever asset is asked about. */
+    balance?: bigint;
   } = {},
 ) {
   const sent: Sent[] = [];
@@ -128,7 +130,11 @@ function harness(
         ) as unknown;
       }
       if (functionName === "consumed") return options.consumed ?? false;
+      if (functionName === "balanceOf") return options.balance ?? 0n;
       return 0n;
+    },
+    async getBalance() {
+      return options.balance ?? 0n;
     },
     async waitForTransactionReceipt() {
       return {
@@ -502,5 +508,80 @@ describe("executing a same-asset ERC-20 deposit", () => {
     // approve, then payERC20: two transactions, both paid for by this payment.
     expect(sent).toHaveLength(2);
     expect(result.gasCost).toEqual(money(2n * 99_061n * 6_000_000n, "ETH"));
+  });
+});
+
+describe("returning a failed deposit", () => {
+  const PAYER = "0x00000000000000000000000000000000000000a2";
+  const RETURN: DepositReturnRequest = {
+    clearingTransactionId: "clr_1",
+    chain: "base-sepolia",
+    depositAddress: DEPOSIT,
+    intentId: ORDER.intentId,
+    amount: money(10n ** 15n, "ETH"),
+    to: PAYER,
+  };
+
+  test("sweeps the forwarder, then sends the exact amount from the operator", async () => {
+    const { port, sent } = harness({ balance: 10n ** 15n });
+
+    const swept = await port.prepare(RETURN);
+    const hash = await port.send(RETURN);
+
+    expect(swept.txHash).toBeDefined();
+    expect(hash).toMatch(/^0x[\da-f]{64}$/);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]?.to.toLowerCase()).toBe(FACTORY.toLowerCase());
+    expect(sent[1]?.to.toLowerCase()).toBe(PAYER);
+    expect(sent[1]).toMatchObject({ data: "0x", value: 10n ** 15n });
+  });
+
+  test("sends an ERC-20 as a transfer to the token, not value to the payer", async () => {
+    const { port, sent } = harness({ balance: 3_000_000n });
+    const request = { ...RETURN, amount: money(3_000_000n, "USDC") };
+
+    await port.send(request);
+
+    expect(sent[0]?.to.toLowerCase()).toBe(USDC.toLowerCase());
+    expect(sent[0]?.value).toBe(0n);
+    expect(sent[0]?.data.startsWith("0xa9059cbb")).toBe(true);
+  });
+
+  test("refuses a payment the router already consumed, and moves nothing", async () => {
+    const { port, sent } = harness({ consumed: true, balance: 10n ** 15n });
+
+    await expect(port.prepare(RETURN)).rejects.toThrow(/settled and its deposit cannot/);
+    expect(sent).toHaveLength(0);
+  });
+
+  test("refuses one of Mayarin's own addresses as the destination", async () => {
+    const { port, sent } = harness({ balance: 10n ** 15n });
+
+    for (const to of [ACCOUNT.address, DEPOSIT, ROUTER, FACTORY]) {
+      await expect(port.prepare({ ...RETURN, to })).rejects.toThrow(/own addresses/);
+    }
+    // The token contract is its own address only when that token is what is returned.
+    const token = { ...RETURN, to: USDC, amount: money(3_000_000n, "USDC") };
+    await expect(port.prepare(token)).rejects.toThrow(/own addresses/);
+    expect(sent).toHaveLength(0);
+  });
+
+  test("refuses when the operator holds less than the deposit after the sweep", async () => {
+    const { port } = harness({ balance: 10n ** 15n - 1n });
+
+    await expect(port.prepare(RETURN)).rejects.toThrow(/less than/);
+  });
+
+  test("reports a reverted transfer, and a successful one with its gas", async () => {
+    const reverted = harness({ status: "reverted" });
+    expect(await reverted.port.receipt("base-sepolia", `0x${"fe".repeat(32)}`)).toEqual({
+      status: "reverted",
+    });
+
+    const ok = harness();
+    expect(await ok.port.receipt("base-sepolia", `0x${"fe".repeat(32)}`)).toEqual({
+      status: "success",
+      gasCost: money(99_061n * 6_000_000n, "ETH"),
+    });
   });
 });

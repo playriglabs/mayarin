@@ -160,6 +160,29 @@ Only a deposit-match payment can be reopened this way. The contract path funds
 atomically on chain and x402 settles through a facilitator; neither parks funds at
 an address for a payer to send late.
 
+## A payment failed after the payer's deposit arrived
+
+**Signal:** a payment `FAILED` after `ASSET_RECEIVED` (the swap never met `minOut`, the order could not be
+renewed), with the payer's asset still at the deposit address and `PAYER_ASSET_HELD` open in the ledger. With
+`AUTO_RETURN_ENABLED=true` the chain worker logs `deposit return <id>: <outcome>` when the outcome changes.
+
+The worker returns the deposit once the payment has been failed for `AUTO_RETURN_GRACE_SECONDS`, which is the
+window to `retry` it instead. It sends only to the `returnAddress` the payer typed at checkout, never to the
+sender of the deposit: an exchange withdrawal comes from an omnibus wallet. It will not send when the router has
+consumed the order's intent, when the address is one of Mayarin's own, or when the operator holds less than the
+deposit. The ledger is cleared only after the transfer is read back as successful.
+
+| Outcome        | Meaning                                                       | What to do                                                                                                      |
+| -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `returned`     | Sent, confirmed, ledger cleared.                              | Nothing.                                                                                                        |
+| `pending`      | Broadcast, not yet confirmed.                                 | Wait; the next pass confirms it without sending again.                                                          |
+| `no-address`   | The payer named no return address.                            | Return by hand as in "A deposit arrived after the payment expired", step 3.                                     |
+| `needs-review` | `deposit.return.started` exists with no broadcast recorded.   | A send may have happened. Look at the operator wallet's outgoing transfers before doing anything; never re-run. |
+| `reverted`     | The transfer reverted.                                        | Find out why (balance, token pause); return by hand.                                                            |
+| `error`        | A guard refused or the node failed. The detail is in the log. | Read it. A consumed intent means the payment settled: do not return.                                            |
+
+A payment whose return has started cannot be retried.
+
 ## Rotating a deposit-forwarder destination
 
 `DepositForwarder.destination` is immutable and every deposit address is a

@@ -38,6 +38,7 @@ import {
   type AssetCode,
   type Clock,
   ConfigurationError,
+  ConflictError,
   convert,
   type DomainEvent,
   deserializeMoney,
@@ -722,6 +723,16 @@ export class ClearingEngine {
     const transaction = await this.getById(id);
     const events = await this.#repository.listEvents(transaction.id);
     const fundsArrived = events.some((event) => event.toState === "ASSET_RECEIVED");
+    // Once a return has started the payer's asset is on its way back, and
+    // settling the payment too would pay it out twice.
+    if (events.some((event) => event.type === "deposit.return.started")) {
+      throw new ConflictError(
+        `Payment ${transaction.paymentIntentId} is being returned to the payer`,
+        {
+          id: transaction.id,
+        },
+      );
+    }
     const reopened = await this.#apply(
       reopenTransaction(transaction, fundsArrived, this.#clock.now()),
     );

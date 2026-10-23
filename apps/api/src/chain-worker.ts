@@ -78,6 +78,36 @@ const resumeTimer = setInterval(() => {
     });
 }, RESUME_INTERVAL_MS);
 
+// A failed deposit goes back to the address the payer named, after the grace
+// period in which a person can still retry the payment. Slower than the resume
+// pass: a return waits on chain confirmations and is not urgent.
+const DEPOSIT_RETURN_INTERVAL_MS = 60_000;
+let returningDeposits = false;
+// A payment that stays "no-address" or "needs-review" is reported once, not every minute.
+const lastReturnOutcome = new Map<string, string>();
+const depositReturnTimer =
+  container.depositReturns === undefined
+    ? undefined
+    : setInterval(() => {
+        if (returningDeposits) return;
+        returningDeposits = true;
+        void container.depositReturns
+          ?.returnPending()
+          .then((results) => {
+            for (const { transaction, outcome, detail } of results) {
+              if (lastReturnOutcome.get(transaction.id) === outcome) continue;
+              lastReturnOutcome.set(transaction.id, outcome);
+              console.log(
+                `[chain-worker] deposit return ${transaction.id}: ${outcome}${detail === undefined ? "" : ` (${detail})`}`,
+              );
+            }
+          })
+          .catch((error: unknown) => console.error("[chain-worker] deposit return failed", error))
+          .finally(() => {
+            returningDeposits = false;
+          });
+      }, DEPOSIT_RETURN_INTERVAL_MS);
+
 const finishedRefunds = await container.refunds.resumePending();
 if (finishedRefunds.length > 0) {
   console.log(`[chain-worker] finished ${finishedRefunds.length} pending refund(s)`);
@@ -266,6 +296,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   clearInterval(operatorFloatTimer);
   clearInterval(gasRefillTimer);
   clearInterval(resumeTimer);
+  if (depositReturnTimer !== undefined) clearInterval(depositReturnTimer);
   clearInterval(lateDepositTimer);
   await container.close();
   await lease.release();

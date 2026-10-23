@@ -53,4 +53,10 @@ export interface ClearingRepository {
   listFailedByCode(code: string, since: Date, limit: number): Promise<ClearingTransaction[]>;
   /** Successful payments with refundable payer surplus not yet confirmed as returned. */
   listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]>;
+  /**
+   * Failed deposit-path payments whose payer asset arrived, was never sent to
+   * the router, and has not been returned: failed at or before `failedBefore`,
+   * with no `deposit.return.confirmed` event.
+   */
+  listPendingDepositReturns(failedBefore: Date, limit: number): Promise<ClearingTransaction[]>;
 }
