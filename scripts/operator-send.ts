@@ -1,5 +1,5 @@
 /**
- * Sends a token the operator holds to an address, and optionally sweeps a deposit
+ * Sends a token (or the chain's native coin) the operator holds to an address, and optionally sweeps a deposit
  * forwarder into the operator first. For funds a payment left behind: a payment that
  * failed after the payer's asset reached a deposit address.
  *
@@ -57,30 +57,33 @@ if (sweepIndex !== undefined && !Number.isInteger(sweepIndex))
 // The database is never opened here; the config just refuses to load without a URL.
 const config = loadConfig({ ...process.env, DATABASE_URL: "postgres://unused" }, "worker");
 const rpcUrl = config.chainRpcUrls[chain];
+// The chain's own coin has no token contract: it is held as a balance, swept with
+// `sweepNative` and sent as a value transfer.
+const native = config.chainNativeAssets[chain] === asset;
 const tokenText =
   config.chainAssets[chain]?.[asset as keyof (typeof config.chainAssets)[typeof chain]];
 const factoryText = config.depositForwarders[chain];
 if (rpcUrl === undefined) throw new Error(`No RPC URL for ${chain}`);
-if (tokenText === undefined) throw new Error(`No ${asset} token address on ${chain}`);
+if (!native && tokenText === undefined) throw new Error(`No ${asset} token address on ${chain}`);
 const account = operatorAccount(config);
 if (account === undefined) throw new Error("No operator account configured");
 
-const token = getAddress(tokenText) as Address;
+const token = getAddress(tokenText ?? "0x0000000000000000000000000000000000000000") as Address;
 const to = getAddress(toText);
 const publicClient = createPublicClient({ chain: viemChainOf(chain), transport: http(rpcUrl) });
-const decimals = await publicClient.readContract({
-  address: token,
-  abi: erc20Abi,
-  functionName: "decimals",
-});
+const decimals = native
+  ? 18
+  : await publicClient.readContract({ address: token, abi: erc20Abi, functionName: "decimals" });
 const amount = parseUnits(amountText, decimals);
 const balanceOf = (holder: Address) =>
-  publicClient.readContract({
-    address: token,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: [holder],
-  });
+  native
+    ? publicClient.getBalance({ address: holder })
+    : publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [holder],
+      });
 const show = (label: string, value: bigint) =>
   console.log(`${label}: ${formatUnits(value, decimals)} ${asset}`);
 
@@ -108,12 +111,20 @@ if (!execute) {
 const wallet = createWalletClient({ account, chain: viemChainOf(chain), transport: http(rpcUrl) });
 
 if (sweepIndex !== undefined) {
-  const hash = await wallet.writeContract({
-    address: getAddress(factoryText ?? ""),
-    abi: parseAbi(["function sweepToken(bytes32 salt, address token) returns (address)"]),
-    functionName: "sweepToken",
-    args: [depositSalt(sweepIndex), token],
-  });
+  const factory = { address: getAddress(factoryText ?? "") };
+  const hash = native
+    ? await wallet.writeContract({
+        ...factory,
+        abi: parseAbi(["function sweepNative(bytes32 salt) returns (address)"]),
+        functionName: "sweepNative",
+        args: [depositSalt(sweepIndex)],
+      })
+    : await wallet.writeContract({
+        ...factory,
+        abi: parseAbi(["function sweepToken(bytes32 salt, address token) returns (address)"]),
+        functionName: "sweepToken",
+        args: [depositSalt(sweepIndex), token],
+      });
   await publicClient.waitForTransactionReceipt({ hash });
   console.log(`swept            : ${hash}`);
 }
@@ -121,11 +132,13 @@ if (sweepIndex !== undefined) {
 const held = await balanceOf(operator);
 if (held < amount)
   throw new Error(`operator holds ${formatUnits(held, decimals)}, less than ${amountText}`);
-const hash = await wallet.writeContract({
-  address: token,
-  abi: erc20Abi,
-  functionName: "transfer",
-  args: [to, amount],
-});
+const hash = native
+  ? await wallet.sendTransaction({ to, value: amount })
+  : await wallet.writeContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "transfer",
+      args: [to, amount],
+    });
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
 console.log(`sent             : ${hash} (${receipt.status})`);
