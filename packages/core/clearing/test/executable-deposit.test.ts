@@ -305,6 +305,27 @@ describe("a terminal router failure", () => {
   });
 });
 
+describe("recovering a payment that keeps failing retryably", () => {
+  test("reports why it did not advance, instead of looking like a payment that is waiting", async () => {
+    const port: TreasuryExecutionPort = {
+      // A sweep is not retried by the executor, so its failure reaches the engine as is.
+      async sweep() {
+        throw new ProviderError("the node is unreachable", {}, { retryable: true });
+      },
+      async execute() {
+        throw new Error("never reached");
+      },
+    };
+    const { harness, depositIntent } = executableHarness(port);
+    await expect(harness.engine.start(await depositIntent())).rejects.toThrow("unreachable");
+
+    const [progress] = await harness.engine.resumeStuck();
+
+    expect(progress?.waiting).toBe(true);
+    expect(progress?.retryableFailure).toContain("the node is unreachable");
+  });
+});
+
 describe("a signed order reaching a process without an executor", () => {
   /**
    * Two processes can share one database with different wiring — the incident

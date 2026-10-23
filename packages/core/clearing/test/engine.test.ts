@@ -170,7 +170,7 @@ describe("clearing engine — waiting for the outside world", () => {
 
   test("a payment that cannot move yet does not stop the others, nor throw", async () => {
     // Two payments in flight; the provider is down for the first and answers the
-    // second. The pass completes and reports the one it moved, and the first stays
+    // second. The pass completes, reports why the first did not move, and leaves it
     // where it is for the next pass.
     const harness = createHarness({ behaviour: "pending" });
     const first = await harness.engine.start(await harness.confirmedIntent());
@@ -187,7 +187,9 @@ describe("clearing engine — waiting for the outside world", () => {
 
     const resumed = await harness.engine.resumeStuck();
 
-    expect(resumed.map((progress) => progress.transaction.id)).toEqual([second.id]);
+    expect(resumed.map((progress) => progress.transaction.id)).toEqual([first.id, second.id]);
+    expect(resumed[0]?.retryableFailure).toBe("provider unreachable");
+    expect(resumed[1]?.retryableFailure).toBeUndefined();
     expect((await harness.engine.getById(first.id)).state).toBe("SETTLING");
     expect((await harness.engine.getById(second.id)).state).toBe("SUCCESS");
   });
