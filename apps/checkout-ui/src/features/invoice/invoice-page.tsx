@@ -347,7 +347,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 function Settled({ payments }: { readonly payments: readonly InvoicePaymentRecord[] }) {
   return (
     <section className="mt-6 rounded-2xl border border-line p-4">
-      <h2 className="m-0 inline-flex items-center gap-1.5 text-[11px] tracking-wide text-brand uppercase">
+      <h2 className="m-0 inline-flex items-center gap-1.5 text-xs text-brand">
         <PaidMark size={13} />
         Paid with
       </h2>
