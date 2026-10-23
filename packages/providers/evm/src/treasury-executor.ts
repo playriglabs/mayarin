@@ -24,6 +24,7 @@ import type {
   DepositReturnRequest,
   ExecuteRequest,
   ExecutionResult,
+  SenderLookup,
   SweepRequest,
   SweepResult,
   TreasuryExecutionPort,
@@ -47,6 +48,7 @@ import {
   getAddress,
   type Hex,
   type PublicClient,
+  parseEventLogs,
   WaitForTransactionReceiptTimeoutError,
   type WalletClient,
 } from "viem";
@@ -75,6 +77,18 @@ const forwarderFactoryAbi = [
       { name: "token", type: "address" },
     ],
     outputs: [{ name: "forwarder", type: "address" }],
+  },
+] as const;
+
+const erc20TransferEventAbi = [
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
   },
 ] as const;
 
@@ -168,6 +182,18 @@ export interface ChainClients {
   readonly walletClient: WalletClient;
 }
 
+/** The transactions that put an asset into a deposit address, for reading who sent it. */
+export interface DepositTransactionLookup {
+  txHashesAt(chain: ChainId, address: string, asset: AssetCode): Promise<readonly string[]>;
+}
+
+/**
+ * Past this many transactions an account is treated as a wallet that moves volume,
+ * the way an exchange's hot wallet does, and its address is not used to return a
+ * payer's deposit: a refund there would be credited to nobody.
+ */
+const DEFAULT_SENDER_MAX_NONCE = 2_000;
+
 export interface EvmTreasuryExecutionPortOptions {
   /** Shared by every submitter of the operator key; see `NonceSequencer`. */
   readonly nonces: NonceSequencer;
@@ -191,6 +217,10 @@ export interface EvmTreasuryExecutionPortOptions {
   readonly tokens: Readonly<Partial<Record<ChainId, Readonly<Record<string, string>>>>>;
   /** The chain's native asset, so the adapter knows what needs no token address. */
   readonly nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  /** Where a deposit came in, to read its sender. Absent: no sender is ever vouched for. */
+  readonly depositTransactions?: DepositTransactionLookup;
+  /** The most transactions a sender may have sent and still be returned to. Defaults to 2000. */
+  readonly senderMaxNonce?: number;
   /** Confirmation depth per chain. A chain with no entry uses two. */
   readonly confirmations?: Readonly<Partial<Record<ChainId, number>>>;
   /** How long a signed Permit2 permit stays valid. Seconds. */
@@ -354,6 +384,72 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort, DepositR
       );
     }
     return sweep;
+  }
+
+  /**
+   * Who sent a deposit, when that can be trusted to be the payer.
+   *
+   * A sender is a guess, so every way it can be wrong is checked: the transfer came
+   * from the account itself and not through a contract (an exchange or a router
+   * moves value on someone else's behalf), every deposit came from the same account,
+   * the account holds no code (a contract, or an account delegated to one, may not
+   * be able to receive, and may not exist on this chain at all), and it has not sent
+   * more than `senderMaxNonce` transactions (an exchange hot wallet has sent
+   * hundreds of thousands). Anything else is refused with the reason.
+   */
+  async senderOf(request: Omit<DepositReturnRequest, "to" | "intentId">): Promise<SenderLookup> {
+    const { chain, depositAddress, amount } = request;
+    const lookup = this.#options.depositTransactions;
+    if (lookup === undefined) return { refused: "no way to find the deposit's transaction" };
+
+    const hashes = await lookup.txHashesAt(chain, depositAddress, amount.asset);
+    if (hashes.length === 0) return { refused: "no recorded deposit transaction" };
+
+    const { publicClient } = this.#clientsFor(chain);
+    const token = this.#tokenAddress(chain, amount.asset);
+    const deposit = getAddress(depositAddress);
+    const senders = new Set<Address>();
+
+    for (const hash of new Set(hashes)) {
+      const transaction = await publicClient.getTransaction({ hash: hash as Hex });
+      if (token === undefined) {
+        // The chain's own coin has no log, so it is read from the transaction: a plain
+        // send to the deposit address. Value moved by a contract is not visible here.
+        if (transaction.to === null || getAddress(transaction.to) !== deposit) {
+          return { refused: "the deposit was not a direct transfer" };
+        }
+      } else {
+        const receipt = await publicClient.getTransactionReceipt({ hash: hash as Hex });
+        const transfers = parseEventLogs({
+          abi: erc20TransferEventAbi,
+          eventName: "Transfer",
+          logs: receipt.logs.filter((log) => getAddress(log.address) === token),
+        }).filter((log) => getAddress(log.args.to) === deposit);
+        if (transfers.length === 0) return { refused: "the deposit has no transfer log" };
+        // `tx.from` called the token itself. A transfer made by a router, a Safe or an
+        // exchange withdrawal has a different account in the log than in the transaction.
+        if (transfers.some((log) => getAddress(log.args.from) !== getAddress(transaction.from))) {
+          return { refused: "the deposit was not sent by the transaction's own account" };
+        }
+      }
+      senders.add(getAddress(transaction.from));
+    }
+
+    const [sender] = [...senders];
+    if (sender === undefined || senders.size > 1) {
+      return { refused: "the deposit came from more than one account" };
+    }
+    if (sender === deposit) return { refused: "the sender is the deposit address" };
+
+    const code = await publicClient.getCode({ address: sender });
+    if (code !== undefined && code !== "0x") return { refused: "the sender is a contract" };
+
+    const sent = await publicClient.getTransactionCount({ address: sender });
+    const limit = this.#options.senderMaxNonce ?? DEFAULT_SENDER_MAX_NONCE;
+    if (sent > limit) {
+      return { refused: `the sender has sent ${sent} transactions, like an exchange or a service` };
+    }
+    return { address: sender };
   }
 
   async send(request: DepositReturnRequest): Promise<string> {

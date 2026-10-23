@@ -47,6 +47,9 @@ Optional but part of the launch posture:
 - `ORIGIN_AUTH_SECRET`: a secret only the edge adds as `x-origin-secret`; without it a request is a 404, so the Railway domain is no way around Cloudflare. Same value on both APIs; set it at the edge first (`origin-authentication.md`).
 - `API_KEY_RATE_LIMIT_REQUESTS`: per-key budget (default 600 per window).
 - `SESSION_IDLE_SECONDS`: dashboard idle sign-out (default 3600).
+- `AUTO_RETURN_TO_SENDER` (default `false`), `AUTO_RETURN_TO_SENDER_MAX` (default `100`),
+  `AUTO_RETURN_SENDER_MAX_NONCE` (default `2000`): with `AUTO_RETURN_ENABLED`, also return to the deposit's sender
+  when the payer named no address, under the checks in `runbooks.md`.
 - `AUTO_RETURN_ENABLED` (default `false`) and `AUTO_RETURN_GRACE_SECONDS` (default 3600): on the chain worker
   only. Sends a failed deposit-match payment's deposit back to the `returnAddress` the payer named on the rail,
   once the payment has been failed for the grace period. See `runbooks.md`, "A payment failed after the payer's

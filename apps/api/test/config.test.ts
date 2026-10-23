@@ -1144,3 +1144,31 @@ describe("TransFi sandbox auto-settle", () => {
     });
   });
 });
+
+describe("returning a failed deposit", () => {
+  test("is off by default, and returning to the sender is off with it", () => {
+    const config = loadConfig({ ...BASE });
+
+    expect(config.autoReturnEnabled).toBe(false);
+    expect(config.autoReturnToSender).toBe(false);
+    expect(config.autoReturnToSenderMax).toBe("100");
+    expect(config.autoReturnSenderMaxNonce).toBe(2_000);
+  });
+
+  test("takes the sender limits from the environment", () => {
+    const config = loadConfig({
+      ...BASE,
+      AUTO_RETURN_TO_SENDER: "true",
+      AUTO_RETURN_TO_SENDER_MAX: "25.5",
+      AUTO_RETURN_SENDER_MAX_NONCE: "500",
+    });
+
+    expect(config.autoReturnToSender).toBe(true);
+    expect(config.autoReturnToSenderMax).toBe("25.5");
+    expect(config.autoReturnSenderMaxNonce).toBe(500);
+  });
+
+  test("refuses a limit that is not a decimal amount", () => {
+    expect(() => loadConfig({ ...BASE, AUTO_RETURN_TO_SENDER_MAX: "a lot" })).toThrow();
+  });
+});

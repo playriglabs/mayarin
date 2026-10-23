@@ -544,6 +544,22 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   /** How long a failed payment stays retryable before its deposit is returned. */
   autoReturnGraceSeconds: z.coerce.number().int().nonnegative().default(3_600),
+  /**
+   * With `AUTO_RETURN_ENABLED`, also returns a failed deposit to the address that sent it
+   * when the payer named none, for a payment priced at or below
+   * `AUTO_RETURN_TO_SENDER_MAX` (whole units of its settlement asset). The sender is only
+   * used when it sent the transfer itself, holds no code and has sent no more than
+   * `AUTO_RETURN_SENDER_MAX_NONCE` transactions, the way an exchange's hot wallet has.
+   */
+  autoReturnToSender: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  autoReturnToSenderMax: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/)
+    .default("100"),
+  autoReturnSenderMaxNonce: z.coerce.number().int().positive().default(2_000),
   /** Deployed `DepositForwarderFactory` per chain. */
   depositForwarders: jsonObject<Partial<Record<ChainId, string>>>("DEPOSIT_FORWARDERS", "{}"),
   /** `DepositForwarderFactory.INIT_CODE_HASH()`, which deposit addresses derive from. */
@@ -1566,6 +1582,9 @@ export function loadConfig(
     treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
     autoReturnEnabled: env.AUTO_RETURN_ENABLED,
     autoReturnGraceSeconds: env.AUTO_RETURN_GRACE_SECONDS,
+    autoReturnToSender: env.AUTO_RETURN_TO_SENDER,
+    autoReturnToSenderMax: env.AUTO_RETURN_TO_SENDER_MAX,
+    autoReturnSenderMaxNonce: env.AUTO_RETURN_SENDER_MAX_NONCE,
     x402Enabled: env.X402_ENABLED,
     x402QuoteTtlSeconds: env.X402_QUOTE_TTL_SECONDS,
     depositForwarders: env.DEPOSIT_FORWARDERS,

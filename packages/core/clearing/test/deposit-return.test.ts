@@ -6,6 +6,7 @@ import {
   type DepositReturnReceipt,
   type DepositReturnRequest,
   DepositReturnService,
+  type SenderLookup,
 } from "../src/deposit-return.ts";
 import type { TreasuryExecutionPort } from "../src/treasury.ts";
 import { FakeContractPlanner } from "../testing/index.ts";
@@ -21,6 +22,9 @@ const TREASURY = "0x0000000000000000000000000000000000007a5b";
 const PAYER = "0x00000000000000000000000000000000000000a2";
 const DEPOSIT = money(8_400_000_000_000_000n, "ETH");
 const GRACE_SECONDS = 3_600;
+const SENDER = "0x00000000000000000000000000000000000000b3";
+/** Above the 5 USDC the harness prices, so a sender is acceptable. */
+const SENDER_LIMIT = { maxSettlement: 10_000_000n };
 
 function lock(): ContractLock {
   const lockedAt = new Date(NOW);
@@ -61,9 +65,15 @@ class FakeReturnPort implements DepositReturnPort {
   receiptStatus: DepositReturnReceipt = { status: "success", gasCost: money(1_000n, "ETH") };
   prepareError: Error | undefined;
   sendError: Error | undefined;
+  sender: SenderLookup = { address: SENDER };
+  senderLookups = 0;
 
   supports(): boolean {
     return true;
+  }
+  async senderOf(): Promise<SenderLookup> {
+    this.senderLookups += 1;
+    return this.sender;
   }
   async prepare(request: DepositReturnRequest) {
     if (this.prepareError !== undefined) throw this.prepareError;
@@ -80,7 +90,7 @@ class FakeReturnPort implements DepositReturnPort {
   }
 }
 
-async function failedDeposit(named = true) {
+async function failedDeposit(named = true, returnToSender?: { maxSettlement: bigint }) {
   const harness = createHarness({
     contractPlanner: new FakeContractPlanner(lock()),
     treasuryPort: failingExecution,
@@ -104,6 +114,7 @@ async function failedDeposit(named = true) {
     port,
     clock: harness.clock,
     graceSeconds: GRACE_SECONDS,
+    ...(returnToSender === undefined ? {} : { returnToSender }),
   });
   const afterGrace = () => harness.clock.advance((GRACE_SECONDS + 1) * 1_000);
   return { harness, transaction, port, service, afterGrace };
@@ -229,5 +240,89 @@ describe("returning a failed deposit", () => {
     await service.returnPending();
 
     await expect(harness.engine.retry(transaction.id)).rejects.toThrow(/returned to the payer/);
+  });
+});
+
+describe("returning to the sender when the payer named no address", () => {
+  test("sends to the sender once it is on and the port vouches for it", async () => {
+    const { harness, port, service, afterGrace } = await failedDeposit(false, SENDER_LIMIT);
+
+    afterGrace();
+    const [result] = await service.returnPending();
+
+    expect(result?.outcome).toBe("returned");
+    expect(port.sent[0]?.to).toBe(SENDER);
+    expect(await held(harness)).toEqual(money(0n, "ETH"));
+  });
+
+  test("records that the address was the sender's, not the payer's", async () => {
+    const { harness, transaction, service, afterGrace } = await failedDeposit(false, SENDER_LIMIT);
+
+    afterGrace();
+    await service.returnPending();
+
+    const started = (await harness.engine.history(transaction.id)).find(
+      (event) => event.type === "deposit.return.started",
+    );
+    expect(started?.payload).toMatchObject({ to: SENDER, source: "sender" });
+  });
+
+  test("an address the payer named wins over the sender, and the sender is never looked up", async () => {
+    const { port, service, afterGrace } = await failedDeposit(true, SENDER_LIMIT);
+
+    afterGrace();
+    await service.returnPending();
+
+    expect(port.sent[0]?.to).toBe(PAYER);
+    expect(port.senderLookups).toBe(0);
+  });
+
+  test("is off unless the deployment turns it on", async () => {
+    const { port, service, afterGrace } = await failedDeposit(false);
+
+    afterGrace();
+    const [result] = await service.returnPending();
+
+    expect(result?.outcome).toBe("no-address");
+    expect(port.senderLookups).toBe(0);
+    expect(port.sent).toHaveLength(0);
+  });
+
+  test("leaves a sender the port will not vouch for, with the reason", async () => {
+    const { port, service, afterGrace } = await failedDeposit(false, SENDER_LIMIT);
+    port.sender = { refused: "the sender has sent 90210 transactions, like an exchange" };
+
+    afterGrace();
+    const [result] = await service.returnPending();
+
+    expect(result).toMatchObject({
+      outcome: "no-address",
+      detail: "the sender has sent 90210 transactions, like an exchange",
+    });
+    expect(port.sent).toHaveLength(0);
+  });
+
+  test("a refusal is looked up once, not every pass", async () => {
+    const { port, service, afterGrace } = await failedDeposit(false, SENDER_LIMIT);
+    port.sender = { refused: "the sender is a contract" };
+
+    afterGrace();
+    await service.returnPending();
+    await service.returnPending();
+    await service.returnPending();
+
+    expect(port.senderLookups).toBe(1);
+  });
+
+  test("a payment above the limit is never returned to a guess", async () => {
+    // The harness prices 5 USDC; the limit is 1.
+    const { port, service, afterGrace } = await failedDeposit(false, { maxSettlement: 1_000_000n });
+
+    afterGrace();
+    const [result] = await service.returnPending();
+
+    expect(result?.outcome).toBe("no-address");
+    expect(port.senderLookups).toBe(0);
+    expect(port.sent).toHaveLength(0);
   });
 });
