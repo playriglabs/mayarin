@@ -4,11 +4,10 @@ import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { money, ProviderError } from "@mayarin/shared";
 import type { ContractLock } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
-import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
 import type { ExecuteRequest, ExecutionResult, TreasuryExecutionPort } from "../src/treasury.ts";
 import { TreasuryExecutor } from "../src/treasury.ts";
-import { FakeContractPlanner } from "../testing/index.ts";
+import { FakeContractPlanner, InMemoryMerchantTerms } from "../testing/index.ts";
 import { createHarness, NOW } from "./harness.ts";
 
 /**
@@ -350,7 +349,7 @@ describe("a signed order reaching a process without an executor", () => {
       ledger: harness.ledger,
       adapters: new SettlementAdapterRegistry([harness.adapter]),
       rates: new StaticRateProvider({ "IDR/USDC": 100n }),
-      fees: new BasisPointsFeePolicy(50),
+      terms: new InMemoryMerchantTerms(),
       clock: harness.clock,
     });
 
@@ -504,7 +503,7 @@ describe("an expired persisted order at execution", () => {
       ledger: harness.ledger,
       adapters: new SettlementAdapterRegistry([harness.adapter]),
       rates: new StaticRateProvider({ "IDR/USDC": 100n }),
-      fees: new BasisPointsFeePolicy(50),
+      terms: new InMemoryMerchantTerms(),
       clock: harness.clock,
       treasuryExecutor: new TreasuryExecutor({ port: recordingPort(), ledger: harness.ledger }),
     });

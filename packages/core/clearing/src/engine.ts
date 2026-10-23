@@ -35,7 +35,6 @@ import type {
   WebhookContext,
 } from "@mayarin/settlement";
 import {
-  type AssetCode,
   type Clock,
   ConfigurationError,
   ConflictError,
@@ -43,6 +42,7 @@ import {
   type DomainEvent,
   deserializeMoney,
   type EventPublisher,
+  fromDecimalString,
   InvalidStateTransitionError,
   isDustAmount,
   isMayarinError,
@@ -64,7 +64,6 @@ import {
   type EscrowLockRequest,
   OrderExpiredError,
 } from "./contract-path.ts";
-import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
   clearingPosting,
@@ -80,6 +79,7 @@ import { lockRate, type RateProvider } from "./rate.ts";
 import type { ClearingRepository } from "./repository.ts";
 import { settlesOnChain } from "./settlement-path.ts";
 import { canTransition, isTerminal } from "./state-machine.ts";
+import { feeUnder, type MerchantTerms, type MerchantTermsRepository } from "./terms.ts";
 import {
   createClearingTransaction,
   failTransaction,
@@ -145,21 +145,8 @@ export interface ClearingEngineOptions {
   readonly ledger: LedgerService;
   readonly adapters: SettlementAdapterRegistry;
   readonly rates: RateProvider;
-  readonly fees: FeePolicy;
-  /**
-   * The most one payment may settle for, per settlement asset, in minor units.
-   * A payment that prices above it fails at the lock, before any address or
-   * order exists. Absent or missing an asset means no cap (testnet); mainnet
-   * boot refuses to run without one.
-   */
-  readonly maxPaymentSettlement?: Readonly<Partial<Record<AssetCode, bigint>>>;
-  /**
-   * The most one merchant may be priced for in a rolling 24 hours, per settlement
-   * asset, in minor units. Read from the repository at each lock, so two payments
-   * locking in the same instant can both pass: a ceiling on exposure, not an
-   * atomic quota.
-   */
-  readonly maxMerchantDailySettlement?: Readonly<Partial<Record<AssetCode, bigint>>>;
+  /** The fee and limits that apply to a merchant, read at each price lock. */
+  readonly terms: MerchantTermsRepository;
   /**
    * Allocates a per-payment deposit address. Absent for a deployment with no
    * chain layer, in which case an intent naming a rail is rejected rather than
@@ -239,9 +226,7 @@ export class ClearingEngine {
   readonly #ledger: LedgerService;
   readonly #adapters: SettlementAdapterRegistry;
   readonly #rates: RateProvider;
-  readonly #fees: FeePolicy;
-  readonly #maxPaymentSettlement: Readonly<Partial<Record<AssetCode, bigint>>>;
-  readonly #maxMerchantDailySettlement: Readonly<Partial<Record<AssetCode, bigint>>>;
+  readonly #terms: MerchantTermsRepository;
   readonly #depositAddresses: DepositAddressRepository | undefined;
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
@@ -260,9 +245,7 @@ export class ClearingEngine {
     this.#ledger = options.ledger;
     this.#adapters = options.adapters;
     this.#rates = options.rates;
-    this.#fees = options.fees;
-    this.#maxPaymentSettlement = options.maxPaymentSettlement ?? {};
-    this.#maxMerchantDailySettlement = options.maxMerchantDailySettlement ?? {};
+    this.#terms = options.terms;
     this.#depositAddresses = options.depositAddresses;
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
@@ -988,17 +971,20 @@ export class ClearingEngine {
   }
 
   /** Quotes and freezes the settlement amount, fee and net payout. */
-  /** Refuses a lock above the per-payment cap, or past the merchant's rolling daily cap. */
-  async #assertWithinLimit(merchantId: string, settlementAmount: Money): Promise<void> {
-    const cap = this.#maxPaymentSettlement[settlementAmount.asset];
-    if (cap !== undefined && settlementAmount.amount > cap) {
-      throw new ValidationError("This payment is above the limit this deployment accepts", {
+  /** Refuses a lock above the merchant's per-payment cap, or past its rolling daily cap. */
+  async #assertWithinLimit(
+    merchantId: string,
+    settlementAmount: Money,
+    terms: MerchantTerms,
+  ): Promise<void> {
+    const cap = fromDecimalString(terms.maxPaymentSettlement, settlementAmount.asset).amount;
+    if (settlementAmount.amount > cap) {
+      throw new ValidationError("This payment is above the limit this merchant accepts", {
         asset: settlementAmount.asset,
         limit: cap.toString(),
       });
     }
-    const daily = this.#maxMerchantDailySettlement[settlementAmount.asset];
-    if (daily === undefined) return;
+    const daily = fromDecimalString(terms.maxDailySettlement, settlementAmount.asset).amount;
     const since = new Date(this.#clock.now().getTime() - 24 * 60 * 60_000);
     const already = await this.#repository.settlementVolumeSince(
       merchantId,
@@ -1006,7 +992,7 @@ export class ClearingEngine {
       since,
     );
     if (already + settlementAmount.amount > daily) {
-      throw new ValidationError("This merchant has reached its daily limit on this deployment", {
+      throw new ValidationError("This merchant has reached its daily limit", {
         asset: settlementAmount.asset,
         limit: daily.toString(),
       });
@@ -1049,13 +1035,11 @@ export class ClearingEngine {
     );
     // Exact/EIP-3009 sends the full amount directly to payTo. No fee leg
     // exists on this rail, so applying the deposit fee invents revenue.
+    const terms = await this.#terms.get(transaction.merchant.id);
     const fee = awaitsFacilitatorSettlement(transaction.executionPath)
       ? zero(settlementAmount.asset)
-      : this.#fees.feeFor(settlementAmount, {
-          merchantId: transaction.merchant.id,
-          provider: transaction.provider,
-        });
-    await this.#assertWithinLimit(transaction.merchant.id, settlementAmount);
+      : feeUnder(terms, settlementAmount);
+    await this.#assertWithinLimit(transaction.merchant.id, settlementAmount, terms);
     const netAmount = subtract(settlementAmount, fee);
 
     if (!isPositive(netAmount)) {
@@ -1189,7 +1173,11 @@ export class ClearingEngine {
       ),
     });
 
-    await this.#assertWithinLimit(transaction.merchant.id, lock.settlementAmount);
+    await this.#assertWithinLimit(
+      transaction.merchant.id,
+      lock.settlementAmount,
+      await this.#terms.get(transaction.merchant.id),
+    );
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(
@@ -1401,7 +1389,11 @@ export class ClearingEngine {
       });
     }
 
-    await this.#assertWithinLimit(transaction.merchant.id, lock.settlementAmount);
+    await this.#assertWithinLimit(
+      transaction.merchant.id,
+      lock.settlementAmount,
+      await this.#terms.get(transaction.merchant.id),
+    );
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(

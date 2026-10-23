@@ -23,7 +23,6 @@ import type { Merchant } from "@mayarin/auth";
 import type { SettlementLog } from "@mayarin/chain";
 import { FixedDepositAddressDeriver } from "@mayarin/chain/testing";
 import {
-  BasisPointsFeePolicy,
   ClearingEngine,
   type ClearingTransaction,
   createClearingTransaction,
@@ -33,6 +32,7 @@ import {
   type Refund,
   StaticRateProvider,
 } from "@mayarin/clearing";
+import { InMemoryMerchantTerms } from "@mayarin/clearing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import type { WebhookDelivery, WebhookEndpoint } from "@mayarin/notifications";
 import { PaymentIntentService } from "@mayarin/payment-intent";
@@ -132,7 +132,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     ledger,
     adapters: new SettlementAdapterRegistry([adapter]),
     rates: new StaticRateProvider({ "IDR/USDC": 100n }),
-    fees: new BasisPointsFeePolicy(50),
+    terms: new InMemoryMerchantTerms(),
     clock,
     autoConfirmAssetReceipt: true,
   });
@@ -532,7 +532,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       ledger,
       adapters: new SettlementAdapterRegistry([pendingAdapter]),
       rates: new StaticRateProvider({ "IDR/USDC": 100n }),
-      fees: new BasisPointsFeePolicy(50),
+      terms: new InMemoryMerchantTerms(),
       clock,
       autoConfirmAssetReceipt: true,
     });

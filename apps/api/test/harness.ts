@@ -22,13 +22,16 @@ import {
   InMemoryProductRepository,
 } from "@mayarin/catalog/testing";
 import {
-  BasisPointsFeePolicy,
   ClearingEngine,
   LiquidityRouter,
   RefundService,
   TablePriceSource,
 } from "@mayarin/clearing";
-import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
+import {
+  InMemoryClearingRepository,
+  InMemoryMerchantTerms,
+  InMemoryRefundRepository,
+} from "@mayarin/clearing/testing";
 import type { AdminAuditEvent, PaymentFunding, StoredRiskAssessment } from "@mayarin/db";
 import { RiskAssessor } from "@mayarin/fraud";
 import { InMemoryDenylist, InMemoryRiskHistory } from "@mayarin/fraud/testing";
@@ -101,7 +104,6 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     PORT: "3000",
     DATABASE_URL: "memory://",
     SETTLEMENT_ASSET: "USDC",
-    FEE_BASIS_POINTS: "50",
     DEFAULT_SETTLEMENT_PROVIDER: "mock",
     PAYMENT_INTENT_TTL_SECONDS: "900",
     ASSET_RECEIPT_MODE: options.assetReceiptMode ?? "auto",
@@ -214,13 +216,15 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   // them another.
   const rates = new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) });
 
+  const terms = new InMemoryMerchantTerms();
+
   const engine = new ClearingEngine({
     repository: clearingRepository,
     intents,
     ledger,
     adapters,
     rates,
-    fees: new BasisPointsFeePolicy(config.feeBasisPoints),
+    terms,
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
@@ -277,6 +281,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const container: Container = {
     config,
     clock,
+    merchantTerms: terms,
     adminAudit: {
       async record(event) {
         adminAuditEvents.push(event);

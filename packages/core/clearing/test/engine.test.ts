@@ -19,7 +19,7 @@ describe("clearing engine — happy path", () => {
   });
 
   test("locks the price and splits fee from net", async () => {
-    const harness = createHarness({ feeBasisPoints: 50 });
+    const harness = createHarness({ terms: { feeBasisPoints: 50 } });
     const transaction = await harness.engine.start(await harness.confirmedIntent());
 
     expect(transaction.settlementAmount).toEqual(USDC(5_000_000n));
@@ -48,7 +48,7 @@ describe("clearing engine — happy path", () => {
   });
 
   test("leaves the ledger holding exactly the fee", async () => {
-    const harness = createHarness({ feeBasisPoints: 50 });
+    const harness = createHarness({ terms: { feeBasisPoints: 50 } });
     await harness.engine.start(await harness.confirmedIntent());
 
     expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
@@ -59,7 +59,7 @@ describe("clearing engine — happy path", () => {
   });
 
   test("an internal settlement credits the merchant holding, not treasury", async () => {
-    const harness = createHarness({ feeBasisPoints: 50, mode: "internal" });
+    const harness = createHarness({ terms: { feeBasisPoints: 50 }, mode: "internal" });
     await harness.engine.start(await harness.confirmedIntent());
 
     // Treasury keeps the full settlement amount; the net is owed to the merchant
@@ -327,7 +327,7 @@ describe("clearing engine — failure", () => {
   });
 
   test("refuses a fee that would consume the whole payment", async () => {
-    const harness = createHarness({ feeBasisPoints: 10_000 });
+    const harness = createHarness({ terms: { feeBasisPoints: 10_000 } });
     const intent = await harness.confirmedIntent();
 
     const transaction = await harness.engine.start(intent);
@@ -515,8 +515,8 @@ describe("clearing engine — late funds", () => {
 
 describe("per-payment limit", () => {
   test("a payment above the cap fails at the lock, before any address exists", async () => {
-    // The 50,000.00 IDR payment prices at 5 USDC (5,000,000 minor units).
-    const harness = createHarness({ maxPaymentSettlement: { USDC: 4_999_999n } });
+    // The 50,000.00 IDR payment prices at 5 USDC.
+    const harness = createHarness({ terms: { maxPaymentSettlement: "4.999999" } });
     const transaction = await harness.engine.start(await harness.confirmedIntent());
 
     expect(transaction.state).toBe("FAILED");
@@ -525,22 +525,26 @@ describe("per-payment limit", () => {
   });
 
   test("a payment at the cap clears", async () => {
-    const harness = createHarness({ maxPaymentSettlement: { USDC: 5_000_000n } });
+    const harness = createHarness({ terms: { maxPaymentSettlement: "5" } });
     const transaction = await harness.engine.start(await harness.confirmedIntent());
     expect(transaction.state).toBe("SUCCESS");
   });
 
-  test("an asset with no cap is unbounded", async () => {
-    const harness = createHarness({ maxPaymentSettlement: { USDT: 1n } });
-    const transaction = await harness.engine.start(await harness.confirmedIntent());
-    expect(transaction.state).toBe("SUCCESS");
+  test("the cap is the merchant's own", async () => {
+    const harness = createHarness();
+    const intent = await harness.confirmedIntent();
+    await harness.terms.set(intent.merchant.id, {
+      ...(await harness.terms.get(intent.merchant.id)),
+      maxPaymentSettlement: "1",
+    });
+    expect((await harness.engine.start(intent)).state).toBe("FAILED");
   });
 });
 
 describe("merchant daily limit", () => {
-  // Each payment prices at 5 USDC (5,000,000 minor units).
+  // Each payment prices at 5 USDC .
   test("the payment that would pass the daily total fails, earlier ones clear", async () => {
-    const harness = createHarness({ maxMerchantDailySettlement: { USDC: 10_000_000n } });
+    const harness = createHarness({ terms: { maxDailySettlement: "10" } });
     const first = await harness.engine.start(
       await harness.confirmedIntent({ idempotencyKey: "a" }),
     );
@@ -557,8 +561,7 @@ describe("merchant daily limit", () => {
 
   test("a failed payment does not use up the allowance", async () => {
     const harness = createHarness({
-      maxPaymentSettlement: { USDC: 4_999_999n },
-      maxMerchantDailySettlement: { USDC: 5_000_000n },
+      terms: { maxPaymentSettlement: "4.999999", maxDailySettlement: "5" },
     });
     const over = await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "a" }));
     expect(over.state).toBe("FAILED");
@@ -572,7 +575,7 @@ describe("merchant daily limit", () => {
   });
 
   test("the window is 24 hours", async () => {
-    const harness = createHarness({ maxMerchantDailySettlement: { USDC: 5_000_000n } });
+    const harness = createHarness({ terms: { maxDailySettlement: "5" } });
     await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "a" }));
     harness.clock.advance(24 * 60 * 60_000 + 1);
     const next = await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "b" }));

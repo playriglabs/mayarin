@@ -19,28 +19,20 @@ import {
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
-import {
-  type AssetCode,
-  type DomainEvent,
-  FixedClock,
-  InMemoryEventBus,
-  money,
-} from "@mayarin/shared";
+import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
 import type { ContractPaymentPlanner } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
-import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
+import type { MerchantTerms } from "../src/terms.ts";
 import { type TreasuryExecutionPort, TreasuryExecutor } from "../src/treasury.ts";
-import { InMemoryClearingRepository } from "../testing/index.ts";
+import { InMemoryClearingRepository, InMemoryMerchantTerms } from "../testing/index.ts";
 
 export const NOW = "2026-01-01T00:00:00.000Z";
 
 export interface HarnessOptions {
   readonly behaviour?: MockBehaviour;
-  readonly feeBasisPoints?: number;
+  readonly terms?: Partial<MerchantTerms>;
   readonly autoConfirmAssetReceipt?: boolean;
-  readonly maxPaymentSettlement?: Partial<Record<AssetCode, bigint>>;
-  readonly maxMerchantDailySettlement?: Partial<Record<AssetCode, bigint>>;
   readonly webhookSecret?: string;
   /** Settlement mode for the mock adapter. Defaults to `"external"`. */
   readonly mode?: SettlementMode;
@@ -98,13 +90,15 @@ export function createHarness(options: HarnessOptions = {}) {
   const depositAddresses = new InMemoryDepositAddressRepository();
   const depositDeriver = new FixedDepositAddressDeriver();
 
+  const terms = new InMemoryMerchantTerms(options.terms);
+
   const engine = new ClearingEngine({
     repository: clearingRepository,
     intents,
     ledger,
     adapters: new SettlementAdapterRegistry([adapter]),
     rates: new StaticRateProvider(options.rates ?? { "IDR/USDC": 100n }),
-    fees: new BasisPointsFeePolicy(options.feeBasisPoints ?? 50),
+    terms,
     depositAddresses,
     depositDeriver,
     ...(options.contractPlanner === undefined ? {} : { contractPlanner: options.contractPlanner }),
@@ -131,12 +125,6 @@ export function createHarness(options: HarnessOptions = {}) {
     clock,
     events,
     autoConfirmAssetReceipt: options.autoConfirmAssetReceipt ?? true,
-    ...(options.maxPaymentSettlement === undefined
-      ? {}
-      : { maxPaymentSettlement: options.maxPaymentSettlement }),
-    ...(options.maxMerchantDailySettlement === undefined
-      ? {}
-      : { maxMerchantDailySettlement: options.maxMerchantDailySettlement }),
   });
 
   /** Creates and confirms an intent for 50,000.00 IDR, ready to clear. */
@@ -171,6 +159,7 @@ export function createHarness(options: HarnessOptions = {}) {
     intents,
     ledger,
     engine,
+    terms,
     published,
     repositories: {
       intents: intentRepository,

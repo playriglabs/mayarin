@@ -49,22 +49,6 @@ describe("empty environment variables", () => {
   });
 });
 
-describe("fee configuration", () => {
-  test("has no fee floor unless one is set", () => {
-    expect(loadConfig(BASE).feeMinimum).toBe("0");
-  });
-
-  test("reads the fee floor", () => {
-    expect(loadConfig({ ...BASE, FEE_MINIMUM: "0.10" }).feeMinimum).toBe("0.10");
-  });
-
-  test.each(["0.123", "-1", "ten"])("refuses a malformed fee floor: %p", (value) => {
-    expect(() => loadConfig({ ...BASE, FEE_MINIMUM: value })).toThrow(
-      /Invalid environment configuration/,
-    );
-  });
-});
-
 describe("rate limit configuration", () => {
   test("has safe defaults and accepts deployment overrides", () => {
     expect(loadConfig({ ...BASE }).rateLimitRequests).toBe(120);
@@ -287,8 +271,6 @@ describe("contract path configuration", () => {
     // The settlement asset must be deployed on a router chain, or no order
     // could ever name it.
     CHAIN_ASSETS: '{"base":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
-    // `base` is a mainnet, and a mainnet will not boot without a payment cap.
-    MAX_PAYMENT_SETTLEMENT: '{"USDC":"500"}',
     // ...and a mainnet router will not boot without a gas floor for its chain.
     RELAYER_GAS_FEE_MINIMUMS: '{"base":"0.02"}',
     WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
@@ -851,17 +833,6 @@ describe("treasury execution configuration", () => {
     expect(config.treasuryExecutionEnabled).toBe(true);
   });
 
-  test("refuses relayed fees that consume the merchant payout", () => {
-    expect(() =>
-      loadConfig({
-        ...CONTRACT,
-        ...EXECUTOR,
-        FEE_BASIS_POINTS: "9999",
-        RELAYER_GAS_FEE_BASIS_POINTS: "1",
-      }),
-    ).toThrow(/must leave a positive merchant payout/);
-  });
-
   test.each([
     ["TREASURY_ADDRESS", "TREASURY_ADDRESS"],
     ["OPERATOR_PRIVATE_KEY", "OPERATOR_PRIVATE_KEY"],
@@ -962,20 +933,13 @@ describe("TransFi sandbox auto-settle", () => {
       DEFAULT_SETTLEMENT_PROVIDER: "stablecoin",
     };
 
-    test("a mainnet chain without MAX_PAYMENT_SETTLEMENT will not boot", () => {
-      expect(() => loadConfig(mainnet)).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
-    });
-
     test("a mainnet chain without WEBHOOK_SECRET_ENCRYPTION_KEY will not boot (SEC-12)", () => {
-      expect(() => loadConfig({ ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' })).toThrow(
-        /WEBHOOK_SECRET_ENCRYPTION_KEY is required/,
-      );
+      expect(() => loadConfig(mainnet)).toThrow(/WEBHOOK_SECRET_ENCRYPTION_KEY is required/);
     });
 
     test("a mainnet chain without PAYER_TOKEN_KEY or INTERNAL_API_TOKEN will not boot (SEC-09)", () => {
       const sealed = {
         ...mainnet,
-        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
         WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
       };
       expect(() => loadConfig({ ...sealed, INTERNAL_API_TOKEN: "i".repeat(32) })).toThrow(
@@ -989,7 +953,6 @@ describe("TransFi sandbox auto-settle", () => {
     test("a mainnet chain refuses the mock settlement provider as the default", () => {
       const sealed = {
         ...mainnet,
-        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
         WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
         PAYER_TOKEN_KEY: "p".repeat(32),
         INTERNAL_API_TOKEN: "i".repeat(32),
@@ -1003,30 +966,24 @@ describe("TransFi sandbox auto-settle", () => {
     });
 
     test("the chain worker boots on mainnet without the three HTTP-side secrets, the API still will not", () => {
-      const withoutSecrets = { ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' };
-      expect(() => loadConfig(withoutSecrets, "worker")).not.toThrow();
-      expect(() => loadConfig(withoutSecrets, "api")).toThrow(
-        /WEBHOOK_SECRET_ENCRYPTION_KEY is required/,
-      );
-      // The worker is still held to every other mainnet rule.
-      expect(() => loadConfig(mainnet, "worker")).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
+      expect(() => loadConfig(mainnet, "worker")).not.toThrow();
+      expect(() => loadConfig(mainnet, "api")).toThrow(/WEBHOOK_SECRET_ENCRYPTION_KEY is required/);
     });
 
-    test("a mainnet chain with all of them boots, and the cap is read", () => {
-      const config = loadConfig({
-        ...mainnet,
-        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
-        WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
-        PAYER_TOKEN_KEY: "p".repeat(32),
-        INTERNAL_API_TOKEN: "i".repeat(32),
-      });
-      expect(config.maxPaymentSettlement).toEqual({ USDC: "250" });
+    test("a mainnet chain with all of them boots", () => {
+      expect(() =>
+        loadConfig({
+          ...mainnet,
+          WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
+          PAYER_TOKEN_KEY: "p".repeat(32),
+          INTERNAL_API_TOKEN: "i".repeat(32),
+        }),
+      ).not.toThrow();
     });
 
     describe("operator signer (SEC-06)", () => {
       const ready = {
         ...mainnet,
-        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
         WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
         PAYER_TOKEN_KEY: "p".repeat(32),
         INTERNAL_API_TOKEN: "i".repeat(32),
@@ -1129,18 +1086,6 @@ describe("TransFi sandbox auto-settle", () => {
           loadConfig({ ...ready, ...turnkey, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
         ).toThrow(/OPERATOR_PRIVATE_KEY must not be set/);
       });
-    });
-
-    test("an unknown asset or a non-positive amount is refused", () => {
-      expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"NOPE":"5"}' })).toThrow(
-        /unknown asset/,
-      );
-      expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"USDC":"0"}' })).toThrow(
-        /positive decimal/,
-      );
-      expect(() => loadConfig({ ...BASE, MAX_MERCHANT_DAILY_SETTLEMENT: '{"NOPE":"5"}' })).toThrow(
-        /MAX_MERCHANT_DAILY_SETTLEMENT names an unknown asset/,
-      );
     });
   });
 });
