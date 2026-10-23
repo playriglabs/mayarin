@@ -477,6 +477,13 @@
       "when": 1793100000000,
       "tag": "0067_merchant_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0068_merchant_fee_minimum_default",
+      "breakpoints": true
     }
   ]
 }
