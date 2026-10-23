@@ -11,7 +11,11 @@ interface WatcherPort {
 }
 
 interface IndexerPort {
-  tick(chain: ChainId): Promise<{ readonly headNumber: bigint; readonly scannedTo: bigint }>;
+  tick(chain: ChainId): Promise<{
+    readonly headNumber: bigint;
+    readonly scannedTo: bigint;
+    readonly receiptError?: string;
+  }>;
 }
 
 interface WatcherLogger {
@@ -176,6 +180,9 @@ export function startIndexerLoops(options: IndexerLoopOptions): () => void {
       try {
         const result = await indexer.tick(chain);
         backoffMs = options.intervalMs;
+        if (result.receiptError !== undefined) {
+          logger.error(`[indexer] ${chain} could not read known receipts: ${result.receiptError}`);
+        }
         // One pass scans at most `blockRange` blocks. Sleeping the full interval
         // after a pass that stopped short of the head means a cursor that starts
         // behind never catches up: it gains a range per interval while the chain

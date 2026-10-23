@@ -371,3 +371,33 @@ describe("settlements read from their receipt", () => {
     expect(sink.calls).toEqual([]);
   });
 });
+
+describe("a receipt that cannot be read", () => {
+  test("does not stop the scan, and is reported", async () => {
+    const harness = setup();
+    harness.chain.settle({ intentId: INTENT }).mine().mine();
+    // The listing itself fails, the way a bad query or a dropped connection would.
+    harness.settlements.listUnindexedTransactions = async () => {
+      throw new Error("connection reset");
+    };
+
+    const result = await harness.indexer.tick(CHAIN);
+
+    expect(result.receiptError).toBe("connection reset");
+    // The ordinary scan still found, confirmed and completed the settlement.
+    expect(result.recorded).toBe(1);
+    expect(harness.sink.calls).toHaveLength(1);
+  });
+
+  test("a failing receipt read for one transaction is reported, not thrown", async () => {
+    const harness = setup();
+    harness.settlements.expectTransaction(CHAIN, "0xabc", NOW);
+    harness.chain.settlementsInTransaction = async () => {
+      throw new ProviderError("rate limited", {});
+    };
+
+    const result = await harness.indexer.tick(CHAIN);
+
+    expect(result.receiptError).toBe("rate limited");
+  });
+});

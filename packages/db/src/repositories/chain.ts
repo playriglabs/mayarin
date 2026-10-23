@@ -493,7 +493,7 @@ export class DrizzleSettlementEventRepository implements SettlementEventReposito
       from clearing_transactions ct
       left join payment_intents pi on pi.id = ct.payment_intent_id
       where ct.contract_tx_hash is not null
-        and ct.created_at >= ${since}
+        and ct.created_at >= ${since.toISOString()}::timestamptz
         and coalesce(ct.deposit_chain, pi.payment_chain) = ${chain}
         and not exists (
           select 1 from settlement_events se
