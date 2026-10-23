@@ -91,6 +91,8 @@ export interface IndexerTickResult {
   readonly completed: number;
   /** Confirmed logs that matched no known payment — a reconciliation finding. */
   readonly unmatched: number;
+  /** Why reading known transactions from their receipts failed this pass; the rest of the pass still ran. */
+  readonly receiptError?: string;
 }
 
 export class SettlementIndexer {
@@ -146,7 +148,8 @@ export class SettlementIndexer {
     const scanned = hasNewBlocks ? await this.#scan(chain, router, from, to, now) : 0;
     // Before reclassifying, so a settlement read from its receipt is confirmed and
     // completed in this same pass rather than waiting for a scan to reach it.
-    const recorded = scanned + (await this.#readReceipts(chain, router, now));
+    const receipts = await this.#readReceipts(chain, router, now);
+    const recorded = scanned + receipts.recorded;
     const { confirmed, orphaned } = await this.#reclassify(chain, head.number, now);
     const { completed, unmatched } = await this.#complete(chain, now);
 
@@ -164,6 +167,7 @@ export class SettlementIndexer {
       orphaned,
       completed,
       unmatched,
+      ...(receipts.error === undefined ? {} : { receiptError: receipts.error }),
     };
   }
 
@@ -190,23 +194,33 @@ export class SettlementIndexer {
    * does not depend on where the cursor is. A transaction not mined, or reverted,
    * has no log and is asked about again next pass until it ages out.
    */
-  async #readReceipts(chain: ChainId, router: string, now: Date): Promise<number> {
-    if (this.#client.settlementsInTransaction === undefined) return 0;
+  async #readReceipts(
+    chain: ChainId,
+    router: string,
+    now: Date,
+  ): Promise<{ recorded: number; error?: string }> {
+    if (this.#client.settlementsInTransaction === undefined) return { recorded: 0 };
 
-    const hashes = await this.#settlements.listUnindexedTransactions(
-      chain,
-      new Date(now.getTime() - this.#receiptWindowMs),
-      this.#receiptLimit,
-    );
-
+    // An addition to the scan, not a precondition of it: a receipt that cannot be read
+    // must not stop the scan, the reclassification or the completion that follow, so a
+    // failure is reported in the result and the pass carries on.
     let recorded = 0;
-    for (const txHash of hashes) {
-      const logs = await this.#client.settlementsInTransaction({ chain, router, txHash });
-      if (logs.length === 0) continue;
-      await this.#settlements.record(logs, now);
-      recorded += logs.length;
+    try {
+      const hashes = await this.#settlements.listUnindexedTransactions(
+        chain,
+        new Date(now.getTime() - this.#receiptWindowMs),
+        this.#receiptLimit,
+      );
+      for (const txHash of hashes) {
+        const logs = await this.#client.settlementsInTransaction({ chain, router, txHash });
+        if (logs.length === 0) continue;
+        await this.#settlements.record(logs, now);
+        recorded += logs.length;
+      }
+      return { recorded };
+    } catch (error) {
+      return { recorded, error: error instanceof Error ? error.message : String(error) };
     }
-    return recorded;
   }
 
   /** Re-reads canonical hashes and moves settlements between statuses. */

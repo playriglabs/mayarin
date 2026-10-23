@@ -209,6 +209,26 @@ describe("indexer loops", () => {
     expect(timers.scheduled).toHaveLength(0);
   });
 
+  test("reports a receipt read that failed without backing off", async () => {
+    const timers = fakeTimers();
+    const errors: string[] = [];
+    const indexer = { tick: async () => ({ ...CAUGHT_UP, receiptError: "connection reset" }) };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 15_000,
+      catchUpIntervalMs: 1_000,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: (message) => errors.push(message) },
+    });
+    await flush();
+
+    expect(errors).toEqual([`[indexer] ${CHAIN} could not read known receipts: connection reset`]);
+    // The pass itself succeeded, so the next one is on the ordinary interval.
+    expect(timers.scheduled.map((entry) => entry.delayMs)).toEqual([15_000]);
+    stop();
+  });
+
   test("backs off while passes fail, and resets once one succeeds", async () => {
     const timers = fakeTimers();
     const outcomes: (Error | undefined)[] = [
