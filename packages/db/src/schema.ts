@@ -417,7 +417,7 @@ export const merchants = pgTable(
     /** Fee on each payment, in basis points. Read at every price lock, so an edit reaches the next payment. */
     feeBasisPoints: integer("fee_basis_points").notNull().default(50),
     /** Floor under that fee, whole units of the settlement asset. */
-    feeMinimum: text("fee_minimum").notNull().default("0.10"),
+    feeMinimum: text("fee_minimum").notNull().default("0.05"),
     /** The most one payment may settle for, whole units of the settlement asset. */
     maxPaymentSettlement: text("max_payment_settlement").notNull().default("1000"),
     /** The most the merchant may be priced for in a rolling 24 hours, whole units. */
