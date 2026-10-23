@@ -29,6 +29,7 @@ import {
 } from "@mayarin/shared";
 import type { Stablecoin, StablecoinOnChain } from "@mayarin/stablecoin";
 import { z } from "zod";
+import { badChecksumAddresses } from "./address-check.ts";
 
 type RpcUrlMap = Partial<Record<ChainId, string>>;
 type TokenMap = Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>;
@@ -740,6 +741,11 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     if (venue === "uniswap" && Object.keys(data.uniswapPools).length === 0) {
       issues.push("UNISWAP_POOLS must configure at least one pool for the uniswap venue");
     }
+    if (venue === "uniswap") {
+      for (const address of badChecksumAddresses(data.uniswapPools)) {
+        issues.push(`UNISWAP_POOLS has ${address}, which is not a valid checksum address`);
+      }
+    }
     if (venue === "uniswap-v2") {
       if (Object.keys(data.uniswapV2Pairs).length === 0)
         issues.push("UNISWAP_V2_PAIRS must configure at least one pair for the uniswap-v2 venue");
@@ -1041,6 +1047,9 @@ function resolveStablecoins(data: RawConfig): readonly Stablecoin[] {
 
   const onChain = new Map<AssetCode, StablecoinOnChain[]>();
   for (const [chain, tokens] of Object.entries(data.chainAssets)) {
+    for (const address of isSolanaChainId(chain) ? [] : badChecksumAddresses(tokens)) {
+      issues.push(`CHAIN_ASSETS has ${address} on ${chain}, which is not a valid checksum address`);
+    }
     for (const rawAsset of Object.keys(tokens ?? {})) {
       if (!isAssetCode(rawAsset)) {
         issues.push(`CHAIN_ASSETS names an unknown asset "${rawAsset}"`);
