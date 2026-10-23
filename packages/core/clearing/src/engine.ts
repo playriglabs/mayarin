@@ -77,6 +77,7 @@ import {
 } from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
 import type { ClearingRepository } from "./repository.ts";
+import { settlesOnChain } from "./settlement-path.ts";
 import { canTransition, isTerminal } from "./state-machine.ts";
 import {
   createClearingTransaction,
@@ -938,12 +939,12 @@ export class ClearingEngine {
       }
 
       case "CLEARING":
-        return transaction.executionPath === "on-chain-contract"
+        return settlesOnChain(transaction)
           ? this.#settleContract(transaction)
           : this.#settle(transaction);
 
       case "SETTLING":
-        return transaction.executionPath === "on-chain-contract"
+        return settlesOnChain(transaction)
           ? this.#confirmContract(transaction)
           : this.#confirmSettlement(transaction);
 

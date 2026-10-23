@@ -237,6 +237,21 @@ describe("locking a deposit that will be executed", () => {
   });
 });
 
+describe("the books after an executed deposit settles", () => {
+  test("the router paid the merchant, so no balance is left owing and treasury keeps the fee", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+
+    await harness.engine.start(await depositIntent());
+
+    // The merchant Safe already holds the net: crediting a holding balance would
+    // state a liability that does not exist, and leave treasury overstated.
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(money(0n, "USDC"));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(money(0n, "USDC"));
+    expect(await harness.balance("TREASURY")).toEqual(money(25_000n, "USDC"));
+    assertEveryPostingBalances(harness);
+  });
+});
+
 describe("the indexer's log for an executed deposit", () => {
   /**
    * The router emits `PaymentCompleted` for this path too — the treasury

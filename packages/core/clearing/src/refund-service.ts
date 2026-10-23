@@ -36,6 +36,7 @@ import {
   summariseRefunds,
 } from "./refund.ts";
 import type { ClearingRepository } from "./repository.ts";
+import { settlesOnChain } from "./settlement-path.ts";
 import type { ClearingTransaction } from "./types.ts";
 
 /** Persistence port for refunds. Implemented outside core, like every other. */
@@ -336,9 +337,9 @@ export class RefundService {
  * So this stays a refusal, and the blocker it names is #9 rather than #11.
  */
 function assertRefundablePath(transaction: ClearingTransaction): void {
-  if (transaction.executionPath === "on-chain-contract") {
+  if (settlesOnChain(transaction)) {
     throw new ValidationError(
-      "A contract-path payment settled directly to the merchant's own wallet; Mayarin holds no key to refund it (see #9)",
+      "This payment settled directly to the merchant's own wallet; Mayarin holds no key to refund it (see #9)",
       { id: transaction.id, executionPath: transaction.executionPath },
     );
   }
