@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/empty";
 import { MetricChart } from "@/components/ui/metric-chart";
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -708,7 +708,7 @@ function Analytics() {
     .with({ status: "error" }, ({ error }) => (
       <>
         <PageHeader title="Analytics" />
-        <QueryError
+        <TableError
           message={error instanceof ApiError ? error.message : "Failed to load analytics"}
           retry={() => void analytics.refetch()}
           retrying={analytics.isFetching}

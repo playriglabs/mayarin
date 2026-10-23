@@ -15,12 +15,29 @@ import {
 } from "@tanstack/react-query";
 import type { Effect } from "effect";
 import { toast } from "sonner";
+import { ApiError } from "./api/client";
 import { onStepUp } from "./mfa-step-up";
 import { runEffect } from "./run";
 
+/**
+ * A read that failed because the server was unreachable or restarting (a deploy swaps
+ * the API container for a few seconds, and the tunnel answers with a 5xx page instead of
+ * JSON) is tried again; a 4xx is an answer and is not.
+ */
+function retryServerFailure(failureCount: number, error: unknown): boolean {
+  return (
+    failureCount < 3 && error instanceof ApiError && (error.status === 0 || error.status >= 500)
+  );
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, retry: false, refetchOnWindowFocus: false },
+    queries: {
+      staleTime: 30_000,
+      retry: retryServerFailure,
+      retryDelay: (attempt) => 2_000 * (attempt + 1),
+      refetchOnWindowFocus: false,
+    },
     mutations: { retry: false },
   },
 });

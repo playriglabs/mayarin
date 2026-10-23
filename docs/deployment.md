@@ -565,6 +565,12 @@ list would have to name.
 Pull the commit the operator reviewed, then `docker compose build core-api &&
 docker compose up -d`. Run one `chain-worker`: nothing here has verified that two are safe.
 
+`up -d` recreates the containers, so `core-api` and `dashboard-api` are unreachable for a
+few seconds and the tunnel answers with a 5xx page instead of JSON. The dashboard retries
+a failed read up to three times (5xx or no answer, never a 4xx), which covers that
+window, so deploy the build first and recreate last, and do not run it while a merchant
+is mid-write: a mutation is not retried. Check `/health` on both hostnames afterwards.
+
 ---
 
 ## Mainnet Gate
