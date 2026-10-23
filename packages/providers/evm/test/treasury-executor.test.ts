@@ -11,6 +11,7 @@ import { EvmTreasuryExecutionPort } from "../src/treasury-executor.ts";
 const ACCOUNT = privateKeyToAccount(`0x${"11".repeat(32)}`);
 const FACTORY = "0x00000000000000000000000000000000000fAc70";
 const ROUTER = "0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9";
+const PERMIT2_ADDRESS = "0x000000000022d473030f116ddee9f6b43ac78ba3";
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const DEX = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
 const DEPOSIT = "0x9ec7B9cCbD9fEb765Eb0DA23c166F5006A0b2343";
@@ -98,6 +99,10 @@ function harness(
     consumed?: boolean;
     /** What the settlement indexer already holds for the intent. */
     indexed?: { txHash: string; settledAmount: bigint; fee: bigint; refundAmount: bigint };
+    /** The OP-stack L1 data fee the raw receipt reports, which viem drops. */
+    l1Fee?: bigint;
+    /** The operator's ERC-20 allowance to Permit2; below the amount, an approve is sent. */
+    allowance?: bigint;
   } = {},
 ) {
   const sent: Sent[] = [];
@@ -113,20 +118,30 @@ function harness(
     async getTransactionCount() {
       return pendingNonce;
     },
-    async readContract({ functionName }: { functionName: string }) {
+    async readContract({ functionName, address }: { functionName: string; address: string }) {
       // ERC-20 allowance: already approved, so no extra approve transaction.
-      if (functionName === "allowance") return [0n, 0, 7] as unknown;
+      if (functionName === "allowance") {
+        // Permit2's own allowance is a tuple; the token's allowance to Permit2 is a number.
+        const isPermit2 = address.toLowerCase() === PERMIT2_ADDRESS;
+        return (
+          isPermit2 || options.allowance === undefined ? [0n, 0, 7] : options.allowance
+        ) as unknown;
+      }
       if (functionName === "consumed") return options.consumed ?? false;
       return 0n;
     },
     async waitForTransactionReceipt() {
       return {
         status: options.status ?? "success",
+        transactionHash: `0x${"fe".repeat(32)}`,
         blockNumber: 100n,
         gasUsed: 99_061n,
         effectiveGasPrice: 6_000_000n,
         logs: options.logs ?? [paymentCompletedLog(2_990_000n, 10_000n, 80_000n)],
       };
+    },
+    async request() {
+      return options.l1Fee === undefined ? {} : { l1Fee: `0x${options.l1Fee.toString(16)}` };
     },
     async getBlockNumber() {
       return 200n;
@@ -142,7 +157,11 @@ function harness(
       ];
     },
     async getTransactionReceipt() {
-      return { gasUsed: 70_000n, effectiveGasPrice: 5_000_000n };
+      return {
+        transactionHash: `0x${"aa".repeat(32)}`,
+        gasUsed: 70_000n,
+        effectiveGasPrice: 5_000_000n,
+      };
     },
     async call() {
       if (options.revert === undefined) return { data: undefined };
@@ -278,6 +297,15 @@ describe("sweeping a deposit", () => {
     );
   });
 
+  test("reports the sweep's hash and gas, so the ledger can book it", async () => {
+    const { port } = harness();
+
+    const result = await port.sweep(SWEEP);
+
+    expect(result.txHash).toBe(`0x${"fe".repeat(32)}`);
+    expect(result.gasCost).toEqual(money(99_061n * 6_000_000n, "ETH"));
+  });
+
   test("an ERC-20 deposit sweeps the token, not the native balance", async () => {
     const { port, sent } = harness();
 
@@ -326,6 +354,14 @@ describe("executing a native deposit", () => {
     expect(result.output).toEqual(money(3_080_000n, "USDC"));
     expect(result.gasCost).toEqual(money(99_061n * 6_000_000n, "ETH"));
     expect(result.txHash).toBe(`0x${"fe".repeat(32)}`);
+  });
+
+  test("counts the L1 data fee a receipt reports separately, as Base does", async () => {
+    const { port } = harness({ l1Fee: 16_082_455_376n });
+
+    const result = await port.execute(EXECUTE);
+
+    expect(result.gasCost).toEqual(money(99_061n * 6_000_000n + 16_082_455_376n, "ETH"));
   });
 
   test("a reverted transaction is retryable, since the router moved nothing", async () => {
@@ -456,5 +492,15 @@ describe("executing a same-asset ERC-20 deposit", () => {
     expect(routes.calls).toHaveLength(0);
     expect(sent[0]?.to).toBe(ROUTER);
     expect(sent[0]?.value).toBe(0n);
+  });
+
+  test("adds the one-off Permit2 approval to the payment's gas", async () => {
+    const { port, sent } = harness({ allowance: 0n });
+
+    const result = await port.execute({ ...EXECUTE, inputAmount: money(3_100_000n, "USDC") });
+
+    // approve, then payERC20: two transactions, both paid for by this payment.
+    expect(sent).toHaveLength(2);
+    expect(result.gasCost).toEqual(money(2n * 99_061n * 6_000_000n, "ETH"));
   });
 });

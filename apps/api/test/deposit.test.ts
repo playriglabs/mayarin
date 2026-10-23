@@ -103,4 +103,17 @@ describe("depositUri", () => {
       ),
     ).toBeNull();
   });
+  test("builds a token transfer request for a payer-only token once its contract is known", () => {
+    const uri = depositUri(
+      {
+        address: "0x76c14730da6f30a3e4ff826f01419a0b73461f6e",
+        amount: { amount: 418_670_590_000_000_000n, asset: "CAKE" },
+        asset: "CAKE",
+        chain: "bsc",
+      },
+      "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
+    );
+    expect(uri).toStartWith("ethereum:0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82@56/transfer?");
+    expect(uri).toContain("address=0x76c14730da6f30a3e4ff826f01419a0b73461f6e");
+  });
 });

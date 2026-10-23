@@ -246,6 +246,26 @@ export function gasPosting(transaction: ClearingTransaction, cost: Money): Draft
   };
 }
 
+/**
+ * Gas Mayarin paid to sweep a deposit forwarder.
+ *
+ * Keyed by the transaction hash, not the step: a sweep is repeated on resume and
+ * on every retry, each repeat is a real transaction, and a per-step key would
+ * book only the first.
+ */
+export function sweepGasPosting(
+  transaction: ClearingTransaction,
+  cost: Money,
+  txHash: string,
+): DraftTransaction {
+  return {
+    description: `Gas paid to sweep deposit for payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: `${postingIdempotencyKey(transaction, "GAS")}:${txHash}`,
+    entries: [debit("GAS_EXPENSE", cost), credit("OPERATOR_GAS", cost)],
+  };
+}
+
 export function clearingPosting(transaction: ClearingTransaction): DraftTransaction {
   const { netAmount } = requirePricedAmounts(transaction);
 

@@ -75,6 +75,7 @@ function fakePort(
     recorded,
     async sweep(request) {
       recorded.sweeps.push(request);
+      return undefined;
     },
     async execute(request) {
       recorded.executions.push(request);
@@ -140,6 +141,28 @@ describe("TreasuryExecutor", () => {
     expect(gas).not.toBeNull();
     // Output beat the 3.00 lock by 0.08, so FX_RESULT takes the difference.
     expect(swap?.entries.some((e) => e.accountCode === "FX_RESULT:USDC")).toBe(true);
+  });
+
+  test("books the gas of every sweep, one posting per transaction", async () => {
+    const { service, repository } = ledger();
+    const hashes = ["0xaa", "0xbb"];
+    const port = fakePort(async () => SUCCESS);
+    port.sweep = async () => ({
+      txHash: hashes.shift() ?? "0xcc",
+      gasCost: money(1_000n, "ETH"),
+    });
+    const executor = new TreasuryExecutor({ port, ledger: service });
+
+    // A resumed step sweeps again, and the second sweep is a real transaction.
+    await executor.execute(depositTransaction());
+    await executor.execute(depositTransaction());
+
+    for (const hash of ["0xaa", "0xbb"]) {
+      const sweepGas = await repository.findTransactionByIdempotencyKey(
+        `clr_01J8Z3K4M5N6P7Q8R9S0T1U2V3:GAS:${hash}`,
+      );
+      expect(sweepGas?.entries.some((e) => e.accountCode === "GAS_EXPENSE:ETH")).toBe(true);
+    }
   });
 
   // ------------------------------------------------------------------
@@ -254,6 +277,7 @@ describe("TreasuryExecutor", () => {
     const port: TreasuryExecutionPort = {
       async sweep() {
         order.push("sweep");
+        return undefined;
       },
       async execute() {
         order.push("execute");

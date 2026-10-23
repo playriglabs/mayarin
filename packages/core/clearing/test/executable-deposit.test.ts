@@ -62,7 +62,9 @@ function executingPort(output = money(5_000_000n, "USDC")): TreasuryExecutionPor
   const results: ExecutionResult[] = [];
   return {
     results,
-    async sweep() {},
+    async sweep() {
+      return undefined;
+    },
     async execute() {
       const result = { txHash: `0x${"fe".repeat(32)}`, output, gasCost: GAS };
       results.push(result);
@@ -105,6 +107,7 @@ function recordingPort(): TreasuryExecutionPort & {
         failures.sweeps -= 1;
         throw new ProviderError("the node refused the sweep broadcast", {});
       }
+      return undefined;
     },
     async execute(request: ExecuteRequest) {
       if (failures.attempts > 0) {
@@ -234,6 +237,21 @@ describe("locking a deposit that will be executed", () => {
   });
 });
 
+describe("the books after an executed deposit settles", () => {
+  test("the router paid the merchant, so no balance is left owing and treasury keeps the fee", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+
+    await harness.engine.start(await depositIntent());
+
+    // The merchant Safe already holds the net: crediting a holding balance would
+    // state a liability that does not exist, and leave treasury overstated.
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(money(0n, "USDC"));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(money(0n, "USDC"));
+    expect(await harness.balance("TREASURY")).toEqual(money(25_000n, "USDC"));
+    assertEveryPostingBalances(harness);
+  });
+});
+
 describe("the indexer's log for an executed deposit", () => {
   /**
    * The router emits `PaymentCompleted` for this path too — the treasury
@@ -261,7 +279,9 @@ describe("the indexer's log for an executed deposit", () => {
 describe("a terminal router failure", () => {
   test("keeps the decoded revert in the state.failed event payload", async () => {
     const port: TreasuryExecutionPort = {
-      async sweep() {},
+      async sweep() {
+        return undefined;
+      },
       async execute() {
         throw new ProviderError(
           "Transaction reverted with ExpiredOrder",

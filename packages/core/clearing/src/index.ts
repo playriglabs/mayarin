@@ -8,6 +8,7 @@ export * from "./rate.ts";
 export * from "./refund.ts";
 export * from "./refund-service.ts";
 export * from "./repository.ts";
+export * from "./settlement-path.ts";
 export * from "./state-machine.ts";
 export * from "./transaction.ts";
 export * from "./treasury.ts";

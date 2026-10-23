@@ -172,12 +172,14 @@ describe("watcher loops", () => {
   });
 });
 
+const CAUGHT_UP = { headNumber: 100n, scannedTo: 100n };
+
 describe("indexer loops", () => {
   test("runs immediately and schedules only after the tick completes", async () => {
     const timers = fakeTimers();
     let finish: (() => void) | undefined;
-    const pending = new Promise<void>((resolve) => {
-      finish = resolve;
+    const pending = new Promise<typeof CAUGHT_UP>((resolve) => {
+      finish = () => resolve(CAUGHT_UP);
     });
     let calls = 0;
     const indexer = {
@@ -190,6 +192,7 @@ describe("indexer loops", () => {
     const stop = startIndexerLoops({
       indexers: new Map([[CHAIN, indexer]]),
       intervalMs: 15_000,
+      catchUpIntervalMs: 1_000,
       timers: timers.port,
       logger: { info: () => {}, warn: () => {}, error: () => {} },
     });
@@ -220,12 +223,14 @@ describe("indexer loops", () => {
         const outcome = outcomes[calls];
         calls += 1;
         if (outcome !== undefined) throw outcome;
+        return CAUGHT_UP;
       },
     };
 
     const stop = startIndexerLoops({
       indexers: new Map([[CHAIN, indexer]]),
       intervalMs: 15_000,
+      catchUpIntervalMs: 1_000,
       maxBackoffMs: 45_000,
       timers: timers.port,
       logger: { info: () => {}, warn: () => {}, error: () => {} },
@@ -245,18 +250,54 @@ describe("indexer loops", () => {
     stop();
   });
 
+  test("hurries while the cursor is short of the head, and rests once it arrives", async () => {
+    const timers = fakeTimers();
+    const results = [
+      { headNumber: 1_000n, scannedTo: 50n },
+      { headNumber: 1_000n, scannedTo: 1_000n },
+    ];
+    let calls = 0;
+    const indexer = {
+      tick: async () => results[calls++] ?? CAUGHT_UP,
+    };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 240_000,
+      catchUpIntervalMs: 5_000,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    const delays: number[] = [];
+    for (let pass = 0; pass < 2; pass++) {
+      await flush();
+      const scheduled = timers.scheduled.at(-1);
+      if (scheduled === undefined) throw new Error("nothing scheduled");
+      delays.push(scheduled.delayMs);
+      scheduled.run();
+    }
+
+    // A pass that stopped at block 50 of 1000 is hurried; the one that reached
+    // the head waits the full interval.
+    expect(delays).toEqual([5_000, 240_000]);
+    stop();
+  });
+
   test("an interval of zero starts nothing, rather than looping with no gap", async () => {
     const timers = fakeTimers();
     let calls = 0;
     const indexer = {
       tick: async () => {
         calls += 1;
+        return CAUGHT_UP;
       },
     };
 
     const stop = startIndexerLoops({
       indexers: new Map([[CHAIN, indexer]]),
       intervalMs: 0,
+      catchUpIntervalMs: 1_000,
       timers: timers.port,
       logger: { info: () => {}, warn: () => {}, error: () => {} },
     });
@@ -281,6 +322,7 @@ describe("indexer loops", () => {
     const stop = startIndexerLoops({
       indexers: new Map([[CHAIN, indexer]]),
       intervalMs: 15_000,
+      catchUpIntervalMs: 1_000,
       maxBackoffMs: 45_000,
       timers: timers.port,
       logger: { info: () => {}, warn: () => {}, error: () => {} },

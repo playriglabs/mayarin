@@ -11,7 +11,7 @@ interface WatcherPort {
 }
 
 interface IndexerPort {
-  tick(chain: ChainId): Promise<unknown>;
+  tick(chain: ChainId): Promise<{ readonly headNumber: bigint; readonly scannedTo: bigint }>;
 }
 
 interface WatcherLogger {
@@ -38,6 +38,8 @@ export interface WatcherLoopOptions {
 export interface IndexerLoopOptions {
   readonly indexers: ReadonlyMap<ChainId, IndexerPort>;
   readonly intervalMs: number;
+  /** Delay before the next pass while the cursor is still short of the head. */
+  readonly catchUpIntervalMs: number;
   /** Ceiling for the backoff a failing pass falls into. */
   readonly maxBackoffMs?: number;
   readonly logger?: WatcherLogger;
@@ -147,7 +149,8 @@ function retryAfterOf(error: unknown): number | undefined {
  * A failing pass backs off, doubling up to `maxBackoffMs`, and honours a
  * `Retry-After` the source sent instead when that is longer. A success resets
  * the delay to the normal interval — the indexer is not a retry queue, and a
- * chain that recovers should not stay slow because it was once throttled.
+ * chain that recovers should not stay slow because it was once throttled. A
+ * pass that stops short of the head schedules the next after the catch-up delay.
  *
  * An interval of zero starts nothing, the way `WATCHER_INTERVAL_MS=0` leaves
  * only the admin route. Read as a delay it would mean a pass with no gap at
@@ -171,8 +174,13 @@ export function startIndexerLoops(options: IndexerLoopOptions): () => void {
     const run = async (): Promise<void> => {
       let delayMs = options.intervalMs;
       try {
-        await indexer.tick(chain);
+        const result = await indexer.tick(chain);
         backoffMs = options.intervalMs;
+        // One pass scans at most `blockRange` blocks. Sleeping the full interval
+        // after a pass that stopped short of the head means a cursor that starts
+        // behind never catches up: it gains a range per interval while the chain
+        // gains far more.
+        if (result.scannedTo < result.headNumber) delayMs = options.catchUpIntervalMs;
       } catch (error) {
         backoffMs = Math.min(Math.max(backoffMs * 2, options.intervalMs), maxBackoffMs);
         delayMs = Math.max(backoffMs, retryAfterOf(error) ?? 0);

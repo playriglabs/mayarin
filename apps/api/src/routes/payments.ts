@@ -83,9 +83,14 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     );
     const rail = transaction?.deposit;
     // Resolved here rather than inside the DTO: the registry read is async, and
-    // a native deposit has no token to look up.
+    // a native deposit has no token to look up. A payer-only token (CAKE, WETH)
+    // is not in the stablecoin registry, so `CHAIN_ASSETS` names its contract;
+    // without it the payer is shown no code to scan.
     const token =
-      rail === undefined ? undefined : await container.registry.address(rail.asset, rail.chain);
+      rail === undefined
+        ? undefined
+        : ((await container.registry.address(rail.asset, rail.chain)) ??
+          container.config.chainAssets[rail.chain]?.[rail.asset]);
     const depositDto =
       deposit === null || transaction === null
         ? null

@@ -123,6 +123,29 @@ const operatorFloatTimer =
           });
       }, OPERATOR_FLOAT_INTERVAL_MS);
 
+// Tops the operator's native gas up from the treasury Safe's allowance when it is
+// under its floor. One chain at a time on this worker only, so it never races the
+// executor's nonces; every pass reads the chain, so a crash between pull and swap
+// resumes at the swap.
+const GAS_REFILL_INTERVAL_MS = 5 * 60_000;
+let refillingGas = false;
+const gasRefillTimer =
+  container.gasRefiller === undefined
+    ? undefined
+    : setInterval(() => {
+        if (refillingGas) return;
+        refillingGas = true;
+        void container.gasRefiller
+          ?.run()
+          .then((findings) => {
+            for (const finding of findings) console.error(JSON.stringify(finding));
+          })
+          .catch((error: unknown) => console.error("[chain-worker] gas refill failed", error))
+          .finally(() => {
+            refillingGas = false;
+          });
+      }, GAS_REFILL_INTERVAL_MS);
+
 // Funds that reached a deposit address after its payment expired: money with no
 // payment to settle. Reported once per payment per process.
 const LATE_DEPOSIT_INTERVAL_MS = 5 * 60_000;
@@ -210,6 +233,7 @@ const stopWatcherLoops = startWatcherLoops({
 const stopIndexerLoops = startIndexerLoops({
   indexers: container.indexers,
   intervalMs: chain.indexerIntervalMs,
+  catchUpIntervalMs: chain.catchUpIntervalMs,
   maxBackoffMs: chain.indexerMaxBackoffMs,
 });
 
@@ -233,6 +257,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   clearInterval(refundRecoveryTimer);
   clearInterval(operatorReconcileTimer);
   clearInterval(operatorFloatTimer);
+  clearInterval(gasRefillTimer);
   clearInterval(resumeTimer);
   clearInterval(lateDepositTimer);
   await container.close();

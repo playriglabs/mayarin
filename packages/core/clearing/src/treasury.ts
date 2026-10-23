@@ -32,7 +32,7 @@ import type { ChainId } from "@mayarin/chain";
 import type { LedgerService } from "@mayarin/ledger";
 import { type AssetCode, isMayarinError, MayarinError, type Money } from "@mayarin/shared";
 import type { ContractOrder } from "./contract-path.ts";
-import { gasPosting, swapPosting } from "./postings.ts";
+import { gasPosting, swapPosting, sweepGasPosting } from "./postings.ts";
 import type { ClearingDeposit, ClearingTransaction } from "./types.ts";
 
 /** Raised when the swap could not meet `minOut` within the attempt bound. */
@@ -62,6 +62,12 @@ export interface SweepRequest {
   readonly depositAddress: string;
   /** Native vs ERC-20 is a property of the asset; the adapter maps it to a token address. */
   readonly asset: AssetCode;
+}
+
+/** What a sweep cost, when the sweep sent a transaction and its gas can be named. */
+export interface SweepResult {
+  readonly txHash: string;
+  readonly gasCost?: Money;
 }
 
 export interface ExecuteRequest {
@@ -99,7 +105,7 @@ export interface ExecutionResult {
  * this port is where it is knowingly given up, for one caller.
  */
 export interface TreasuryExecutionPort {
-  sweep(request: SweepRequest): Promise<void>;
+  sweep(request: SweepRequest): Promise<SweepResult | undefined>;
   execute(request: ExecuteRequest): Promise<ExecutionResult>;
 }
 
@@ -164,12 +170,17 @@ export class TreasuryExecutor {
     // deployed forwarder with a zero balance is a no-op, not a revert — so a
     // resumed step repeats it harmlessly, which is what makes the whole step
     // resumable rather than needing a "did I already sweep" flag.
-    await this.#port.sweep({
+    const sweep = await this.#port.sweep({
       clearingTransactionId: transaction.id,
       chain: deposit.chain,
       depositAddress: deposit.address,
       asset: deposit.asset,
     });
+    // Keyed by the sweep's own hash: a resumed step sweeps again, and that
+    // second transaction costs gas too.
+    if (sweep?.gasCost !== undefined) {
+      await this.#ledger.post(sweepGasPosting(transaction, sweep.gasCost, sweep.txHash));
+    }
 
     const result = await this.#submitWithRetries(transaction, deposit, order.order);
 

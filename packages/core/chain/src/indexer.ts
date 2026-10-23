@@ -79,6 +79,8 @@ export interface IndexerTickResult {
   readonly chain: ChainId;
   readonly scannedFrom: bigint;
   readonly scannedTo: bigint;
+  /** The chain head this pass saw, so a caller can tell whether it reached it. */
+  readonly headNumber: bigint;
   readonly recorded: number;
   readonly confirmed: number;
   readonly orphaned: number;
@@ -145,6 +147,7 @@ export class SettlementIndexer {
       chain,
       scannedFrom: from,
       scannedTo: hasNewBlocks ? to : start,
+      headNumber: head.number,
       recorded,
       confirmed,
       orphaned,

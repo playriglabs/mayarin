@@ -1003,6 +1003,44 @@ carries, and no pool is loosened by it. The payer sees the price before paying.
 `LIFI_API_KEY` is optional; without one LiFi rate-limits harder. `LIFI_FROM_ADDRESS` is the address
 the price quotes are made for, the PaymentRouter.
 
+## Gas refill, so the operator never runs dry
+
+The operator pays gas in the chain's own currency, while payers reimburse it in the stablecoin
+inside the fee (`RELAYER_GAS_FEE_MINIMUMS`), and that lands in the treasury Safe. Nothing moved it
+back, so the operator's native balance only fell. The chain worker closes the loop:
+
+```
+native balance under GAS_REFILL.<chain>.min
+  → pull GAS_REFILL.<chain>.amount of the stablecoin from the Safe
+      (Safe Allowance Module 0.1.0, 0xCFbF…3134, operator as delegate, empty signature)
+  → approve LiFi's diamond and swap it to native, the operator receiving
+```
+
+Every pass reads the chain and nothing else, so a crash between the pull and the swap resumes at
+the swap. The route is held to LiFi's diamond, no native sent, a non-zero guaranteed output;
+anything else is a `failed` finding and nothing is signed.
+
+**The Safe bounds it, not the code.** The operator is a delegate with one allowance, the chain's
+stablecoin, `4 × amount` per 24 hours. A compromised operator takes that and no more, and the
+owners remove it with one Safe transaction (`deleteAllowance`). Generate the three Safe calls per
+chain (`enableModule`, `addDelegate`, `setAllowance`) and import each file into the Safe app's
+Transaction Builder:
+
+```bash
+bun --env-file=.env.mainnet scripts/gas-refill-safe-batch.ts ./gas-refill
+```
+
+The module has no timelock: the Safe's 2-of-3 is the only gate. The worker logs one JSON line per
+outcome other than "enough native": `{"type":"gas-refill","result":"refilled"|"allowance-exhausted"|
+"safe-empty"|"failed"}`. Alert on the last three. If `OPERATOR_FLOAT_LIMITS` sets a `max` for the
+stablecoin, keep it above `amount`, since a refill holds that much on the operator for a moment.
+
+```bash
+GAS_REFILL='{"base":{"asset":"USDC","amount":"5","min":"0.00125"},"polygon":{"asset":"USDC","amount":"5","min":"33"}}'
+```
+
+`min` is whole units of the native currency, `amount` whole units of `asset`.
+
 ## Related
 
 - [Clearing Engine](./clearing-engine.md)

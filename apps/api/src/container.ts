@@ -143,7 +143,14 @@ import type {
   X402Facilitator,
 } from "@mayarin/x402";
 import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
-import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  getAddress,
+  http,
+  parseAbi,
+} from "viem";
 import { type Config, isMainnetDeployment } from "./config.ts";
 import {
   ApiContractPlanner,
@@ -163,6 +170,8 @@ import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
+import { lifiGasRoute, rpcGasRefillPort } from "./services/gas-refill-chain.ts";
+import { GasRefiller } from "./services/gas-refiller.ts";
 import { LateDepositService } from "./services/late-deposits.ts";
 import { rpcMerchantRegistry } from "./services/merchant-registry.ts";
 import { rpcOperatorBumper } from "./services/operator-bumper.ts";
@@ -217,6 +226,8 @@ export interface Container {
   readonly operatorTransactions: OperatorTransactionReconciler;
   /** What the operator holds against its limits (SEC-06); absent without limits or an operator. */
   readonly operatorFloat?: OperatorFloatMonitor;
+  /** Pulls stablecoin from the treasury Safe and swaps it to native gas; absent without `GAS_REFILL`. */
+  readonly gasRefiller?: GasRefiller;
   /**
    * Live payment status for the hosted checkout (#13).
    *
@@ -739,7 +750,8 @@ function createTreasuryExecutor(deps: {
  *
  * The stablecoin registry names the ERC-20s, and the chain's own currency is
  * not in it — a native asset has no contract to register. Both have to be
- * polled or an ETH rail issues a deposit address that nothing ever scans.
+ * polled or an ETH rail issues a deposit address that nothing ever scans. So does
+ * every other token in `CHAIN_ASSETS` a payer may send.
  */
 export function watchedPairs(config: Config): readonly { chain: ChainId; asset: AssetCode }[] {
   const pairs = pairsOf(config.stablecoins).map((pair) => ({
@@ -750,6 +762,16 @@ export function watchedPairs(config: Config): readonly { chain: ChainId; asset: 
   for (const [chain, asset] of Object.entries(config.chainNativeAssets)) {
     if (asset === undefined) continue;
     pairs.push({ chain: chain as ChainId, asset });
+  }
+
+  // A payer-only ERC-20 (CAKE, WETH, cbBTC) is in `CHAIN_ASSETS` but not the
+  // stablecoin registry. The client already filters its logs, but nothing ticked
+  // the pair, so a deposit in it was sent, confirmed on chain and never seen.
+  for (const [chain, tokens] of Object.entries(config.chainAssets)) {
+    for (const asset of Object.keys(tokens ?? {}) as AssetCode[]) {
+      if (pairs.some((pair) => pair.chain === chain && pair.asset === asset)) continue;
+      pairs.push({ chain: chain as ChainId, asset });
+    }
   }
 
   return pairs;
@@ -1177,7 +1199,7 @@ export function createContainer({
     deposits = new DrizzleDepositRepository(handle.db);
     const client = new EvmChainClient({
       rpcUrls: chain.rpcUrls,
-      tokens: tokensOf(config.stablecoins),
+      tokens: depositTokens(config),
       nativeAssets: config.chainNativeAssets,
       logRange: chain.logRange,
       logRanges: chain.logRanges,
@@ -1493,6 +1515,25 @@ export function createContainer({
           quoteTtlSeconds: config.x402QuoteTtlSeconds,
         });
   const escrowTreasuryPort = treasury?.evmPort;
+  const gasRefiller =
+    escrowTreasuryPort === undefined ||
+    operator === undefined ||
+    config.treasuryAddress === undefined ||
+    Object.keys(config.gasRefill).length === 0
+      ? undefined
+      : new GasRefiller({
+          chains: config.gasRefill as ConstructorParameters<typeof GasRefiller>[0]["chains"],
+          port: rpcGasRefillPort({
+            rpcUrls: config.chainRpcUrls,
+            send: (chain, to, data) => escrowTreasuryPort.call(chain, to, data),
+          }),
+          tokens: tokensOf(config.stablecoins),
+          safe: getAddress(config.treasuryAddress),
+          operator: operator.address,
+          route: lifiGasRoute({
+            ...(config.lifiApiKey === undefined ? {} : { apiKey: config.lifiApiKey }),
+          }),
+        });
 
   return {
     config,
@@ -1575,6 +1616,7 @@ export function createContainer({
     refunds,
     operatorTransactions,
     ...(operatorFloat === undefined ? {} : { operatorFloat }),
+    ...(gasRefiller === undefined ? {} : { gasRefiller }),
     ...(stream === undefined ? {} : { stream }),
     adapters,
     events,
@@ -1630,6 +1672,22 @@ export function createContainer({
       await handle.close();
     },
   };
+}
+
+/**
+ * Every token a deposit may arrive in: the registry's stablecoins, and the
+ * payer-only tokens (CAKE, WETH, cbBTC) that only `CHAIN_ASSETS` names. The
+ * watcher's client filters its logs by this map, so a token left out of it is
+ * never seen.
+ */
+export function depositTokens(
+  config: Pick<Config, "stablecoins" | "chainAssets">,
+): Partial<Record<ChainId, Partial<Record<AssetCode, string>>>> {
+  const tokens = tokensOf(config.stablecoins);
+  for (const [chain, assets] of Object.entries(config.chainAssets)) {
+    tokens[chain as ChainId] = { ...tokens[chain as ChainId], ...assets };
+  }
+  return tokens;
 }
 
 /** Rebuilds the `chain → asset → address` token map the EVM client filters logs by. */

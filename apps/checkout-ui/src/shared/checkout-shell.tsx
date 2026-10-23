@@ -42,7 +42,7 @@ export function CheckoutShell({
           aria-label={label}
           className="flex justify-center bg-panel px-5 py-10 sm:px-8 lg:justify-start lg:px-14 lg:py-12 xl:px-24 print:hidden"
         >
-          <div className="flex w-full max-w-md flex-col">{children}</div>
+          <div className="flex w-full max-w-lg flex-col">{children}</div>
         </section>
       </main>
     </div>
