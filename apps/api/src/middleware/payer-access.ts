@@ -37,7 +37,7 @@ export function payerAccess(container: Container, param = "id"): MiddlewareHandl
   };
 }
 
-function isInternal(container: Container, presented: string | undefined): boolean {
+export function isInternal(container: Container, presented: string | undefined): boolean {
   const expected = container.config.internalApiToken;
   if (expected === undefined || presented === undefined) return false;
   const a = Buffer.from(expected);

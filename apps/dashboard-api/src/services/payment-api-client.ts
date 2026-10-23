@@ -215,6 +215,19 @@ export class PaymentApiClient {
   }
 
   /**
+   * Whether the payment API would offer this rail at checkout, by the same
+   * source that decides it there.
+   */
+  async railPriceable(rail: {
+    readonly chain: string;
+    readonly asset: string;
+    readonly settlementAsset: string;
+  }): Promise<boolean> {
+    const answer = await this.#post<{ priceable: boolean }>("/rails/priceable", rail);
+    return answer.priceable;
+  }
+
+  /**
    * The chains a local-currency payment can be delivered to, or `null` when the
    * deployment has no such option (or the payment API cannot say). Never throws:
    * a settings page must not fail to load because an optional provider is down.

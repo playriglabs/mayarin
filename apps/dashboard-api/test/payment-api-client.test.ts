@@ -51,3 +51,29 @@ describe("PaymentApiClient refusals", () => {
     }
   });
 });
+
+describe("PaymentApiClient.railPriceable", () => {
+  const answering = (priceable: boolean) =>
+    new PaymentApiClient({
+      baseUrl: "https://core.example",
+      internalToken: "t",
+      fetch: (async (url: string, init: RequestInit) => {
+        expect(url).toBe("https://core.example/v1/rails/priceable");
+        expect(JSON.parse(String(init.body))).toEqual({
+          chain: "arbitrum",
+          asset: "AAVE",
+          settlementAsset: "USDT",
+        });
+        return new Response(JSON.stringify({ priceable }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }) as unknown as typeof fetch,
+    });
+  const rail = { chain: "arbitrum", asset: "AAVE", settlementAsset: "USDT" };
+
+  test("returns the payment API's answer", async () => {
+    expect(await answering(true).railPriceable(rail)).toBe(true);
+    expect(await answering(false).railPriceable(rail)).toBe(false);
+  });
+});
