@@ -75,25 +75,42 @@ export function ReturnAddressField({
           </span>
         </span>
       </div>
-      <input
-        id="return-address"
-        type="text"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="0x…"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-sm text-ink"
-      />
-      {walletAvailable && (
-        <button
-          type="button"
-          className="mt-2 border-0 bg-transparent p-0 text-xs text-muted underline hover:text-ink"
-          onClick={() => void fillFromWallet()}
-        >
-          Use my wallet
-        </button>
-      )}
+      <div className="relative">
+        <input
+          id="return-address"
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="0x…"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`w-full rounded-xl border border-line bg-panel py-2.5 pl-3 text-sm text-ink ${
+            walletAvailable ? "pr-32" : "pr-3"
+          }`}
+        />
+        {walletAvailable && (
+          <button
+            type="button"
+            className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-1.5 rounded-lg border border-line bg-transparent px-2.5 py-1 text-xs text-ink hover:bg-field"
+            onClick={() => void fillFromWallet()}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="size-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+              <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+            </svg>
+            Use wallet
+          </button>
+        )}
+      </div>
       {walletError !== "" && (
         <p className={errorText} role="alert">
           {walletError}
