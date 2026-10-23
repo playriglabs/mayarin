@@ -4,7 +4,7 @@
  */
 
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Table,
   TableBody,
@@ -31,7 +31,7 @@ export function LoginHistory() {
       {history.isPending ? (
         <PageLoader label="Loading login history" />
       ) : history.isError ? (
-        <QueryError
+        <TableError
           message={
             history.error instanceof ApiError ? history.error.message : "Failed to load logins"
           }

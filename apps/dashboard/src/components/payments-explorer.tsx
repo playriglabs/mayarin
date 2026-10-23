@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -225,7 +225,7 @@ function PaymentsExplorer() {
           </div>
         ))
         .with({ status: "error" }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void payments.refetch()}
             retrying={payments.isFetching}

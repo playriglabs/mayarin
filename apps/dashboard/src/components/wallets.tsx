@@ -63,7 +63,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
-import { QueryError } from "@/components/ui/query-error";
+import { QueryError, TableError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   Select,
@@ -1369,7 +1369,7 @@ function Wallets() {
           {match(withdrawalHistory)
             .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
             .with({ isError: true }, ({ error }) => (
-              <QueryError
+              <TableError
                 message={withdrawalReasonOf(error)}
                 retry={() => void withdrawalHistory.refetch()}
                 retrying={withdrawalHistory.isFetching}

@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -328,7 +328,7 @@ function Invoices() {
       {match(invoices)
         .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void invoices.refetch()}
             retrying={invoices.isFetching}

@@ -122,7 +122,7 @@ function DatePicker({
             so it must occupy the popup layer above them rather than inheriting
             the dialog's stacking context. This matches the shared Select. */}
         <Popover.Positioner sideOffset={4} align="start" className="z-80">
-          <Popover.Popup className="w-72 rounded-lg border border-input bg-popover p-3 text-popover-foreground shadow-sm focus-visible:outline-none">
+          <Popover.Popup className="w-(--anchor-width) min-w-72 rounded-lg border border-input bg-popover p-3 text-popover-foreground shadow-sm focus-visible:outline-none">
             <div className="mb-2 flex items-center justify-between">
               <Button
                 type="button"
@@ -152,7 +152,7 @@ function DatePicker({
                 <abbr
                   key={weekday}
                   title={weekday}
-                  className="flex size-9 items-center justify-center font-mono text-[10px] text-muted-foreground uppercase no-underline"
+                  className="flex h-9 w-full items-center justify-center font-mono text-[10px] text-muted-foreground uppercase no-underline"
                 >
                   {weekday.slice(0, 1)}
                 </abbr>
@@ -173,7 +173,7 @@ function DatePicker({
                     disabled={disabled}
                     onClick={() => choose(date)}
                     className={cn(
-                      "size-9 cursor-pointer text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30",
+                      "h-9 w-full cursor-pointer text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30",
                       outside && "text-subtle-foreground",
                       isToday &&
                         !isSelected &&

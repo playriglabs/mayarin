@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -228,7 +228,7 @@ function Orders() {
       {match(orders)
         .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void orders.refetch()}
             retrying={orders.isFetching}

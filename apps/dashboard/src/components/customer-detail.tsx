@@ -20,7 +20,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatGridSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
@@ -72,7 +72,7 @@ function CustomerDetail({ id }: { id: string }) {
           </>
         ))
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void detail.refetch()}
             retrying={detail.isFetching}

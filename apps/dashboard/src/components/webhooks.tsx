@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   Select,
@@ -230,7 +230,7 @@ function Webhooks() {
         {match(endpoints)
           .with({ isPending: true }, () => <TableSkeleton rows={2} />)
           .with({ isError: true }, ({ error }) => (
-            <QueryError
+            <TableError
               message={reasonOf(error, "endpoints")}
               retry={() => void endpoints.refetch()}
               retrying={endpoints.isFetching}
@@ -407,7 +407,7 @@ function Webhooks() {
         {match(deliveries)
           .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
           .with({ isError: true }, ({ error }) => (
-            <QueryError
+            <TableError
               message={reasonOf(error, "deliveries")}
               retry={() => void deliveries.refetch()}
               retrying={deliveries.isFetching}

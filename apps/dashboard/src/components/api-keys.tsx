@@ -45,7 +45,7 @@ import {
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QueryError } from "@/components/ui/query-error";
+import { TableError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -265,7 +265,7 @@ function ApiKeys() {
       {match(keys)
         .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
-          <QueryError
+          <TableError
             message={reasonOf(error)}
             retry={() => void keys.refetch()}
             retrying={keys.isFetching}
