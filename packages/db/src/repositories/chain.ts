@@ -480,6 +480,31 @@ export class DrizzleSettlementEventRepository implements SettlementEventReposito
     return row === undefined ? null : toSettlementEvent(row);
   }
 
+  async listUnindexedTransactions(
+    chain: ChainId,
+    since: Date,
+    limit: number,
+  ): Promise<readonly string[]> {
+    // The chain a payment settled on is its deposit's, or its rail's on the contract
+    // path, where there is no deposit. A transaction with a recorded settlement is
+    // matched on the hash alone: that is what the indexer keys a log by.
+    const rows = await this.#db.execute<{ tx_hash: string }>(sql`
+      select ct.contract_tx_hash as tx_hash
+      from clearing_transactions ct
+      left join payment_intents pi on pi.id = ct.payment_intent_id
+      where ct.contract_tx_hash is not null
+        and ct.created_at >= ${since}
+        and coalesce(ct.deposit_chain, pi.payment_chain) = ${chain}
+        and not exists (
+          select 1 from settlement_events se
+          where se.chain = ${chain} and se.tx_hash = ct.contract_tx_hash
+        )
+      order by ct.created_at desc
+      limit ${limit}
+    `);
+    return [...rows].map((row) => row.tx_hash);
+  }
+
   async listByIntentIds(intentIds: readonly string[]): Promise<readonly SettlementEvent[]> {
     // `inArray` with an empty list is invalid SQL in Postgres, and a merchant
     // with no on-chain settlements is the ordinary case, not an error.

@@ -73,6 +73,10 @@ export interface SettlementIndexerOptions {
   readonly startBlocks?: Readonly<Partial<Record<ChainId, bigint>>>;
   /** Cap on settlements re-probed per pass. */
   readonly probeLimit?: number;
+  /** Transactions read from their receipt per pass. Defaults to 20. */
+  readonly receiptLimit?: number;
+  /** How far back a payment's transaction is still looked for. Defaults to seven days. */
+  readonly receiptWindowMs?: number;
 }
 
 export interface IndexerTickResult {
@@ -101,6 +105,8 @@ export class SettlementIndexer {
   readonly #events: EventPublisher;
   readonly #startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
   readonly #probeLimit: number;
+  readonly #receiptLimit: number;
+  readonly #receiptWindowMs: number;
 
   constructor(options: SettlementIndexerOptions) {
     this.#client = options.client;
@@ -114,6 +120,8 @@ export class SettlementIndexer {
     this.#events = options.events ?? noopEventPublisher;
     this.#startBlocks = options.startBlocks ?? {};
     this.#probeLimit = options.probeLimit ?? 500;
+    this.#receiptLimit = options.receiptLimit ?? 20;
+    this.#receiptWindowMs = options.receiptWindowMs ?? 7 * 24 * 60 * 60_000;
   }
 
   async tick(chain: ChainId): Promise<IndexerTickResult> {
@@ -135,7 +143,10 @@ export class SettlementIndexer {
     // case it exists to catch.
     const hasNewBlocks = from <= to;
 
-    const recorded = hasNewBlocks ? await this.#scan(chain, router, from, to, now) : 0;
+    const scanned = hasNewBlocks ? await this.#scan(chain, router, from, to, now) : 0;
+    // Before reclassifying, so a settlement read from its receipt is confirmed and
+    // completed in this same pass rather than waiting for a scan to reach it.
+    const recorded = scanned + (await this.#readReceipts(chain, router, now));
     const { confirmed, orphaned } = await this.#reclassify(chain, head.number, now);
     const { completed, unmatched } = await this.#complete(chain, now);
 
@@ -168,6 +179,34 @@ export class SettlementIndexer {
 
     await this.#settlements.record(logs, now);
     return logs.length;
+  }
+
+  /**
+   * Records the settlements of payments whose transaction hash is already known.
+   *
+   * The scan follows the chain a range at a time, and a provider that caps
+   * `eth_getLogs` at ten blocks cannot keep up with a chain that makes four a
+   * second: it fell three hours behind on Arbitrum. A receipt is one call and
+   * does not depend on where the cursor is. A transaction not mined, or reverted,
+   * has no log and is asked about again next pass until it ages out.
+   */
+  async #readReceipts(chain: ChainId, router: string, now: Date): Promise<number> {
+    if (this.#client.settlementsInTransaction === undefined) return 0;
+
+    const hashes = await this.#settlements.listUnindexedTransactions(
+      chain,
+      new Date(now.getTime() - this.#receiptWindowMs),
+      this.#receiptLimit,
+    );
+
+    let recorded = 0;
+    for (const txHash of hashes) {
+      const logs = await this.#client.settlementsInTransaction({ chain, router, txHash });
+      if (logs.length === 0) continue;
+      await this.#settlements.record(logs, now);
+      recorded += logs.length;
+    }
+    return recorded;
   }
 
   /** Re-reads canonical hashes and moves settlements between statuses. */

@@ -628,3 +628,119 @@ describe("EVM settlement amounts follow the asset the log names", () => {
     ).rejects.toThrow(/not a configured token/);
   });
 });
+
+describe("EVM settlements read from a receipt", () => {
+  const TX = `0x${"cc".repeat(32)}`;
+  const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+
+  const completed = () => {
+    const topics = encodeEventTopics({
+      abi: paymentRouterAbi,
+      eventName: "PaymentCompleted",
+      args: { intentId: INTENT_ID, merchantSafe: MERCHANT, refundTo: REFUND_TO },
+    });
+    const data = encodeAbiParameters(
+      [
+        { type: "address" },
+        { type: "address" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+      ],
+      [INPUT_ASSET, USDC as `0x${string}`, 3_100_000n, 2_990_000n, 10_000n, 100_000n, 2_000n],
+    );
+    return { topics, data };
+  };
+
+  /** Serves one receipt (or none) for any hash, and counts the calls made. */
+  async function readReceipt(receipt: Record<string, unknown> | null) {
+    const methods: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const body = (await request.json()) as { id: number; method: string };
+        methods.push(body.method);
+        return Response.json({ jsonrpc: "2.0", id: body.id, result: receipt });
+      },
+    });
+    try {
+      const client = new EvmChainClient({
+        rpcUrls: { ethereum: `http://localhost:${server.port}` },
+        tokens: { ethereum: { USDC } },
+        logRange: 10,
+      });
+      const logs = await client.settlementsInTransaction({
+        chain: "ethereum",
+        router: ROUTER,
+        txHash: TX,
+      });
+      return { logs, methods };
+    } finally {
+      server.stop(true);
+    }
+  }
+
+  const receiptWith = (logs: unknown[], status = "0x1") => ({
+    blockHash: `0x${"bb".repeat(32)}`,
+    blockNumber: "0xb",
+    contractAddress: null,
+    cumulativeGasUsed: "0x5208",
+    effectiveGasPrice: "0x1",
+    from: MERCHANT,
+    gasUsed: "0x5208",
+    logs,
+    logsBloom: `0x${"00".repeat(256)}`,
+    status,
+    to: ROUTER,
+    transactionHash: TX,
+    transactionIndex: "0x2",
+    type: "0x2",
+  });
+
+  const routerLog = () => ({
+    address: ROUTER,
+    ...completed(),
+    blockNumber: "0xb",
+    blockHash: `0x${"bb".repeat(32)}`,
+    transactionHash: TX,
+    transactionIndex: "0x2",
+    logIndex: "0x3",
+    removed: false,
+  });
+
+  test("reads the router's PaymentCompleted from one receipt call, with no log scan", async () => {
+    const { logs, methods } = await readReceipt(receiptWith([routerLog()]));
+
+    expect(methods).toEqual(["eth_getTransactionReceipt"]);
+    expect(logs).toEqual([
+      {
+        chain: "ethereum",
+        txHash: TX,
+        logIndex: 3,
+        blockNumber: 11n,
+        blockHash: `0x${"bb".repeat(32)}`,
+        intentId: INTENT_ID,
+        merchantSafe: MERCHANT.toLowerCase(),
+        settledAmount: 2_990_000n,
+        fee: 10_000n,
+        refundAmount: 100_000n,
+      },
+    ]);
+  });
+
+  test("ignores the same event emitted by another contract", async () => {
+    const stranger = { ...routerLog(), address: "0x000000000000000000000000000000000000dEaD" };
+
+    expect((await readReceipt(receiptWith([stranger]))).logs).toEqual([]);
+  });
+
+  test("a reverted transaction has no settlement", async () => {
+    expect((await readReceipt(receiptWith([routerLog()], "0x0"))).logs).toEqual([]);
+  });
+
+  test("a transaction not mined yet has none either", async () => {
+    expect((await readReceipt(null)).logs).toEqual([]);
+  });
+});

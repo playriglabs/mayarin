@@ -286,6 +286,26 @@ export class InMemorySettlementEventRepository implements SettlementEventReposit
     return [...this.#byKey.values()].find((event) => event.intentId === intentId) ?? null;
   }
 
+  /** Transactions a payment is said to have settled in, for `listUnindexedTransactions`. */
+  readonly #expected: { chain: ChainId; txHash: string; at: Date }[] = [];
+
+  /** Test helper: a payment now names this transaction as the one that settled it. */
+  expectTransaction(chain: ChainId, txHash: string, at: Date): void {
+    this.#expected.push({ chain, txHash, at });
+  }
+
+  async listUnindexedTransactions(
+    chain: ChainId,
+    since: Date,
+    limit: number,
+  ): Promise<readonly string[]> {
+    const recorded = new Set([...this.#byKey.values()].map((event) => event.txHash));
+    return this.#expected
+      .filter((entry) => entry.chain === chain && entry.at >= since && !recorded.has(entry.txHash))
+      .slice(0, limit)
+      .map((entry) => entry.txHash);
+  }
+
   async listByIntentIds(intentIds: readonly string[]): Promise<readonly SettlementEvent[]> {
     const wanted = new Set(intentIds);
     return [...this.#byKey.values()].filter((event) => wanted.has(event.intentId));

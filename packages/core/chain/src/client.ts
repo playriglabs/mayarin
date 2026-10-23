@@ -35,6 +35,13 @@ export interface SettlementQuery {
   readonly toBlock: bigint;
 }
 
+/** One transaction to read `PaymentCompleted` logs from. */
+export interface SettlementTransactionQuery {
+  readonly chain: ChainId;
+  readonly router: string;
+  readonly txHash: string;
+}
+
 /** The canonical chain view needed for finality and reorg classification. */
 export interface ChainHeadSource {
   head(chain: ChainId): Promise<BlockRef>;
@@ -46,6 +53,16 @@ export interface ChainHeadSource {
 export interface SettlementChainClient extends ChainHeadSource {
   /** `PaymentCompleted` logs emitted by the router in the range. */
   settlements(query: SettlementQuery): Promise<SettlementLog[]>;
+  /**
+   * `PaymentCompleted` logs one transaction emitted, from its receipt.
+   *
+   * One call however far behind a scan is: a provider that caps `eth_getLogs` at
+   * a handful of blocks cannot follow a fast chain by range, but a payment whose
+   * transaction hash is already known needs no range at all. Empty when the
+   * transaction is not mined yet, reverted, or touched no router. Absent on a
+   * chain family that indexes by another route.
+   */
+  settlementsInTransaction?(query: SettlementTransactionQuery): Promise<SettlementLog[]>;
 }
 
 export interface ChainClient extends SettlementChainClient {

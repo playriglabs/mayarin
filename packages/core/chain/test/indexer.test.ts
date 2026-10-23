@@ -302,3 +302,72 @@ describe("SettlementIndexer", () => {
     });
   });
 });
+
+describe("settlements read from their receipt", () => {
+  /** A settlement mined well past where a 100-block scan from the start can reach. */
+  async function farBehind() {
+    const harness = setup();
+    harness.chain.mine(500).settle({ intentId: INTENT }).mine().mine();
+    const [log] = await harness.chain.settlements({
+      chain: CHAIN,
+      router: ROUTER,
+      fromBlock: 0n,
+      toBlock: 10_000n,
+    });
+    if (log === undefined) throw new Error("the fake chain recorded no settlement");
+    return { ...harness, txHash: log.txHash };
+  }
+
+  test("completes a payment the range scan has not reached", async () => {
+    const { indexer, settlements, sink, txHash } = await farBehind();
+    settlements.expectTransaction(CHAIN, txHash, NOW);
+
+    const result = await indexer.tick(CHAIN);
+
+    // The scan covered blocks 1 to 100 and found nothing; the receipt did the work.
+    expect(result.scannedTo).toBeLessThan(result.headNumber);
+    expect(result.recorded).toBe(1);
+    expect(sink.calls).toEqual([{ intentId: INTENT, txHash }]);
+  });
+
+  test("without a known transaction the same payment stays behind the scan", async () => {
+    const { indexer, sink } = await farBehind();
+
+    const result = await indexer.tick(CHAIN);
+
+    expect(result.recorded).toBe(0);
+    expect(sink.calls).toEqual([]);
+  });
+
+  test("reads a transaction once, then leaves it", async () => {
+    const { indexer, settlements, sink, txHash } = await farBehind();
+    settlements.expectTransaction(CHAIN, txHash, NOW);
+
+    await indexer.tick(CHAIN);
+    const second = await indexer.tick(CHAIN);
+
+    expect(second.recorded).toBe(0);
+    expect(sink.calls).toHaveLength(1);
+  });
+
+  test("a transaction with no settlement in it is asked about again, and costs nothing", async () => {
+    const { indexer, settlements, sink } = await farBehind();
+    settlements.expectTransaction(CHAIN, "0xnotmined", NOW);
+
+    const first = await indexer.tick(CHAIN);
+    const second = await indexer.tick(CHAIN);
+
+    expect(first.recorded).toBe(0);
+    expect(second.recorded).toBe(0);
+    expect(sink.calls).toEqual([]);
+  });
+
+  test("ignores a transaction older than the lookback window", async () => {
+    const { indexer, settlements, sink, txHash } = await farBehind();
+    settlements.expectTransaction(CHAIN, txHash, new Date(NOW.getTime() - 8 * 24 * 60 * 60_000));
+
+    await indexer.tick(CHAIN);
+
+    expect(sink.calls).toEqual([]);
+  });
+});
