@@ -43,6 +43,7 @@ import {
   type StablecoinRegistry,
 } from "@mayarin/stablecoin";
 import { z } from "zod";
+import { badChecksumAddresses } from "./address-check.ts";
 import type { Config } from "./config.ts";
 import { createQuoteLayer, type QuoteLayer } from "./quote-layer.ts";
 
@@ -135,7 +136,14 @@ const chainlinkFeedsSchema = z.record(
     heartbeatSeconds: z.number().int().positive().optional(),
   }),
 );
-const uniswapPoolsSchema = z.record(z.string(), z.unknown());
+const uniswapPoolsSchema = z.record(z.string(), z.unknown()).superRefine((pools, context) => {
+  for (const address of badChecksumAddresses(pools)) {
+    context.addIssue({
+      code: "custom",
+      message: `${address} is not a valid checksum address; copy it from the token's explorer page`,
+    });
+  }
+});
 
 /**
  * When a payer wallet loses buyer protection (#314). Flagged once it has lost
