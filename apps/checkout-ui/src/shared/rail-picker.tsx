@@ -3,6 +3,9 @@ import { Dropdown } from "./dropdown.tsx";
 import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
 
+/** More rails than this and the list gets a search field. */
+const SEARCH_FROM = 8;
+
 /**
  * A rail is one valid asset + network pair, so it is selected as one thing.
  *
@@ -30,6 +33,7 @@ export function RailPicker({
     <Dropdown
       className={`mt-6 ${className}`}
       label="Pay with"
+      searchable={rails.length > SEARCH_FROM}
       value={railKey(current)}
       options={rails.map((rail) => ({
         value: railKey(rail),

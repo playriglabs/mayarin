@@ -26,6 +26,7 @@ export function Dropdown({
   onSelect,
   placeholder = "Choose",
   disabled = false,
+  searchable = false,
   className = "",
 }: {
   readonly label: string;
@@ -35,17 +36,32 @@ export function Dropdown({
   readonly onSelect: (value: string) => void;
   readonly placeholder?: string;
   readonly disabled?: boolean;
+  /** Adds a search field above the list, for a list too long to scan. */
+  readonly searchable?: boolean;
   readonly className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const current = options.find((option) => option.value === value);
+  const needle = query.trim().toLowerCase();
+  const shown =
+    needle === ""
+      ? options
+      : options.filter((option) =>
+          `${option.title} ${option.subtitle ?? ""}`.toLowerCase().includes(needle),
+        );
 
   // A floating list closes the way a menu does: a click outside, or Escape.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setQuery("");
+      return;
+    }
+    if (searchable) searchRef.current?.focus();
     function onPointerDown(event: PointerEvent) {
       if (!anchorRef.current?.contains(event.target as Node)) setOpen(false);
     }
@@ -60,7 +76,7 @@ export function Dropdown({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, searchable]);
 
   return (
     <div className={className}>
@@ -111,40 +127,62 @@ export function Dropdown({
           aria-hidden={!open}
           inert={!open}
         >
-          <div
-            className="max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-line bg-panel p-1 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)]"
-            role="radiogroup"
-            aria-labelledby={`${listId}-label`}
-          >
-            {options.map((option) => {
-              const checked = option.value === value;
-              return (
-                <label
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5 text-left text-ink transition-colors duration-150 hover:bg-field has-checked:bg-field has-focus-visible:outline-2 has-focus-visible:outline-brand"
-                  key={option.value}
-                >
-                  <input
-                    type="radio"
-                    className="sr-only"
-                    name={listId}
-                    checked={checked}
-                    onChange={() => {
-                      onSelect(option.value);
-                      setOpen(false);
-                      triggerRef.current?.focus();
-                    }}
-                  />
-                  {option.mark?.(26)}
-                  <OptionCopy option={option} />
-                  <span
-                    className={`size-3.5 shrink-0 rounded-full border ${
-                      checked ? "border-4 border-ink" : "border-line"
-                    }`}
-                    aria-hidden="true"
-                  />
-                </label>
-              );
-            })}
+          <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)]">
+            {searchable && (
+              <div className="border-b border-line p-2">
+                <input
+                  ref={searchRef}
+                  type="search"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Search asset or network"
+                  aria-label="Search asset or network"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className="w-full rounded-lg border border-line bg-field px-3 py-2 text-sm text-ink"
+                />
+              </div>
+            )}
+            <div
+              className="max-h-72 overflow-y-auto overscroll-contain p-1"
+              role="radiogroup"
+              aria-labelledby={`${listId}-label`}
+            >
+              {shown.length === 0 && (
+                <p className="m-0 px-3 py-3 text-sm text-muted">
+                  Nothing matches "{query.trim()}".
+                </p>
+              )}
+              {shown.map((option) => {
+                const checked = option.value === value;
+                return (
+                  <label
+                    className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5 text-left text-ink transition-colors duration-150 hover:bg-field has-checked:bg-field has-focus-visible:outline-2 has-focus-visible:outline-brand"
+                    key={option.value}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      name={listId}
+                      checked={checked}
+                      onChange={() => {
+                        onSelect(option.value);
+                        setOpen(false);
+                        triggerRef.current?.focus();
+                      }}
+                    />
+                    {option.mark?.(26)}
+                    <OptionCopy option={option} />
+                    <span
+                      className={`size-3.5 shrink-0 rounded-full border ${
+                        checked ? "border-4 border-ink" : "border-line"
+                      }`}
+                      aria-hidden="true"
+                    />
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
