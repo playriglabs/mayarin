@@ -11,6 +11,15 @@ import { type KMSClient, SignCommand, type SignCommandOutput } from "@aws-sdk/cl
 import { ProviderError } from "@mayarin/shared";
 import { type Hex, hexToBytes, recoverAddress } from "viem";
 
+/** KMS errors that no retry changes: the caller is not allowed, or the key cannot sign. */
+const PERMANENT_KMS_ERRORS: ReadonlySet<string> = new Set([
+  "AccessDeniedException",
+  "DisabledException",
+  "KeyUnavailableException",
+  "KMSInvalidStateException",
+  "NotFoundException",
+]);
+
 const CURVE_ORDER = BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
 const HALF_CURVE_ORDER = CURVE_ORDER / 2n;
 
@@ -41,10 +50,16 @@ export async function signDigestWithKms(options: {
       }),
     );
   } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    // A key this process may not use, or one that is disabled or gone, stays that
+    // way on the next pass. Retrying it parked a payment forever with the payer's
+    // asset already held; failing it says what to fix.
+    const permanent =
+      cause instanceof Error && PERMANENT_KMS_ERRORS.has((cause as { name?: string }).name ?? "");
     throw new ProviderError(
-      "AWS KMS signing failed",
-      { cause: cause instanceof Error ? cause.message : String(cause) },
-      { cause },
+      permanent ? `AWS KMS refused to sign with key ${keyId}: ${reason}` : "AWS KMS signing failed",
+      { cause: reason },
+      { cause, retryable: !permanent },
     );
   }
 

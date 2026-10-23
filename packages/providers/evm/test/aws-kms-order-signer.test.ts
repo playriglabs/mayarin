@@ -68,3 +68,35 @@ function der(r: bigint, s: bigint): Uint8Array {
   const body = [...integer(r), ...integer(s)];
   return Uint8Array.from([0x30, body.length, ...body]);
 }
+
+describe("a KMS refusal", () => {
+  const sign = (error: Error) => {
+    const client = {
+      send: async () => {
+        throw error;
+      },
+    } as unknown as KMSClient;
+    return new AwsKmsOrderSigner({
+      keyId: "alias/mayarin-quote-signer",
+      signerAddress: account.address,
+      client,
+    }).sign(typedData);
+  };
+
+  test("is permanent when the caller may not use the key, so the payment fails with the reason", async () => {
+    const denied = Object.assign(new Error("not authorized to perform: kms:Sign"), {
+      name: "AccessDeniedException",
+    });
+
+    await expect(sign(denied)).rejects.toMatchObject({
+      retryable: false,
+      message: expect.stringContaining("refused to sign with key alias/mayarin-quote-signer"),
+    });
+  });
+
+  test("stays retryable when KMS is merely unavailable", async () => {
+    const throttled = Object.assign(new Error("Rate exceeded"), { name: "ThrottlingException" });
+
+    await expect(sign(throttled)).rejects.toMatchObject({ retryable: true });
+  });
+});
