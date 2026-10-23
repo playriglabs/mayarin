@@ -226,6 +226,8 @@ export interface ClearingProgress {
   readonly transaction: ClearingTransaction;
   /** True when the engine stopped because it is waiting on the outside world. */
   readonly waiting: boolean;
+  /** Why a recovery pass left this payment where it was, when a retryable error did. */
+  readonly retryableFailure?: string;
 }
 
 export class ClearingEngine {
@@ -334,7 +336,12 @@ export class ClearingEngine {
         // (see `#advance`), and one payment that cannot move yet must not stop the
         // others, nor take down the process that asked: a process with no treasury
         // executor met a payment that needed one and exited at boot.
-        if (isMayarinError(error) && error.retryable) continue;
+        if (isMayarinError(error) && error.retryable) {
+          // Reported rather than dropped: a payment that fails the same way on
+          // every pass is otherwise indistinguishable from one that is waiting.
+          results.push({ transaction, waiting: true, retryableFailure: error.message });
+          continue;
+        }
         throw error;
       }
     }

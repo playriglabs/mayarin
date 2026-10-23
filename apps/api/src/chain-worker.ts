@@ -64,6 +64,13 @@ const resumeTimer = setInterval(() => {
       if (resumed.length > 0) {
         console.log(`[chain-worker] resumed ${resumed.length} clearing transaction(s)`);
       }
+      for (const progress of resumed) {
+        if (progress.retryableFailure !== undefined) {
+          console.warn(
+            `[chain-worker] ${progress.transaction.id} not advanced: ${progress.retryableFailure}`,
+          );
+        }
+      }
     })
     .catch((error: unknown) => console.error("[chain-worker] resume pass failed", error))
     .finally(() => {
