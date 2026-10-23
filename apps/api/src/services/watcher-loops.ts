@@ -11,7 +11,11 @@ interface WatcherPort {
 }
 
 interface IndexerPort {
-  tick(chain: ChainId): Promise<{ readonly headNumber: bigint; readonly scannedTo: bigint }>;
+  tick(chain: ChainId): Promise<{
+    readonly headNumber: bigint;
+    readonly scannedTo: bigint;
+    readonly receiptError?: string;
+  }>;
 }
 
 interface WatcherLogger {
