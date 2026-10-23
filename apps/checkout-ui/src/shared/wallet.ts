@@ -19,6 +19,14 @@ function provider(): Eip1193 {
   return injected;
 }
 
+/** Whether this browser has a wallet to ask: false on a phone paying from another app, and on a server render. */
+export function hasWallet(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { ethereum?: Eip1193 }).ethereum !== undefined
+  );
+}
+
 /** Asks the wallet for the payer's address. */
 export async function connectWallet(): Promise<string> {
   const accounts = (await provider().request({ method: "eth_requestAccounts" })) as string[];

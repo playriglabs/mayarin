@@ -23,6 +23,7 @@ import { holdDuration, railBody } from "../shared/buyer-protection.tsx";
 import { RailPicker } from "../shared/rail-picker.tsx";
 import { ReturnAddressField } from "../shared/return-address.tsx";
 import type { MoneyDto } from "../shared/types.ts";
+import { hasWallet } from "../shared/wallet.ts";
 
 function idr(display: string): MoneyDto {
   return { amount: "0", asset: "IDR", formatted: "0.00", display };
@@ -661,11 +662,27 @@ describe("the rail picker", () => {
 });
 
 describe("the return address field", () => {
-  test("offers the connected wallet as the address, and says the field is optional", () => {
+  test("says the field is optional, and offers no wallet button before the browser is asked", () => {
     const html = renderToStaticMarkup(<ReturnAddressField value="" onChange={() => {}} />);
 
-    expect(html).toContain("Use my wallet");
     expect(html).toContain("optional");
+    // Whether there is a wallet is read after mount, so the first render shows none.
+    expect(html).not.toContain("Use my wallet");
+  });
+
+  test("a browser has a wallet only when one injected itself", () => {
+    const scope = globalThis as unknown as { window?: unknown };
+    const before = scope.window;
+    try {
+      scope.window = {};
+      expect(hasWallet()).toBe(false);
+      scope.window = { ethereum: { request: async () => [] } };
+      expect(hasWallet()).toBe(true);
+      scope.window = undefined;
+      expect(hasWallet()).toBe(false);
+    } finally {
+      scope.window = before;
+    }
   });
 
   test("warns about an address that is not a 0x address", () => {

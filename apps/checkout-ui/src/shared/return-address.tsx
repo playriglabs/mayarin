@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { errorText } from "./ui.ts";
-import { connectWallet } from "./wallet.ts";
+import { connectWallet, hasWallet } from "./wallet.ts";
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -31,6 +31,15 @@ export function ReturnAddressField({
 }) {
   const invalid = value.trim() !== "" && validReturnAddress(value) === null;
   const [walletError, setWalletError] = useState("");
+  // Read after mount, not while rendering: the page is rendered before an extension has
+  // always injected itself, and a wallet that announces late says so with this event.
+  const [walletAvailable, setWalletAvailable] = useState(false);
+  useEffect(() => {
+    setWalletAvailable(hasWallet());
+    const onInitialized = () => setWalletAvailable(hasWallet());
+    window.addEventListener("ethereum#initialized", onInitialized, { once: true });
+    return () => window.removeEventListener("ethereum#initialized", onInitialized);
+  }, []);
 
   async function fillFromWallet() {
     setWalletError("");
@@ -76,13 +85,15 @@ export function ReturnAddressField({
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-line bg-panel px-3 py-2.5 text-sm text-ink"
       />
-      <button
-        type="button"
-        className="mt-2 border-0 bg-transparent p-0 text-xs text-muted underline hover:text-ink"
-        onClick={() => void fillFromWallet()}
-      >
-        Use my wallet
-      </button>
+      {walletAvailable && (
+        <button
+          type="button"
+          className="mt-2 border-0 bg-transparent p-0 text-xs text-muted underline hover:text-ink"
+          onClick={() => void fillFromWallet()}
+        >
+          Use my wallet
+        </button>
+      )}
       {walletError !== "" && (
         <p className={errorText} role="alert">
           {walletError}
