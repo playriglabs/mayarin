@@ -89,6 +89,7 @@ import {
   type MerchantAssetPolicySource,
   PaymentIntentService,
   type RailCatalog,
+  type RailPricingSource,
   settlementAssetOnChain,
 } from "@mayarin/payment-intent";
 import {
@@ -262,6 +263,8 @@ export interface Container {
    * Arc was offered ETH, which does not exist there.
    */
   readonly rails: RailCatalog;
+  /** The source that decides whether a rail is offered; the dashboard asks it through `/v1/rails/priceable`. */
+  readonly railPricing: RailPricingSource;
   /**
    * Prices every rail ahead of anyone asking, so the first buyer after a restart (or after
    * the answers aged out) does not wait for it. Absent where there is no pricing to warm.
@@ -1641,6 +1644,7 @@ export function createContainer({
     merchantPolicies,
     merchants,
     rails: railCatalog,
+    railPricing,
     warmRailPricing: () => {
       const settlements = new Set<AssetCode>([
         config.settlementAsset,

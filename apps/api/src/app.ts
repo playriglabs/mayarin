@@ -33,6 +33,7 @@ import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
+import { railPricingRoutes } from "./routes/rail-pricing.ts";
 import { riskRoutes } from "./routes/risk.ts";
 import { subscriptionRoutes } from "./routes/subscriptions.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
@@ -143,6 +144,8 @@ export function createApp(container: Container): Hono {
   // Indicative pricing, for a counter showing a payer what each accepted asset
   // would take. Locks nothing and records nothing (#15).
   v1.route("/quotes", quoteRoutes(container));
+  // Whether a rail prices, as checkout decides it; the dashboard's rail status asks this.
+  v1.route("/rails", railPricingRoutes(container));
   v1.route("/webhooks", webhookRoutes(container));
   // x402 resources, merchant-scoped (#208). The unversioned `/x402` surface is
   // for agents and facilitators; this one is for the merchant who owns them.

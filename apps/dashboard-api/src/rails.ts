@@ -120,28 +120,16 @@ export class PaymentApiPricingSource implements RailPricingSource {
     settlementAsset: AssetCode,
   ): Promise<{ readonly value: boolean; readonly keep: boolean }> {
     try {
-      // Probed in **fiat**, not in the settlement asset. `POST /v1/quotes`
-      // prices a merchant's own currency into what the payer sends, so a
-      // stablecoin price makes it refuse every non-stablecoin rail with "the
-      // fiat leg needs a fiat price" — which would silently delete the ETH rail
-      // from a deployment that offers it. One dollar is a fiat unit every
-      // deployment can read, and the leg it exercises is the rail's.
-      //
-      // With the chain, because the payment API prices a swap leg against the
-      // pool that lives there. Asked chain-less the venue sees one pair across
-      // every configured chain — a pair with pools on two of them is refused
-      // outright, and a testnet pair allowed to self-reference is not, because
-      // the bypass is chain-scoped by design.
-      const view = await this.#payments.quote(
-        { amount: "1", asset: "USD" },
-        [payerAsset],
+      // Asks the payment API's own checkout source, not a quote. A quote prices one
+      // dollar; checkout prices one whole unit of the payer's asset through the pools
+      // and drops the rail when the price strays from the reference. Probing
+      // differently showed "accepting" here for a rail the payer never saw.
+      const value = await this.#payments.railPriceable({
         chain,
+        asset: payerAsset,
         settlementAsset,
-      );
-      return {
-        value: view.quotes.some((line) => line.asset === payerAsset && line.available),
-        keep: true,
-      };
+      });
+      return { value, keep: true };
     } catch {
       // The payment API being unreachable is not evidence that a pair cannot be
       // priced, but it is evidence that nothing can be paid right now — and the

@@ -83,6 +83,10 @@ export interface ApiHarnessOptions {
   readonly behaviour?: MockBehaviour;
   readonly assetReceiptMode?: Config["assetReceiptMode"];
   readonly adminToken?: string;
+  /** The dashboard API's shared secret; unset, no internal call is accepted. */
+  readonly internalApiToken?: string;
+  /** What the checkout pricing source answers; defaults to every rail priceable. */
+  readonly priceable?: (rail: { chain: string; asset: string; settlementAsset: string }) => boolean;
   readonly adminAllowedHosts?: string;
   readonly allowedHosts?: string;
   readonly rateLimitRequests?: number;
@@ -112,6 +116,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     // (#151) without needing a Vite build of apps/checkout-ui.
     CHECKOUT_UI_DIST: fileURLToPath(new URL("./fixtures/checkout-ui", import.meta.url)),
     ...(options.adminToken === undefined ? {} : { ADMIN_TOKEN: options.adminToken }),
+    ...(options.internalApiToken === undefined
+      ? {}
+      : { INTERNAL_API_TOKEN: options.internalApiToken }),
     ...(options.adminAllowedHosts === undefined
       ? {}
       : { ADMIN_ALLOWED_HOSTS: options.adminAllowedHosts }),
@@ -328,6 +335,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     merchantPolicies,
     merchants: new InMemoryMerchantRepository(),
     rails,
+    railPricing: { canPrice: async (rail) => options.priceable?.(rail) ?? true },
     catalog: new CatalogService({ products, links, clock }),
     commerce,
     invoices,
