@@ -22,7 +22,6 @@ import {
   type AssetCode,
   assetCodeSchema,
   ConfigurationError,
-  fromDecimalString,
   getAsset,
   isAssetCode,
   isTokenizedCrypto,
@@ -61,16 +60,6 @@ const configSchema = z.object({
   settlementAsset: assetCodeSchema.default("USDC"),
   /** Admissible settlement set, JSON array of AssetCode. Defaults to USDC only. */
   settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["USDC"]'),
-  feeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(50),
-  /**
-   * Floor under the Mayarin fee, in whole units of the settlement asset
-   * (`"0.10"`). The rate is a percentage and gas is not, so without a floor a
-   * small payment costs more to execute than it earns. `"0"` is no floor.
-   */
-  feeMinimum: z
-    .string()
-    .regex(/^\d+(\.\d{1,2})?$/, "must be a decimal amount with at most two decimals")
-    .default("0"),
   /** Successful relayed PaymentRouter calls reimburse gas from settlement. */
   relayerGasFeeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(10),
   /**
@@ -146,22 +135,6 @@ const configSchema = z.object({
   emailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
   /** The dashboard's origin, for the link in that email. Unset: the email names the page. */
   dashboardUrl: z.string().url("DASHBOARD_URL must be a URL").optional(),
-  /**
-   * The most one payment may settle for, per settlement asset, in whole units:
-   * `{"USDC":"500"}`. A payment that prices above it fails at the lock. Required
-   * as soon as a mainnet chain is configured, so the first live payment cannot
-   * be unbounded by omission.
-   */
-  maxPaymentSettlement: jsonObject<Record<string, string>>("MAX_PAYMENT_SETTLEMENT", "{}"),
-  /**
-   * The most one merchant may be priced for in a rolling 24 hours, per settlement
-   * asset, whole units: `{"USDC":"2000"}`. Counts payments still waiting to be
-   * paid. Optional; not atomic across payments locking in the same instant.
-   */
-  maxMerchantDailySettlement: jsonObject<Record<string, string>>(
-    "MAX_MERCHANT_DAILY_SETTLEMENT",
-    "{}",
-  ),
   /**
    * Encrypts webhook signing secrets at rest (SEC-12). Must be the same value on
    * the payment API and the dashboard API, which both read endpoints. Unset: the
@@ -1251,29 +1224,7 @@ export function isMainnetDeployment(
 
 function assertPaymentLimit(data: RawConfig, role: ConfigRole): void {
   const issues: string[] = [];
-  const limits = {
-    MAX_PAYMENT_SETTLEMENT: data.maxPaymentSettlement,
-    MAX_MERCHANT_DAILY_SETTLEMENT: data.maxMerchantDailySettlement,
-  };
-  for (const [name, limit] of Object.entries(limits)) {
-    for (const [asset, value] of Object.entries(limit)) {
-      if (!isAssetCode(asset)) {
-        issues.push(`${name} names an unknown asset "${asset}"`);
-        continue;
-      }
-      try {
-        if (fromDecimalString(value, asset).amount <= 0n) throw new Error("not positive");
-      } catch {
-        issues.push(`${name} ${asset} must be a positive decimal, got "${value}"`);
-      }
-    }
-  }
   const onMainnet = isMainnetDeployment(data);
-  if (onMainnet && Object.keys(data.maxPaymentSettlement).length === 0) {
-    issues.push(
-      "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
-    );
-  }
   for (const [chain, value] of Object.entries(data.relayerGasFeeMinimums)) {
     if (!isChainId(chain)) {
       issues.push(`RELAYER_GAS_FEE_MINIMUMS names an unknown chain "${chain}"`);
@@ -1463,8 +1414,6 @@ export function loadConfig(
     databaseUrl: env.DATABASE_URL,
     settlementAsset: env.SETTLEMENT_ASSET,
     settlementAssets: env.SETTLEMENT_ASSETS,
-    feeBasisPoints: env.FEE_BASIS_POINTS,
-    feeMinimum: env.FEE_MINIMUM,
     relayerGasFeeBasisPoints: env.RELAYER_GAS_FEE_BASIS_POINTS,
     relayerGasFeeMinimums: env.RELAYER_GAS_FEE_MINIMUMS,
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
@@ -1472,8 +1421,6 @@ export function loadConfig(
     assetReceiptMode: env.ASSET_RECEIPT_MODE,
     executionPath: env.EXECUTION_PATH,
     exchangeRates: env.EXCHANGE_RATES,
-    maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
-    maxMerchantDailySettlement: env.MAX_MERCHANT_DAILY_SETTLEMENT,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
     webhookSecretPreviousKeys: env.WEBHOOK_SECRET_PREVIOUS_KEYS,
     payerTokenKey: env.PAYER_TOKEN_KEY,
@@ -1609,19 +1556,6 @@ export function loadConfig(
     throw new ConfigurationError("Invalid environment configuration", {
       issues: result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
     });
-  }
-
-  if (
-    result.data.treasuryExecutionEnabled &&
-    result.data.feeBasisPoints + result.data.relayerGasFeeBasisPoints >= 10_000
-  ) {
-    throw new ConfigurationError(
-      "FEE_BASIS_POINTS + RELAYER_GAS_FEE_BASIS_POINTS must leave a positive merchant payout",
-      {
-        feeBasisPoints: result.data.feeBasisPoints,
-        relayerGasFeeBasisPoints: result.data.relayerGasFeeBasisPoints,
-      },
-    );
   }
 
   const stablecoins = resolveStablecoins(result.data);

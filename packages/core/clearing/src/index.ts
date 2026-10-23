@@ -11,6 +11,7 @@ export * from "./refund-service.ts";
 export * from "./repository.ts";
 export * from "./settlement-path.ts";
 export * from "./state-machine.ts";
+export * from "./terms.ts";
 export * from "./transaction.ts";
 export * from "./treasury.ts";
 export * from "./types.ts";

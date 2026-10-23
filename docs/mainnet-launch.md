@@ -27,7 +27,6 @@ quiet gap. Set all of them on the payment API:
 
 | Variable                        | What it does                                                                                                                                                               |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MAX_PAYMENT_SETTLEMENT`        | Largest single payment per settlement asset. Required with any mainnet chain.                                                                                              |
 | `WEBHOOK_SECRET_ENCRYPTION_KEY` | Encrypts webhook signing secrets in the database. Required with any mainnet chain. Same value on the dashboard API.                                                        |
 | `WEBHOOK_SECRET_PREVIOUS_KEYS`  | Only during a key rotation: the old key, so rows sealed under it still open. Set the new key above, run `bun run db:rotate-webhook-secrets`, then empty this on both APIs. |
 | `PAYER_TOKEN_KEY`               | Signs the payer's link token (SEC-09). Required with any mainnet chain. Same value on the dashboard API. Rotating it revokes every payer link: that is the incident lever. |
@@ -39,7 +38,6 @@ quiet gap. Set all of them on the payment API:
 
 Optional but part of the launch posture:
 
-- `MAX_MERCHANT_DAILY_SETTLEMENT`: rolling 24-hour ceiling per merchant and asset.
 - `OPERATOR_FLOAT_LIMITS`: makes the chain worker log a JSON line when the operator
   holds more than its ceiling or less gas than its floor (#423). It does not sweep.
 - `ALLOWED_HOSTS`: the public hostnames; any other `Host` is a 404. `/health` is exempt.
@@ -319,7 +317,8 @@ and a case in `deploy.sh`.
 
 ## 9. Launch posture
 
-- Start with small `MAX_PAYMENT_SETTLEMENT` and `MAX_MERCHANT_DAILY_SETTLEMENT`
+- Start with small per-merchant limits (`max_payment_settlement` 1000 and
+  `max_daily_settlement` 2000 by default, changed at `PUT /v1/admin/merchants/:id/terms`)
   and raise them only after reconciliation (`refund-discrepancy`, ledger balance)
   has been clean for a while.
 - Few merchants, known to you, at first.

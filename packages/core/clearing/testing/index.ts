@@ -22,6 +22,8 @@ import type {
   ContractOrder,
   ContractPaymentPlanner,
   ContractRenewRequest,
+  MerchantTerms,
+  MerchantTermsRepository,
   OraclePrice,
   PriceOracle,
   Refund,
@@ -321,5 +323,29 @@ export class InMemoryRefundRepository implements RefundRepository {
     return [...this.#byId.values()]
       .filter((refund) => refund.clearingTransactionId === clearingTransactionId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+}
+
+/** Reference in-memory merchant terms: one set for every merchant unless one is given. */
+export class InMemoryMerchantTerms implements MerchantTermsRepository {
+  readonly #byMerchant = new Map<string, MerchantTerms>();
+  readonly #fallback: MerchantTerms;
+
+  constructor(fallback: Partial<MerchantTerms> = {}) {
+    this.#fallback = {
+      feeBasisPoints: 50,
+      feeMinimum: "0",
+      maxPaymentSettlement: "1000000000",
+      maxDailySettlement: "1000000000",
+      ...fallback,
+    };
+  }
+
+  async set(merchantId: string, terms: MerchantTerms): Promise<void> {
+    this.#byMerchant.set(merchantId, terms);
+  }
+
+  async get(merchantId: string): Promise<MerchantTerms> {
+    return this.#byMerchant.get(merchantId) ?? this.#fallback;
   }
 }

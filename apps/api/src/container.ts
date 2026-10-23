@@ -26,6 +26,7 @@ import {
   ClearingEngine,
   DepositReturnService,
   LiquidityRouter,
+  type MerchantTermsRepository,
   type RateProvider,
   RefundService,
   type TreasuryExecutionPort,
@@ -49,6 +50,7 @@ import {
   DrizzleMarketConfigRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
+  DrizzleMerchantTermsRepository,
   DrizzleMerchantWalletRepository,
   DrizzleOperatorTransactionStore,
   DrizzlePayableQuoteRepository,
@@ -255,6 +257,8 @@ export interface Container {
   readonly merchantPolicies: MerchantAssetPolicySource;
   /** Merchant records, read for the logo an invoice or receipt PDF carries. */
   readonly merchants: MerchantRepository;
+  /** Each merchant's fee and ceilings; the admin API edits them. */
+  readonly merchantTerms: MerchantTermsRepository;
   /**
    * Which `(chain, asset)` pairs a payer can actually be paid on (#244).
    *
@@ -381,16 +385,6 @@ export interface CreateContainerOptions {
  * answer to a request for a resource this deployment cannot settle is that it
  * does not serve one.
  */
-/** `{"USDC":"500"}` in whole units, as the engine takes it: minor units per asset. */
-function minorLimits(limits: Readonly<Record<string, string>>): Partial<Record<AssetCode, bigint>> {
-  return Object.fromEntries(
-    Object.entries(limits).map(([asset, value]) => [
-      asset,
-      fromDecimalString(value, asset as AssetCode).amount,
-    ]),
-  );
-}
-
 /** The routers the cross-asset settler may approve and call, per chain (SEC-17). */
 function allowedSwapRouters(config: Config): Partial<Record<ChainId, readonly string[]>> {
   const allowed: Partial<Record<ChainId, string[]>> = {};
@@ -890,6 +884,7 @@ export function createContainer({
         };
 
   const merchants = new DrizzleMerchantRepository(handle.db);
+  const merchantTerms = new DrizzleMerchantTermsRepository(handle.db);
   const merchantPolicies = new DrizzleMerchantAssetPolicySource(merchants);
 
   const disputes = new DrizzleEscrowDisputeRepository(handle.db);
@@ -1009,7 +1004,6 @@ export function createContainer({
     }),
   ]);
 
-  const fees = new BasisPointsFeePolicy(config.feeBasisPoints, config.feeMinimum);
   const relayerGasFees = new BasisPointsFeePolicy(config.relayerGasFeeBasisPoints);
 
   // `resolveContract` guarantees the quote layer is configured when the
@@ -1081,7 +1075,7 @@ export function createContainer({
       ? new ApiContractPlanner({
           contract: config.contract,
           quote: resolveQuote,
-          fees,
+          terms: merchantTerms,
           relayerGasFees,
           relayerGasFeeMinimums: config.relayerGasFeeMinimums,
           stablecoins: registry,
@@ -1162,12 +1156,10 @@ export function createContainer({
     ledger,
     adapters,
     rates,
-    fees,
+    terms: merchantTerms,
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
-    maxPaymentSettlement: minorLimits(config.maxPaymentSettlement),
-    maxMerchantDailySettlement: minorLimits(config.maxMerchantDailySettlement),
     ...(depositAddresses === undefined ? {} : { depositAddresses }),
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
     ...(contractPlanner === undefined ? {} : { contractPlanner }),
@@ -1667,6 +1659,7 @@ export function createContainer({
     market,
     merchantPolicies,
     merchants,
+    merchantTerms,
     rails: railCatalog,
     railPricing,
     warmRailPricing: () => {

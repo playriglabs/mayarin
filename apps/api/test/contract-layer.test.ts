@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { BasisPointsFeePolicy } from "@mayarin/clearing";
-import { FixedPriceOracle } from "@mayarin/clearing/testing";
+import { FixedPriceOracle, InMemoryMerchantTerms } from "@mayarin/clearing/testing";
 import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
 import { ESCROW_FACTORY_V2, escrowAddress } from "@mayarin/provider-evm";
@@ -95,7 +95,7 @@ function createPlanner(
       },
     },
     quote: async () => quote,
-    fees: new BasisPointsFeePolicy(50, feeMinimum),
+    terms: new InMemoryMerchantTerms({ feeMinimum }),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
     relayerGasFeeMinimums,
     stablecoins: new InMemoryStablecoinRegistry([

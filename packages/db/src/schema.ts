@@ -414,6 +414,14 @@ export const merchants = pgTable(
       arbiter?: string;
       bondBps?: number;
     }>(),
+    /** Fee on each payment, in basis points. Read at every price lock, so an edit reaches the next payment. */
+    feeBasisPoints: integer("fee_basis_points").notNull().default(50),
+    /** Floor under that fee, whole units of the settlement asset. */
+    feeMinimum: text("fee_minimum").notNull().default("0.10"),
+    /** The most one payment may settle for, whole units of the settlement asset. */
+    maxPaymentSettlement: text("max_payment_settlement").notNull().default("1000"),
+    /** The most the merchant may be priced for in a rolling 24 hours, whole units. */
+    maxDailySettlement: text("max_daily_settlement").notNull().default("2000"),
     /** Merchant profile, frozen into every intent's snapshot. */
     city: text("city"),
     /** ISO 3166-1 alpha-2, uppercase. */

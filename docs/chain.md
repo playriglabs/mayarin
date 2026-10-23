@@ -808,7 +808,7 @@ execution, USDC out:
 WBTC is the exception: its 0.05% pool is shallow and quotes about 0.25% under the
 0.3% pool at this size. Polygon's pools are thin next to Base's (WPOL/USDC about
 $0.2 million, WETH/USDC and WBTC/USDC under $0.7 million), so a payment there should
-carry a ceiling (`MAX_PAYMENT_SETTLEMENT`) until the depth is watched in use.
+carry a ceiling (the merchant's `max_payment_settlement`) until the depth is watched in use.
 
 **Configured now: the native payer assets.** `CHAIN_NATIVE_ASSETS` names ETH on Base
 and POL on Polygon, `UNISWAP_POOLS` carries `base:ETH/USDC` and `polygon:POL/USDC`

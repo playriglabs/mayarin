@@ -7,6 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { BasisPointsFeePolicy } from "@mayarin/clearing";
 import {
   activePreviousSecret,
   assertWebhookUrl,
@@ -169,6 +170,38 @@ export function adminRoutes(container: Container, token: string): Hono {
     await container.market.put(key, body.value);
 
     return c.json({ key, updated: true });
+  });
+
+  /** A merchant's fee and ceilings. */
+  app.get("/merchants/:id/terms", async (c) => {
+    return c.json(await container.merchantTerms.get(c.req.param("id")));
+  });
+
+  /**
+   * Changes any of a merchant's fee and ceilings; what the body leaves out is kept.
+   * Amounts are whole units of the settlement asset, as strings. The next price lock
+   * reads them, so a payment already locked keeps the terms it was priced with.
+   */
+  app.put("/merchants/:id/terms", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const terms = { ...(await container.merchantTerms.get(id)), ...body };
+    // Constructing the policy is the fee check: it throws on bad basis points or minimum.
+    new BasisPointsFeePolicy(terms.feeBasisPoints, terms.feeMinimum);
+    for (const field of ["maxPaymentSettlement", "maxDailySettlement"] as const) {
+      const value = terms[field];
+      if (typeof value !== "string" || !/^\d+(\.\d+)?$/.test(value) || Number(value) <= 0) {
+        throw new ValidationError(`${field} must be a positive decimal string`, { field });
+      }
+    }
+    const next = {
+      feeBasisPoints: terms.feeBasisPoints,
+      feeMinimum: terms.feeMinimum,
+      maxPaymentSettlement: terms.maxPaymentSettlement,
+      maxDailySettlement: terms.maxDailySettlement,
+    };
+    await container.merchantTerms.set(id, next);
+    return c.json(next);
   });
 
   /**

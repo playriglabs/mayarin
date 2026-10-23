@@ -26,7 +26,9 @@ import type {
   ContractPaymentPlanner,
   ContractRenewRequest,
   FeePolicy,
+  MerchantTermsRepository,
 } from "@mayarin/clearing";
+import { feeUnder } from "@mayarin/clearing";
 import {
   type ExecutableRoute,
   FallbackRouteSource,
@@ -110,7 +112,8 @@ export interface ContractLayerOptions {
    * cached layer and rebuilds it only when the market config version moves.
    */
   readonly quote: () => Promise<QuoteLayer>;
-  readonly fees: FeePolicy;
+  /** The merchant's protocol fee, read per lock. */
+  readonly terms: MerchantTermsRepository;
   /** Reimburses successful relayed submissions; payer-submitted calls skip it. */
   readonly relayerGasFees: FeePolicy;
   /**
@@ -181,7 +184,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
   }
 
   async lock(request: ContractLockRequest): Promise<ContractLock> {
-    const { contract, fees, stablecoins, merchantPolicies, clock } = this.#options;
+    const { contract, terms, stablecoins, merchantPolicies, clock } = this.#options;
     const quote = await this.#options.quote();
 
     const configured = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
@@ -241,10 +244,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     });
 
     const settlementAmount = fiat.settlement.settlementAmount;
-    const protocolFee = fees.feeFor(settlementAmount, {
-      merchantId: request.merchantId,
-      provider: "payment-router",
-    });
+    const protocolFee = feeUnder(await terms.get(request.merchantId), settlementAmount);
     const gasFee =
       request.submission === "relayer"
         ? this.#relayerGasFee(request.chain, settlementAmount, request.merchantId)
