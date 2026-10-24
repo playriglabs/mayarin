@@ -275,6 +275,11 @@ export class WalletService {
     };
   }
 
+  /** Whether this deployment can create and move a managed wallet at all. */
+  get canProvision(): boolean {
+    return this.#walletProvider !== undefined;
+  }
+
   /**
    * Moves settlement out of the merchant's managed wallet.
    *

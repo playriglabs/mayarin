@@ -137,6 +137,8 @@ export interface DashboardHarnessOptions {
   /** Withdrawal controls (SEC-16); absent means none, as in the service default. */
   readonly withdrawCoolingOffSeconds?: number;
   readonly withdrawDailyLimit?: bigint;
+  /** A deployment with no wallet provider, as mainnet is until Turnkey is configured. */
+  readonly withoutWalletProvider?: boolean;
   readonly rateLimitRequests?: number;
   readonly rateLimitBlockSeconds?: number;
   readonly loginRateLimitRequests?: number;
@@ -287,7 +289,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
       : { withdrawDailyLimit: options.withdrawDailyLimit }),
     settlementAddresses: settlementAddressResolver,
     balances: walletBalances,
-    walletProvider,
+    ...(options.withoutWalletProvider === true ? {} : { walletProvider }),
     nativeAssets: { "base-sepolia": "ETH" },
     keyProvider: merchantKeyProvider,
     provisioner: new ManagedWalletProvisioner({

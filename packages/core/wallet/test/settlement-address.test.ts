@@ -188,3 +188,69 @@ describe("resolve", () => {
     );
   });
 });
+
+describe("a verified EVM wallet covers every EVM chain", () => {
+  const OWN = "0x1111111111111111111111111111111111111111";
+  const OTHER = "0x4444444444444444444444444444444444444444";
+  const onBase = (overrides: Partial<MerchantWallet> = {}) =>
+    linked({ id: "wlt_base", chain: "base", address: OWN, ...overrides });
+
+  test("connected once on Base, it is where the merchant is paid on Polygon too", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(onBase());
+
+    for (const chain of ["base", "polygon", "bsc", "arbitrum"] as const) {
+      expect(await resolver.effective(MERCHANT, chain, undefined)).toBe(OWN);
+    }
+  });
+
+  test("the same address connected on two chains is still one answer", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(onBase());
+    await wallets.insert(onBase({ id: "wlt_polygon", chain: "polygon" }));
+
+    expect(await resolver.effective(MERCHANT, "arbitrum", undefined)).toBe(OWN);
+  });
+
+  test("two different addresses on different chains is left to the merchant", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(onBase());
+    await wallets.insert(onBase({ id: "wlt_polygon", chain: "polygon", address: OTHER }));
+
+    // Each keeps its own chain, and a chain with neither is not guessed.
+    expect(await resolver.effective(MERCHANT, "base", undefined)).toBe(OWN);
+    expect(await resolver.effective(MERCHANT, "polygon", undefined)).toBe(OTHER);
+    expect(await resolver.effective(MERCHANT, "arbitrum", undefined)).toBeUndefined();
+  });
+
+  test("an EVM wallet is not a Solana destination", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(onBase());
+
+    expect(await resolver.effective(MERCHANT, "solana-devnet", undefined)).toBeUndefined();
+  });
+
+  test("an unverified wallet is not a destination anywhere", async () => {
+    const { wallets, resolver } = setup();
+    const { verifiedAt: _unverified, ...claimed } = onBase();
+    await wallets.insert(claimed);
+
+    expect(await resolver.effective(MERCHANT, "polygon", undefined)).toBeUndefined();
+  });
+
+  test("on the managed path a network without the Safe stays unset, not paid to the owner", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(onBase());
+    await wallets.insert(managed({ chain: "base" }));
+
+    expect(await resolver.effective(MERCHANT, "base", undefined)).toBe(MANAGED);
+    expect(await resolver.effective(MERCHANT, "polygon", undefined)).toBeUndefined();
+  });
+
+  test("a provisioned Safe on Base is not borrowed by other chains", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(managed({ chain: "base" }));
+
+    expect(await resolver.effective(MERCHANT, "polygon", undefined)).toBeUndefined();
+  });
+});

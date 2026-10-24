@@ -85,6 +85,25 @@ describe("linking", () => {
     expect(res.body?.connectChains).toEqual(["base-sepolia", "arc-testnet"]);
   });
 
+  test("offers managed wallets only where there is a provider to create them", async () => {
+    const withProvider = await seed();
+    const withAuth = await loginAs(withProvider, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const offered = await withProvider.request("GET", "/v1/wallets", { cookies: withAuth.jar });
+    expect(offered.body?.chains).toEqual(["base-sepolia", "arc-testnet"]);
+
+    const without = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      withoutWalletProvider: true,
+    });
+    const auth = await loginAs(without, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const none = await without.request("GET", "/v1/wallets", { cookies: auth.jar });
+    expect(none.body?.chains).toEqual([]);
+    // Connecting an address you own does not need a provider, so its chain still comes back.
+    expect(none.body?.chain).toBe("base-sepolia");
+    expect(none.body?.connectChains).toEqual(["base-sepolia", "arc-testnet"]);
+  });
+
   test("a linked wallet starts unverified", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
