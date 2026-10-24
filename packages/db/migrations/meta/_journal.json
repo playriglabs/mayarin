@@ -484,6 +484,13 @@
       "when": 1793200000000,
       "tag": "0068_merchant_fee_minimum_default",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793290000000,
+      "tag": "0069_merchant_fee_minimum_rp1500",
+      "breakpoints": true
     }
   ]
 }
