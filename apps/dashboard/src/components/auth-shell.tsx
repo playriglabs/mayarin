@@ -61,7 +61,7 @@ export function AuthCard({ children }: { readonly children: ReactNode }) {
           </span>
         </a>
       </div>
-      <div className="flex flex-1 flex-col justify-center gap-6 bg-background px-6 py-10 sm:contents">
+      <div className="flex flex-1 flex-col gap-6 bg-background px-6 pt-6 pb-10 sm:contents">
         {children}
       </div>
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
