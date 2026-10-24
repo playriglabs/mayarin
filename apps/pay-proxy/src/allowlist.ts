@@ -85,8 +85,13 @@ const RULES: readonly Rule[] = [
   { method: "POST", match: segments("/v1/payments/:id/escrow/dispute/messages") },
 ];
 
-/** Whether the pay host should forward a request, or answer 404 itself. */
+/**
+ * Whether the pay host should forward a request, or answer 404 itself.
+ * HEAD matches the GET rules, so an uptime monitor (which sends HEAD) sees the
+ * same answer a buyer's browser does.
+ */
 export function allowed(method: string, pathname: string): boolean {
   const upper = method.toUpperCase();
-  return RULES.some((rule) => rule.method === upper && rule.match(pathname));
+  const ruleMethod = upper === "HEAD" ? "GET" : upper;
+  return RULES.some((rule) => rule.method === ruleMethod && rule.match(pathname));
 }
