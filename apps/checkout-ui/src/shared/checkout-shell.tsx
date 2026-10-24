@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { LanguageSwitcher, useT } from "../i18n/index.tsx";
+import { useT } from "../i18n/index.tsx";
+import { LanguageSwitcher } from "./language-switcher.tsx";
 import { PoweredBy } from "./powered-by.tsx";
 
 /**

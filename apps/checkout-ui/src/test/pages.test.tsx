@@ -515,8 +515,11 @@ describe("invoice page", () => {
       />,
     );
     // Not a disabled button reading "Paid": a control that cannot be used
-    // pretending to be one that can. The badge says what happened.
-    expect(html).not.toContain("<button");
+    // pretending to be one that can. The badge says what happened. The one
+    // button left is the language picker, which is not a payment control.
+    expect(html).not.toContain("Pay Rp");
+    expect(html).not.toContain("Preparing payment");
+    expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toContain("Paid");
   });
 

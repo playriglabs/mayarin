@@ -28,6 +28,7 @@ export function Dropdown({
   placeholder,
   disabled = false,
   searchable = false,
+  compact = false,
   className = "",
 }: {
   readonly label: string;
@@ -39,6 +40,11 @@ export function Dropdown({
   readonly disabled?: boolean;
   /** Adds a search field above the list, for a list too long to scan. */
   readonly searchable?: boolean;
+  /**
+   * A small pill instead of a full-width field, its list opening against the right
+   * edge: for a setting that sits in a corner, like the language, not a form field.
+   */
+  readonly compact?: boolean;
   readonly className?: string;
 }) {
   const t = useT();
@@ -82,24 +88,35 @@ export function Dropdown({
 
   return (
     <div className={className}>
-      <span className={fieldLabel} id={`${listId}-label`}>
+      <span className={compact ? "sr-only" : fieldLabel} id={`${listId}-label`}>
         {label}
       </span>
       {/* The list floats over the form rather than pushing it down. */}
-      <div ref={anchorRef} className="relative">
+      <div ref={anchorRef} className={compact ? "relative inline-block" : "relative"}>
         <button
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          className={`flex min-h-12 w-full items-center gap-3 rounded-xl border bg-field px-3.5 py-1.5 text-left text-ink transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
-            open ? "border-muted" : "border-transparent enabled:hover:border-line"
-          }`}
+          className={
+            compact
+              ? `flex min-h-9 items-center gap-2 rounded-full border bg-transparent px-3 py-1.5 text-xs text-muted transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:text-ink ${
+                  open ? "border-muted text-ink" : "border-line enabled:hover:border-muted"
+                }`
+              : `flex min-h-12 w-full items-center gap-3 rounded-xl border bg-field px-3.5 py-1.5 text-left text-ink transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+                  open ? "border-muted" : "border-transparent enabled:hover:border-line"
+                }`
+          }
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpen((previous) => !previous)}
         >
           {current === undefined ? (
             <span className="min-w-0 flex-1 text-sm text-muted">{placeholder ?? t("choose")}</span>
+          ) : compact ? (
+            <>
+              {current.mark?.(16)}
+              <span>{current.title}</span>
+            </>
           ) : (
             <>
               {current.mark?.(28)}
@@ -109,7 +126,7 @@ export function Dropdown({
           {/* A rotated square's corner sits below its box's centre; nudged so
               the chevron lines up with the word beside it. */}
           <span className="flex items-center gap-2 text-xs leading-none text-muted">
-            {t("change")}
+            {compact ? null : t("change")}
             <span
               className={`${chevron} size-1.5 ${open ? "translate-y-0.5 -rotate-135" : "-translate-y-1 rotate-45"}`}
               aria-hidden="true"
@@ -121,7 +138,9 @@ export function Dropdown({
             absolute box still counts toward the page's scrollable area. */}
         <div
           id={listId}
-          className={`absolute inset-x-0 top-full z-30 mt-2 origin-top transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none ${
+          className={`absolute top-full z-30 mt-2 transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none ${
+            compact ? "right-0 w-60 origin-top-right" : "inset-x-0 origin-top"
+          } ${
             open
               ? "visible translate-y-0 scale-100 opacity-100"
               : "pointer-events-none invisible max-h-0 -translate-y-1 scale-[0.98] overflow-hidden opacity-0"
