@@ -3,6 +3,7 @@ import { BuyerProtection } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol, groupAmount, ungroupAmount } from "../../shared/currency.ts";
+import { EstimateRow } from "../../shared/estimate-row.tsx";
 import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
 import {
   LocalCurrencyPanel,
@@ -20,7 +21,6 @@ import {
 import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
-  estimateRow,
   fieldLabel,
   noteText,
   panelIntro,
@@ -62,7 +62,8 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
-  const estimate = useQuoteEstimate(typedAmount, currency, rail);
+  const quote = useQuoteEstimate(typedAmount, currency, rail);
+  const { estimate } = quote;
   // A merchant with no rail cannot be paid at all — say so, rather than
   // offering a button whose only outcome is a refusal.
   const payableNow = payable && rail !== undefined;
@@ -200,20 +201,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
             <>
               <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-              <div
-                className={estimateRow}
-                aria-busy={estimate.status === "loading"}
-                aria-live="polite"
-              >
-                <span>Estimated total in {rail.asset}</span>
-                {/* The placeholder is a prompt, not a figure, so it does not take the
-                    size of the total it stands in for. */}
-                <strong
-                  className={estimate.status === "idle" ? "text-base! text-muted" : undefined}
-                >
-                  {estimate.display}
-                </strong>
-              </div>
+              <EstimateRow asset={rail.asset} quote={quote} />
 
               {estimate.status === "unavailable" && (
                 <p className={errorText} role="alert">

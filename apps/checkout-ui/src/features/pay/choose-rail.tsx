@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BuyerProtection, protectionApplies, railBody } from "../../shared/buyer-protection.tsx";
+import { EstimateRow } from "../../shared/estimate-row.tsx";
 import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
 import {
   LocalCurrencyPanel,
@@ -17,7 +18,6 @@ import {
 import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
-  estimateRow,
   noteText,
   panelIntro,
   panelTitle,
@@ -55,7 +55,8 @@ export function ChooseRail({
   const needsWallet =
     protection?.required === true && protectionApplies(protection, rail) && payerAddress === null;
 
-  const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
+  const quote = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
+  const { estimate } = quote;
   const quoteReady = canContinueWithQuote(estimate);
   const returnAddressInvalid =
     returnAddress.trim() !== "" && validReturnAddress(returnAddress) === null;
@@ -145,14 +146,7 @@ export function ChooseRail({
             <>
               <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-              <div
-                className={estimateRow}
-                aria-busy={estimate.status === "loading"}
-                aria-live="polite"
-              >
-                <span>Estimated total in {rail.asset}</span>
-                <strong>{estimate.display}</strong>
-              </div>
+              <EstimateRow asset={rail.asset} quote={quote} />
 
               {estimate.status === "unavailable" && (
                 <p className={errorText} role="alert">

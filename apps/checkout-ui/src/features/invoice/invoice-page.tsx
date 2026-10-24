@@ -5,6 +5,7 @@ import { Brand } from "../../shared/brand.tsx";
 import { BuyerProtection, railBody } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell, TestnetBanner } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary, type SummaryRow } from "../../shared/checkout-summary.tsx";
+import { EstimateRow } from "../../shared/estimate-row.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
@@ -14,14 +15,7 @@ import {
   ReturnAddressField,
   validReturnAddress,
 } from "../../shared/return-address.tsx";
-import {
-  errorText,
-  estimateRow,
-  noteText,
-  panelIntro,
-  panelTitle,
-  primaryButton,
-} from "../../shared/ui.ts";
+import { errorText, noteText, panelIntro, panelTitle, primaryButton } from "../../shared/ui.ts";
 import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
 import { dateLine, paidOn, STATUS_LABEL, STATUS_TONE, shortDate } from "./invoice-status.ts";
 import { PaidMark } from "./paid-mark.tsx";
@@ -57,11 +51,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
   // The outstanding balance in the asset the payer picked, from the same rate
   // source the lock reads — so "Pay Rp 49.000" also says how much PYUSD that is.
-  const estimate = useQuoteEstimate(
+  const quote = useQuoteEstimate(
     bootstrap.outstanding.formatted,
     bootstrap.outstanding.asset,
     payable ? rail : undefined,
   );
+  const { estimate } = quote;
   const quoteReady = canContinueWithQuote(estimate);
   const returnAddressInvalid =
     returnAddress.trim() !== "" && validReturnAddress(returnAddress) === null;
@@ -287,12 +282,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
       <RailPicker rails={bootstrap.rails} selected={rail} onSelect={setRail} />
 
-      {rail !== undefined && (
-        <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
-          <span>Estimated total in {rail.asset}</span>
-          <strong>{estimate.display}</strong>
-        </div>
-      )}
+      {rail !== undefined && <EstimateRow asset={rail.asset} quote={quote} />}
       {estimate.status === "unavailable" && (
         <p className={errorText} role="alert">
           {estimate.message}

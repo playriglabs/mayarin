@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Rail } from "../../shared/types.ts";
 
 export type QuoteEstimate =
@@ -58,8 +58,11 @@ export function quoteBody(typedAmount: string, currency: string, rail: Rail) {
   };
 }
 
+/** How often a priced estimate is asked for again while the payer is looking at it. */
+export const REFRESH_SECONDS = 15;
+
 /** How long a priced estimate is reused before the same input asks the rate source again. */
-const QUOTE_TTL_MS = 30_000;
+const QUOTE_TTL_MS = REFRESH_SECONDS * 1000;
 
 /** Estimates by request body, each good for `ttlMs`. Only a priced estimate is worth keeping. */
 export function createQuoteCache(ttlMs: number, now: () => number = Date.now) {
@@ -77,6 +80,16 @@ export function createQuoteCache(ttlMs: number, now: () => number = Date.now) {
 
 const quoteCache = createQuoteCache(QUOTE_TTL_MS);
 
+/** The estimate, plus what the payer needs to see and do about it going stale. */
+export type QuoteView = {
+  readonly estimate: QuoteEstimate;
+  /** Seconds until the price is asked for again on its own. */
+  readonly secondsLeft: number;
+  /** A refresh is in flight; the last price stays on screen meanwhile. */
+  readonly refreshing: boolean;
+  readonly refresh: () => void;
+};
+
 /**
  * The "estimated total in <asset>" line.
  *
@@ -88,59 +101,95 @@ const quoteCache = createQuoteCache(QUOTE_TTL_MS);
  *
  * Debounced rather than fired per keystroke: the quote reads a live rate
  * source, and a request per character is a request per character. The same
- * amount, currency and rail inside 30 seconds reuses the last priced estimate
+ * amount, currency and rail inside 15 seconds reuses the last priced estimate
  * instead of asking again, so flipping between rails or retyping a figure does
  * not hit the rate source each time.
+ *
+ * A price someone stares at goes stale, so a priced estimate is asked for again
+ * every 15 seconds, and `refresh` asks now. Both keep the old figure on screen
+ * until the new one lands, rather than blanking it to "Calculating…".
  */
 export function useQuoteEstimate(
   typedAmount: string,
   currency: string | null,
   rail: Rail | undefined,
-): QuoteEstimate {
+): QuoteView {
   const [estimate, setEstimate] = useState<QuoteEstimate>(CALCULATING);
+  const [secondsLeft, setSecondsLeft] = useState(REFRESH_SECONDS);
+  const [refreshing, setRefreshing] = useState(false);
+  const [round, setRound] = useState(0);
+  const forced = useRef(false);
 
+  const refresh = useCallback(() => {
+    forced.current = true;
+    setRound((value) => value + 1);
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `round` is the refresh trigger, not a value the effect reads
   useEffect(() => {
     if (currency === null || rail === undefined || Number(typedAmount) <= 0) {
       setEstimate(ENTER_AMOUNT);
       return;
     }
 
+    const manual = forced.current;
+    forced.current = false;
     const body = JSON.stringify(quoteBody(typedAmount, currency, rail));
-    const cached = quoteCache.get(body);
+    const cached = manual ? undefined : quoteCache.get(body);
     if (cached !== undefined) {
       setEstimate(cached);
+      setSecondsLeft(REFRESH_SECONDS);
       return;
     }
 
     const controller = new AbortController();
-    setEstimate(CALCULATING);
-    const debounce = setTimeout(async () => {
-      try {
-        const response = await fetch("/v1/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-          signal: controller.signal,
-        });
-        const payload: unknown = await response.json();
-        const next = quoteEstimateFrom(payload);
-        quoteCache.set(body, next);
-        setEstimate(next);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setEstimate({
-          status: "unavailable",
-          display: "Unavailable",
-          message: QUOTE_REQUEST_FAILED,
-        });
-      }
-    }, 400);
+    if (manual) setRefreshing(true);
+    else setEstimate(CALCULATING);
+    const debounce = setTimeout(
+      async () => {
+        try {
+          const response = await fetch("/v1/quotes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+            signal: controller.signal,
+          });
+          const payload: unknown = await response.json();
+          const next = quoteEstimateFrom(payload);
+          quoteCache.set(body, next);
+          setEstimate(next);
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setEstimate({
+            status: "unavailable",
+            display: "Unavailable",
+            message: QUOTE_REQUEST_FAILED,
+          });
+        }
+        setRefreshing(false);
+        setSecondsLeft(REFRESH_SECONDS);
+      },
+      manual ? 0 : 400,
+    );
 
     return () => {
       clearTimeout(debounce);
       controller.abort();
+      setRefreshing(false);
     };
-  }, [typedAmount, currency, rail]);
+  }, [typedAmount, currency, rail, round]);
 
-  return estimate;
+  // Count down while a priced estimate is on screen and nothing is in flight.
+  const priced = estimate.status === "available";
+  useEffect(() => {
+    if (!priced || refreshing) return;
+    const timer = setInterval(() => setSecondsLeft((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [priced, refreshing]);
+
+  useEffect(() => {
+    if (priced && !refreshing && secondsLeft === 0) refresh();
+  }, [priced, refreshing, secondsLeft, refresh]);
+
+  return { estimate, secondsLeft, refreshing, refresh };
 }
