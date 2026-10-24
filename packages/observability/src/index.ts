@@ -5,7 +5,10 @@
  * gets reported: one hook covers the request handlers, the worker's timers and
  * anything added later, without a `report()` call beside each log line.
  *
- * Off unless `SENTRY_DSN` is set, so a laptop and the test suite send nothing.
+ * On only for the mainnet deployment: it needs the DSN and
+ * `SENTRY_ENVIRONMENT=mainnet`. A laptop, the test suite and the testnet carry
+ * neither, so they send nothing, and a DSN copied into a testnet env file by
+ * mistake still sends nothing.
  */
 
 import * as Sentry from "@sentry/bun";
@@ -35,13 +38,20 @@ export function createErrorFilter(now: () => number): (message: string) => boole
   };
 }
 
+/** The DSN to report to, or undefined when this process must stay silent. */
+export function reportingDsn(env: Record<string, string | undefined>): string | undefined {
+  const dsn = env.SENTRY_DSN;
+  if (dsn === undefined || dsn === "" || env.SENTRY_ENVIRONMENT !== "mainnet") return undefined;
+  return dsn;
+}
+
 export function initErrorReporting(service: string): void {
-  const dsn = process.env.SENTRY_DSN;
-  if (dsn === undefined || dsn === "") return;
+  const dsn = reportingDsn(process.env);
+  if (dsn === undefined) return;
   const shouldSend = createErrorFilter(Date.now);
   Sentry.init({
     dsn,
-    environment: process.env.SENTRY_ENVIRONMENT ?? "production",
+    environment: "mainnet",
     initialScope: { tags: { service } },
     integrations: [Sentry.captureConsoleIntegration({ levels: ["error"] })],
     beforeSend: (event) =>
