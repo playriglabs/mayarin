@@ -947,10 +947,10 @@ function Settings() {
                               <TableRow key={change.id}>
                                 <TableCell className="font-mono text-xs">{change.field}</TableCell>
                                 <TableCell className="break-all font-mono text-xs text-muted-foreground">
-                                  {change.previousValue ?? "—"}
+                                  {change.previousValue || "—"}
                                 </TableCell>
                                 <TableCell className="break-all font-mono text-xs">
-                                  {change.nextValue ?? "—"}
+                                  {change.nextValue || "—"}
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">
                                   <time dateTime={isoAttr(change.changedAt)}>
