@@ -29,6 +29,20 @@ export interface EvmContractCodeReaderOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
 }
 
+/**
+ * An EIP-7702 delegation is not a contract. An EOA that delegated to a smart
+ * wallet shows exactly `0xef0100` and the 20-byte delegate as its code, 23 bytes,
+ * on the chains where it signed the delegation and nothing on the others. The key
+ * still controls it on every chain, so treating that as "a contract that does not
+ * exist elsewhere" refused every other chain and turned the merchant's rails off.
+ */
+const EIP_7702_DELEGATION = /^0xef0100[0-9a-f]{40}$/i;
+
+export function isContractCode(code: string | undefined): boolean {
+  if (code === undefined || code === "0x") return false;
+  return !EIP_7702_DELEGATION.test(code);
+}
+
 export class EvmContractCodeReader implements ContractCodeSource {
   readonly #rpcUrls: EvmContractCodeReaderOptions["rpcUrls"];
   readonly #clients = new Map<ChainId, PublicClient>();
@@ -51,7 +65,7 @@ export class EvmContractCodeReader implements ContractCodeSource {
 
     try {
       const code = await this.#clientFor(chain, url).getCode({ address: getAddress(address) });
-      const answer = code !== undefined && code !== "0x";
+      const answer = isContractCode(code);
       this.#answers.set(key, answer);
       return answer;
     } catch (error) {
