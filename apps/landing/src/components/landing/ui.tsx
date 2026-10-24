@@ -1,18 +1,21 @@
 import clsx from "clsx";
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, JSX } from "preact";
 import { useRef } from "preact/hooks";
 import { ArrowRight } from "../ui.tsx";
 
 export function Action({
   href,
+  onClick,
   children,
 }: {
   readonly href: string;
+  readonly onClick?: JSX.MouseEventHandler<HTMLAnchorElement>;
   readonly children: ComponentChildren;
 }) {
   return (
     <a
       href={href}
+      onClick={onClick}
       class="inline-flex size-12 shrink-0 items-center justify-center gap-3 rounded-full bg-ink p-0 text-sm font-medium text-white transition-colors duration-200 hover:bg-brand sm:size-auto sm:min-h-12 sm:px-6 sm:py-3"
     >
       <span class="sr-only sm:not-sr-only">{children}</span>

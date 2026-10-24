@@ -1,6 +1,6 @@
 # @mayarin/landing
 
-Marketing site for Mayarin. Vite + Preact + Tailwind v4, no runtime dependency on the API.
+Marketing site for Mayarin. Astro + Preact islands + Tailwind v4, no runtime dependency on the API.
 
 ```bash
 bun run dev:landing      # http://localhost:4321
@@ -18,11 +18,11 @@ Early-access submissions are stored in the bound
 migrations before uploading the site. The list command prints email and
 submission time, newest first; it does not expose a public listing endpoint.
 
-`dev:landing` applies local D1 migrations and starts Vite alongside Wrangler
-Pages Functions on port 8788. Vite proxies `/api` to that local runtime, so the
+`dev:landing` applies local D1 migrations and starts Astro alongside Wrangler
+Pages Functions on port 8788. Astro proxies `/api` to that local runtime, so the
 early-access form runs the same handler as production. Local submissions persist
 in `apps/landing/.wrangler/state` and do not write to the production database.
-Restart `bun run dev:landing` after updating the dev configuration; running Vite
+Restart `bun run dev:landing` after updating the dev configuration; running Astro
 alone does not start the Functions runtime. To inspect local submissions:
 
 ```bash

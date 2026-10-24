@@ -1,4 +1,4 @@
-import { BOOK_DEMO_URL } from "../../lib/book-demo.ts";
+import { BOOK_DEMO_URL, openBookDemo } from "../../lib/book-demo.ts";
 import { Reveal } from "../reveal.tsx";
 
 function Chevron() {
@@ -67,6 +67,7 @@ export function EarlyAccessCta() {
         <a
           class="mt-9 inline-flex min-h-12 gap-1.5 items-center justify-center rounded-full bg-accent px-6 py-2 font-medium text-plate transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
           href={BOOK_DEMO_URL}
+          onClick={openBookDemo}
         >
           Book demo
           <Chevron />

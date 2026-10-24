@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { BOOK_DEMO_URL } from "../lib/book-demo.ts";
+import { BOOK_DEMO_URL, openBookDemo } from "../lib/book-demo.ts";
 import { ArrowRight } from "./ui.tsx";
 
 const COLUMNS = [
@@ -75,6 +75,7 @@ function BookDemo() {
       <p class="text-sm text-slate-600">Book a demo</p>
       <a
         href={BOOK_DEMO_URL}
+        onClick={openBookDemo}
         class="mt-5 flex h-12 items-center justify-between border border-line bg-paper px-4 text-sm text-ink transition-colors duration-200 hover:border-brand hover:text-brand"
       >
         Talk to the team

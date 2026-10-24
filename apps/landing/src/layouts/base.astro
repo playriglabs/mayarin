@@ -1,0 +1,100 @@
+---
+import "../styles.css";
+
+interface Props {
+  readonly title: string;
+  readonly description: string;
+  /** Omitted for a page that should not be indexed. */
+  readonly canonical?: string;
+}
+
+const { title, description, canonical } = Astro.props;
+const image = "https://mayarin.xyz/og-image.jpeg";
+const imageAlt = "Mayarin programmable clearing infrastructure for global payments";
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://mayarin.xyz/#organization",
+      name: "Mayarin",
+      url: "https://mayarin.xyz/",
+      logo: "https://mayarin.xyz/android-chrome-512x512.png",
+      sameAs: ["https://x.com/mayarin_xyz", "https://linkedin.com/company/mayarin"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mayarin.xyz/#website",
+      url: "https://mayarin.xyz/",
+      name: "Mayarin",
+      description:
+        "Programmable clearing infrastructure for global payments and local stablecoin settlement.",
+      publisher: { "@id": "https://mayarin.xyz/#organization" },
+      inLanguage: "en",
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta
+      name="robots"
+      content={canonical ? "index, follow, max-image-preview:large" : "noindex, nofollow"}
+    />
+    <meta name="author" content="Mayarin" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
+    <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+    <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="preload"
+      href="/fonts/PPNeueMontreal-VariableUpright.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Mayarin" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+    <meta property="og:image:secure_url" content={image} />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={imageAlt} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@mayarin_xyz" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+
+    <script is:inline>
+      // Entrance animations start hidden. Marking the document before first
+      // paint keeps that behaviour for real browsers while leaving the
+      // prerendered markup visible to anything that does not run scripts.
+      document.documentElement.classList.add("js");
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+

@@ -2,10 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "@cloudflare/workers-types"],
+    "types": ["astro/client", "@cloudflare/workers-types"],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "functions", "vite.config.ts"]
+  "include": [".astro/types.d.ts", "src", "functions", "plugins", "astro.config.ts"]
 }
