@@ -1,7 +1,8 @@
 import type { JSX } from "preact";
 
 /** Where every "Book demo" button goes, and the page it falls back to without the popup. */
-export const BOOK_DEMO_URL = "https://calendly.com/ryzxkzky-proton/30min";
+export const BOOK_DEMO_URL =
+  "https://calendly.com/ryzxkzky-proton/30min?hide_event_type_details=1&hide_gdpr_banner=1";
 
 const WIDGET_CSS = "https://assets.calendly.com/assets/external/widget.css";
 const WIDGET_JS = "https://assets.calendly.com/assets/external/widget.js";
