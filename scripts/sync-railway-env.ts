@@ -121,7 +121,8 @@ const policies: readonly ServicePolicy[] = [
         "ZERO_EX_API_KEY",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
-      withheld: new Set<string>(),
+      // The Telegram bot belongs to the chain worker, which raises the alert.
+      withheld: new Set(["TELEGRAM_BOT_TOKEN"]),
     },
     overrides: {
       DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",
@@ -177,6 +178,7 @@ const policies: readonly ServicePolicy[] = [
         "RESEND_API_KEY",
         "SOLANA_DEPOSIT_SEED",
         "SOLANA_ORDER_SIGNER_SECRET_KEY",
+        "TELEGRAM_BOT_TOKEN",
         "TRANSFI_PASSWORD",
         "TURNKEY_API_PRIVATE_KEY",
         "ZERO_EX_API_KEY",
@@ -312,7 +314,10 @@ const values: Record<string, string | undefined> =
   awsDir === undefined ? process.env : parseEnvFile(await Bun.file(".env.mainnet").text());
 
 for (const policy of selectedPolicies) {
-  const source = await Bun.file(policy.configPath).text();
+  // `initErrorReporting` reads SENTRY_DSN from the environment, outside config.
+  const source =
+    (await Bun.file(policy.configPath).text()) +
+    (await Bun.file("packages/observability/src/index.ts").text());
   const unreviewed = unreviewedKeys(configuredKeys(source), policy.secrets);
   if (unreviewed.length > 0) {
     throw new Error(
