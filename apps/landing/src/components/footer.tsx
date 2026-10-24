@@ -1,4 +1,3 @@
-import { useEffect, useState } from "preact/hooks";
 import { BOOK_DEMO_URL, openBookDemo } from "../lib/book-demo.ts";
 import { ArrowRight } from "./ui.tsx";
 
@@ -85,45 +84,18 @@ function BookDemo() {
   );
 }
 
-const STATUS_LABEL = {
-  operational: "All systems operational",
-  issues: "Experiencing issues",
-  unknown: "System status",
-} as const;
+const STATUS_URL = "https://stats.uptimerobot.com/oTsGTspgSo";
 
-const STATUS_DOT = {
-  operational: "bg-emerald-500",
-  issues: "bg-amber-500",
-  unknown: "bg-slate-400",
-} as const;
-
-/** Links to the status page and shows its live state once the check answers. */
 function StatusLink() {
-  const [state, setState] = useState<keyof typeof STATUS_LABEL>("unknown");
-
-  useEffect(() => {
-    fetch("/api/status")
-      .then((response) => response.json() as Promise<{ state: keyof typeof STATUS_LABEL }>)
-      .then((body) => setState(body.state in STATUS_LABEL ? body.state : "unknown"))
-      .catch(() => setState("unknown"));
-  }, []);
-
   return (
     <a
-      href="https://status.mayarin.xyz"
+      href={STATUS_URL}
       target="_blank"
       rel="noreferrer"
       class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-brand"
     >
-      <span aria-hidden="true" class="relative flex size-2.5">
-        {state === "operational" && (
-          <span
-            class={`absolute inline-flex size-full animate-ping rounded-full opacity-60 motion-reduce:animate-none ${STATUS_DOT[state]}`}
-          />
-        )}
-        <span class={`relative inline-flex size-2.5 rounded-full ${STATUS_DOT[state]}`} />
-      </span>
-      {STATUS_LABEL[state]}
+      <span aria-hidden="true" class="size-2.5 rounded-full bg-slate-400" />
+      System status
     </a>
   );
 }
