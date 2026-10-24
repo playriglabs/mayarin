@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createErrorFilter } from "../src/index.ts";
+import { createErrorFilter, reportingDsn } from "../src/index.ts";
 
 describe("error filter", () => {
   test("drops a refused request but keeps a server failure", () => {
@@ -22,5 +22,20 @@ describe("error filter", () => {
     const send = createErrorFilter(() => 0);
     expect(send("a")).toBe(true);
     expect(send("b")).toBe(true);
+  });
+});
+
+describe("reporting gate", () => {
+  const dsn = "https://key@o1.ingest.sentry.io/1";
+
+  test("reports only with a DSN on a mainnet deployment", () => {
+    expect(reportingDsn({ SENTRY_DSN: dsn, SENTRY_ENVIRONMENT: "mainnet" })).toBe(dsn);
+  });
+
+  test("stays silent on a testnet, locally, or with no DSN", () => {
+    expect(reportingDsn({ SENTRY_DSN: dsn, SENTRY_ENVIRONMENT: "testnet" })).toBeUndefined();
+    expect(reportingDsn({ SENTRY_DSN: dsn })).toBeUndefined();
+    expect(reportingDsn({ SENTRY_ENVIRONMENT: "mainnet" })).toBeUndefined();
+    expect(reportingDsn({ SENTRY_DSN: "", SENTRY_ENVIRONMENT: "mainnet" })).toBeUndefined();
   });
 });
