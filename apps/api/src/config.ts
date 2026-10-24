@@ -312,6 +312,12 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   /** `0` disables the timer and leaves only the admin trigger, like the watcher. */
   webhookIntervalMs: z.coerce.number().int().min(0).default(5_000),
+  /**
+   * How often the "you got paid" emails are sent. `0` disables the timer, which is
+   * what a second `core-api` instance sets so two of them do not mail the same
+   * payment twice (the cursor is read, then written).
+   */
+  paidNoticeIntervalMs: z.coerce.number().int().min(0).default(30_000),
 
   // --- Quote layer (RFC #6/#7, wired in the container) -------------------
   /**
@@ -1477,6 +1483,7 @@ export function loadConfig(
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
     webhooksEnabled: env.WEBHOOKS_ENABLED,
     webhookIntervalMs: env.WEBHOOK_INTERVAL_MS,
+    paidNoticeIntervalMs: env.PAID_NOTICE_INTERVAL_MS,
     quoteEnabled: env.QUOTE_ENABLED,
     quoteVenues: env.QUOTE_VENUES,
     quoteOracle: env.QUOTE_ORACLE,

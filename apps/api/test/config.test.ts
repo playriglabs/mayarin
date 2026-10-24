@@ -1117,3 +1117,15 @@ describe("returning a failed deposit", () => {
     expect(() => loadConfig({ ...BASE, AUTO_RETURN_TO_SENDER_MAX: "a lot" })).toThrow();
   });
 });
+
+describe("timers a second instance turns off", () => {
+  test("the paid-email timer runs every 30 seconds unless told otherwise", () => {
+    expect(loadConfig(BASE).paidNoticeIntervalMs).toBe(30_000);
+    expect(loadConfig({ ...BASE, PAID_NOTICE_INTERVAL_MS: "0" }).paidNoticeIntervalMs).toBe(0);
+  });
+
+  test("a replica sets both mailing timers to zero", () => {
+    const config = loadConfig({ ...BASE, WEBHOOK_INTERVAL_MS: "0", PAID_NOTICE_INTERVAL_MS: "0" });
+    expect([config.webhookIntervalMs, config.paidNoticeIntervalMs]).toEqual([0, 0]);
+  });
+});
