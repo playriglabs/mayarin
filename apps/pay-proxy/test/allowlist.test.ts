@@ -33,6 +33,13 @@ describe("allowlist", () => {
     expect(allowed("post", "/v1/quotes")).toBe(true);
   });
 
+  test("HEAD follows the GET rules, so a monitor sees what a browser sees", () => {
+    expect(allowed("HEAD", "/checkout/qr?value=smoke")).toBe(true);
+    expect(allowed("HEAD", "/v1/payments/01INTENT")).toBe(true);
+    expect(allowed("HEAD", "/v1/merchants")).toBe(false);
+    expect(allowed("HEAD", "/v1/quotes")).toBe(false); // POST-only
+  });
+
   test("rejects non-allowlisted /v1 routes — the API surface stays hidden", () => {
     expect(allowed("GET", "/v1/merchants")).toBe(false);
     expect(allowed("POST", "/v1/payment-links")).toBe(false); // list/create, not checkout
