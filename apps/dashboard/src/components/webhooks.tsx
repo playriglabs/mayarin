@@ -215,7 +215,6 @@ function Webhooks() {
           title="Endpoints"
           action={
             <Button
-              size="sm"
               onClick={() => {
                 setFailure("");
                 setAdding(true);

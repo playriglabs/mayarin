@@ -204,7 +204,7 @@ beside it, so the arbiter decides on evidence rather than on silence.
   (unlike `disputes:arbitrate`), set on new founder accounts, and does not change
   what existing accounts and keys can do; the dashboard's own reply route never
   required it. The SDK exposes it as `disputes.list/get/reply`. The public guide
-  is `apps/docs/content/docs/guides/disputes.mdx`.
+  is `apps/docs/src/pages/guides/disputes.mdx`.
 
   A dispute is opened by the buyer on chain, so no webhook can stop one. The
   point of the events is that the merchant learns at once and can answer or

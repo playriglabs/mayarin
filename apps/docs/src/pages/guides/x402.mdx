@@ -1,0 +1,152 @@
+---
+title: Sell an endpoint to an agent
+description: Gate your own URL behind x402 so an autonomous payer is charged per request.
+---
+
+An autonomous agent cannot open an account, hold a card, or be asked to understand gas. x402 gives it one thing to sign: an authorization for exactly this request, at exactly this price.
+
+Register the endpoint in the dashboard under **Agent endpoints** first. That prices it and records where you are paid — it does not change your server, which still answers every request for free. This page is the part that closes the gate.
+
+## What your server does
+
+Three steps, in this order:
+
+1. A request with no payment: fetch the price from Mayarin and return `402` carrying it.
+2. A request carrying `PAYMENT-SIGNATURE`: settle it. Verification is part of settling — Mayarin checks the signature against the chain as it broadcasts, so a separate `verify` round-trip is only for a payer's "would this go through?" question.
+3. Only then serve the content.
+
+The order is not stylistic. A response cannot be un-served, so a handler that ran first would have to be undone if the settlement failed — and there is no undo for bytes already on the wire.
+
+## The SDK gate
+
+In TypeScript the whole thing is two imports and one middleware:
+
+```ts
+import { createX402Gate } from "@mayarin/sdk";
+import { x402Connect } from "@mayarin/sdk/x402/connect";
+
+const gate = createX402Gate({
+  baseUrl: "https://api.mayarin.xyz",
+  resourceId: "your-resource-id",
+});
+
+app.get("/premium", x402Connect(gate), paidHandler);
+```
+
+Unpaid is answered with the price in the standard `PAYMENT-REQUIRED` header; a settled payment runs the handler once with `PAYMENT-RESPONSE` on the answer; a replayed signature is re-served without a second charge or a second handler run; and if Mayarin cannot be reached the answer is `502` and the handler never runs. The [SDK page](/sdk/typescript/x402) covers registration, the decision table, and the delivery policy.
+
+## The HTTP contract, for stacks without a gate
+
+Written against `fetch` and the two header names from the specification, so it ports to any language or framework by changing how a request and a response are spelled.
+
+```js
+const MAYARIN = "https://api.mayarin.xyz";
+const RESOURCE = "your-resource-id";
+
+export async function handle(request) {
+  const signature = request.headers.get("PAYMENT-SIGNATURE");
+
+  // 1. Nothing paid yet: answer 402 with the price Mayarin quotes.
+  if (!signature) {
+    const required = await fetch(
+      `${MAYARIN}/x402/resources/${RESOURCE}/payment-required`,
+    ).then((r) => r.json());
+
+    return new Response(null, {
+      status: 402,
+      headers: { "PAYMENT-REQUIRED": btoa(JSON.stringify(required)) },
+    });
+  }
+
+  // 2. Settle. Verification is part of settling; never serve first.
+  const paymentPayload = JSON.parse(atob(signature));
+  const settled = await fetch(`${MAYARIN}/x402/resources/${RESOURCE}/settle`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      x402Version: 2,
+      paymentPayload,
+      paymentRequirements: paymentPayload.accepted,
+    }),
+  }).then((r) => r.json());
+
+  if (!settled.success) return new Response(null, { status: 402 });
+
+  // 3. Paid. Serve it, and say which transaction paid for it.
+  return new Response(yourContent, {
+    headers: { "PAYMENT-RESPONSE": btoa(JSON.stringify(settled)) },
+  });
+}
+```
+
+## What Mayarin does, so your server does not
+
+No key and no chain code run on your side. Mayarin rebuilds the payment requirements from the registered resource rather than trusting the copy the payer sent, checks the signature against the chain, broadcasts the transfer, and posts the double-entry records that credit you.
+
+That last point is worth stating plainly: the facilitator verifies against **its own** requirements. A facilitator that verified a payment against the requirements handed to it would be verifying a payment against its own claims.
+
+Nothing secret rides on a payment either. The request-time surface is public and keyless — your secret key registers the resource and never appears in a gate. A payer who has captured every byte of a request has captured nothing that spends.
+
+## Delivery and replay policy
+
+One authorization buys one execution. A payer whose HTTP response was lost on the way back retries with the identical signature, and the gate re-serves the recorded response — no second charge, no second handler run. Replays are keyed by the payment's nonce and expire at the authorization's `validBefore`, the whole window in which a retry is legal.
+
+The SDK's store is in memory, per process, bounded by live payments. After a restart it is empty: a replayed signature reaches Mayarin, which refuses the spent nonce fail-closed — still no second charge, but no re-serve either. Your handler's own side effects are your idempotency to own: the gate guarantees one execution per authorization, not one execution per retry.
+
+The recorded response is re-served in full, so gate content that streams or answers range requests.
+
+## Payables: what an agent can find, and pay
+
+An endpoint is not the only thing an agent can buy. An invoice or a payment link you already sell — the same ones a person pays through the hosted checkout — can be paid by an agent over x402, at the URL of the obligation itself:
+
+```text
+GET /x402/payables/invoice/invc_123        → 402 quoting the outstanding balance
+GET /x402/payables/link/plnk_abc          → 402 quoting the link's total
+```
+
+The `402` always quotes the **full** outstanding amount. An agent cannot decide to pay part of an invoice: an authorization for less than what is owed is refused, and the remedy is a new `402` for the whole balance.
+
+Discovery is the other half. `GET /x402/payables` lists every payable across every merchant that opted in — newest first, cursor-paginated — so an agent that has not met anyone yet can find what to pay without being told a merchant id. An entry carries what an agent needs to decide: merchant, title, the price a `402` would quote, the payment URL, and the due date when there is one.
+
+Nothing is listed by default. Opt in per obligation:
+
+| Endpoint                           | Effect                                     |
+| ---------------------------------- | ------------------------------------------ |
+| `POST /v1/invoices/:id/list`       | The invoice appears in the payable index   |
+| `POST /v1/payment-links/:id/list`  | The link appears in the payable index      |
+| `POST /v1/x402/resources/:id/list` | The endpoint appears in the resource index |
+
+Each has an `/unlist` twin. Listing is only about being _found_: an unlisted invoice is still payable by anyone holding its id, because the unguessable id is the access control — the same rule a payment link already follows. Draft, void and paid-in-full invoices, disabled and expired links, and open-amount links never appear and never quote, listed or not.
+
+### The quote lock
+
+A payable's price is held for a short window (default sixty seconds) in a quote row, together with the exact rails the `402` offered. Two consequences an agent will meet:
+
+**A quote expires.** Signing later than the window gets a `410` with the remedy in it: request a new `402` at the same URL.
+
+**One authorization at a time.** Two agents quoting the same invoice and both signing is a race the lock decides: the first signature to settle claims it, the second is refused with a `409`. A signature for a different amount than was quoted — the balance changed in between — is also a `409`, because the payer signed a number nobody honoured any more.
+
+## Endpoints
+
+Both are public and unauthenticated. An agent that has never met Mayarin is the entire point, and a price is not a secret.
+
+| Endpoint                                   | What it answers                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| `GET /x402/payables`                       | Every listed payable across every merchant, newest first             |
+| `GET /x402/payables/:kind/:id`             | The `402` for one invoice or link — or, with a signature, settlement |
+| `GET /x402/resources`                      | Every listed resource across every merchant, newest first            |
+| `GET /x402/resources/:id/payment-required` | The price and rails, without making the call you are deciding about  |
+| `GET /x402/resources/:id/rail`             | The first merchant-configured rail and why it is the default         |
+| `POST /x402/resources/:id/verify`          | Would this authorization go through?                                 |
+| `POST /x402/resources/:id/settle`          | Broadcast it, and credit the merchant                                |
+| `GET /x402/resources?merchant=<id>`        | What one merchant sells, for an agent shopping                       |
+
+## Things that will cost you an afternoon
+
+**The registered URL must be exactly the one an agent calls.** A resource is looked up by URL — scheme, host and path all count.
+
+**A `402` is a price, not a promise.** It is honoured for `maxTimeoutSeconds`, and the quote lock can be shorter. An agent that signs a stale authorization gets it refused.
+
+**Cross-asset rails pay the operator, not you.** `transferWithAuthorization` names one recipient, chosen before the payer signs, so a payer holding an asset you do not settle in sends it somewhere Mayarin can swap from. You are still paid your own asset, in full, and the difference is booked as the payer's surplus.
+
+**A contract account is a valid payer.** An agent wallet from a provider like Circle is a smart account: its signature validates through EIP-1271 and recovers to its signer rather than to itself. Mayarin asks the chain rather than recovering locally, so these payments verify — but a gate of your own that tried to check the signature would reject every one of them as forged. Do not check it; asking the chain is what settling is for.

@@ -1,0 +1,166 @@
+---
+title: SDK reference
+description: Public entry points, modules, configuration, and error contracts in @mayarin/sdk.
+---
+
+Generated from the SDK source. Prose and examples live on the module pages: [server](/sdk/typescript/server), [browser](/sdk/typescript/browser), [payments](/sdk/typescript/payments), [commerce](/sdk/typescript/commerce), [webhooks](/sdk/typescript/webhooks).
+
+## Server configuration
+
+{/* types: packages/sdk/src/index.ts MayarinConfig */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `secretKey` | `string` | Secret key minted on the dashboard (`/api-keys`). Server-side only. |
+| `baseUrl` | `string` |  |
+| `preset?` | `"merchant"` |  |
+| `fetch?` | `typeof fetch` |  |
+| `generateIdempotencyKey?` | `() => string` |  |
+{/* /types */}
+
+## Server client
+
+{/* types: packages/sdk/src/index.ts MayarinClient */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `commerce` | `CommerceModule` |  |
+| `analytics` | `AnalyticsModule` | Revenue, orders, settlements and payment performance for a date range. |
+| `payment` | `PaymentModule` |  |
+| `disputes` | `DisputesModule` | Escrow disputes: read the thread, answer. Pair with the dispute webhooks (#313). |
+| `x402` | `{ readonly resources: X402ResourcesModule; }` | Agent-endpoint management (#269). Registration only — the request-time surface is keyless. |
+| `transport` | `Transport` | Raw typed transport. The escape hatch until a module covers a route. |
+| `preset` | `Preset` |  |
+{/* /types */}
+
+## Shared client configuration
+
+Both entry points extend this: the base URL, the preset, and the two injectable effects.
+
+{/* types: packages/sdk/src/client.ts ClientConfig */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `baseUrl` | `string` |  |
+| `preset?` | `"merchant"` |  |
+| `fetch?` | `typeof fetch` |  |
+| `generateIdempotencyKey?` | `() => string` |  |
+{/* /types */}
+
+## Browser configuration
+
+The browser entry point creates a client configured with an optional publishable key. There is no field for a secret.
+
+{/* types: packages/sdk/src/browser.ts MayarinBrowserConfig */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `publishableKey?` | `string` | Publishable key minted on the dashboard. Safe in a browser bundle: it identifies the merchant and reaches only catalog read and cart checkout. Without one, only the keyless buyer routes answer. |
+| `baseUrl` | `string` |  |
+| `preset?` | `"merchant"` |  |
+| `fetch?` | `typeof fetch` |  |
+| `generateIdempotencyKey?` | `() => string` |  |
+{/* /types */}
+
+## Browser client
+
+{/* types: packages/sdk/src/browser.ts MayarinBrowserClient */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `commerce` | `PublishableCommerceModule` |  |
+| `transport` | `Transport` | Raw typed transport. The escape hatch until a module covers a route. |
+| `preset` | `Preset` |  |
+{/* /types */}
+
+## Request options
+
+{/* types: packages/sdk/src/transport.ts RequestOptions */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `query?` | `Readonly<Record<string, string \| number \| boolean \| undefined>>` |  |
+| `idempotencyKey?` | `string` | Caller-supplied key for a write. The transport generates one when absent. |
+| `signal?` | `AbortSignal` |  |
+{/* /types */}
+
+## Transport
+
+The escape hatch until a module covers a route. Keeps the `/v1` prefix, version header, auth, idempotency, and error mapping.
+
+{/* types: packages/sdk/src/transport.ts Transport */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `get` | `<T>(path: string, options?: RequestOptions \| undefined) => Promise<T>` |  |
+| `post` | `<T>(path: string, body?: unknown, options?: RequestOptions \| undefined) => Promise<T>` |  |
+| `patch` | `<T>(path: string, body: unknown, options?: RequestOptions \| undefined) => Promise<T>` |  |
+| `delete` | `<T>(path: string, options?: RequestOptions \| undefined) => Promise<T>` | A write: gets an `Idempotency-Key` like every non-GET. A 204 resolves to `undefined`. |
+{/* /types */}
+
+## Error contract
+
+{/* types: packages/sdk/src/errors.ts MayarinApiError */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `code` | `string` |  |
+| `status` | `number` | HTTP status of the response, or 0 when no response arrived. |
+| `retryable` | `boolean` | Whether retrying the same request unchanged can succeed later. |
+| `details` | `Record<string, unknown>` |  |
+| `name` | `string` |  |
+| `message` | `string` |  |
+| `stack?` | `string` |  |
+| `cause?` | `unknown` | The cause of the error. |
+{/* /types */}
+
+## Payment module
+
+{/* types: packages/sdk/src/payment.ts PaymentModule */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `createIntent` | `(body: { qr?: string \| undefined; merchant?: { id: string; name: string; city: string; countryCode: string; categoryCode?: string \| undefined; } \| undefined; amount?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; } \| undefined; payment?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; payerAddress?: string \| undefined; returnAddress?: string \| undefined; } \| undefined; settlementAsset?: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC" \| undefined; executionPath?: "deposit-match" \| "on-chain-contract" \| "x402" \| undefined; escrow?: { holdSeconds: number; arbiter?: string \| undefined; bondBps?: number \| undefined; } \| null \| undefined; provider?: string \| undefined; metadata?: Record<string, string> \| undefined; merchantReference?: string \| undefined; ttlSeconds?: number \| undefined; }, options?: RequestOptions \| undefined) => Promise<CreatedPaymentIntent>` |  |
+| `getIntent` | `(id: string, options?: RequestOptions \| undefined) => Promise<PaymentIntentDto>` |  |
+| `confirmIntent` | `(id: string, options?: RequestOptions \| undefined) => Promise<PaymentDto>` |  |
+| `get` | `(id: string, options?: RequestOptions \| undefined) => Promise<PaymentDto>` |  |
+| `getContractCall` | `(id: string, options?: RequestOptions \| undefined) => Promise<ContractCallDto>` |  |
+| `getEscrow` | `(id: string, options?: RequestOptions \| undefined) => Promise<EscrowDto>` | Where an escrowed payment's funds are, and the calldata to release, refund or dispute them (#304). Send `calls[action]` to `factory` from the wallet the terms allow. |
+| `retry` | `(id: string, options?: RequestOptions \| undefined) => Promise<ClearingDto>` | Reopen a failed payment whose payer funds were already received. |
+{/* /types */}
+
+## Commerce module
+
+{/* types: packages/sdk/src/commerce.ts CommerceModule */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `products` | `{ readonly create: (body: { merchantId: string; sku: string; name: string; prices: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }[]; description?: string \| undefined; metadata?: Record<string, string> \| undefined; }, options?: RequestOptions \| undefined) => Promise<ProductDto>; readonly list: (merchantId?: string \| undefined, options?: RequestOptions \| undefined) => Promise<readonly ProductDto[]>; readonly get: (id: string, options?: RequestOptions \| undefined) => Promise<ProductDto>; readonly update: (id: string, body: { name?: string \| undefined; description?: string \| null \| undefined; prices?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }[] \| undefined; metadata?: Record<string, string> \| undefined; active?: boolean \| undefined; }, options?: RequestOptions \| undefined) => Promise<ProductDto>; }` |  |
+| `carts` | `{ readonly checkout: (body: { currency: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; lines: ({ productId: string; quantity: number; } \| { name: string; quantity: number; unitPrice: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }; })[]; metadata?: Record<string, string> \| undefined; settlementAsset?: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC" \| undefined; provider?: string \| undefined; payment?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; payerAddress?: string \| undefined; returnAddress?: string \| undefined; } \| undefined; executionPath?: "deposit-match" \| "on-chain-contract" \| "x402" \| undefined; merchantReference?: string \| undefined; ttlSeconds?: number \| undefined; merchant?: { name?: string \| undefined; id?: string \| undefined; city?: string \| undefined; countryCode?: string \| undefined; categoryCode?: string \| undefined; } \| undefined; }, options?: RequestOptions \| undefined) => Promise<PaymentIntentDto & { url: string; }>; }` |  |
+| `paymentLinks` | `{ readonly create: (body: { kind: "fixed" \| "open" \| "catalog"; merchant: { name: string; id: string; city: string; countryCode: string; categoryCode?: string \| undefined; }; amount?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; } \| undefined; metadata?: Record<string, string> \| undefined; merchantReference?: string \| undefined; currency?: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC" \| undefined; lines?: { productId: string; quantity: number; }[] \| undefined; title?: string \| undefined; expiresAt?: string \| undefined; listed?: boolean \| undefined; rails?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; }[] \| undefined; }, options?: RequestOptions \| undefined) => Promise<PaymentLinkDto>; readonly list: (merchantId?: string \| undefined, options?: RequestOptions \| undefined) => Promise<readonly PaymentLinkDto[]>; readonly get: (id: string, options?: RequestOptions \| undefined) => Promise<PaymentLinkDto>; readonly rails: (id: string, options?: RequestOptions \| undefined) => Promise<PaymentRailsDto>; readonly disable: (id: string, options?: RequestOptions \| undefined) => Promise<PaymentLinkDto>; readonly listInIndex: (id: string, options?: RequestOptions \| undefined) => Promise<PaymentLinkDto>; readonly unlistFromIndex: (id: string, options?: RequestOptions \| undefined) => Promise<PaymentLinkDto>; readonly checkout: (id: string, body?: { amount?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; } \| undefined; metadata?: Record<string, string> \| undefined; settlementAsset?: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC" \| undefined; provider?: string \| undefined; payment?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; payerAddress?: string \| undefined; returnAddress?: string \| undefined; } \| undefined; executionPath?: "deposit-match" \| "on-chain-contract" \| "x402" \| undefined; merchantReference?: string \| undefined; ttlSeconds?: number \| undefined; } \| undefined, options?: RequestOptions \| undefined) => Promise<PaymentIntentDto>; }` |  |
+| `invoices` | `{ readonly create: (body: { merchantId: string; merchant: { name: string; id: string; city: string; countryCode: string; categoryCode?: string \| undefined; }; currency: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; lines: { name: string; quantity: number; unitPrice: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }; productId?: string \| undefined; }[]; buyer: { name: string; email?: string \| undefined; taxId?: string \| undefined; address?: string \| undefined; }; metadata?: Record<string, string> \| undefined; notes?: string \| undefined; }, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly list: (merchantId?: string \| undefined, options?: RequestOptions \| undefined) => Promise<readonly InvoiceDto[]>; readonly get: (id: string, options?: RequestOptions \| undefined) => Promise<InvoiceViewDto>; readonly update: (id: string, body: { metadata?: Record<string, string> \| undefined; lines?: { name: string; quantity: number; unitPrice: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }; productId?: string \| undefined; }[] \| undefined; buyer?: { name: string; email?: string \| undefined; taxId?: string \| undefined; address?: string \| undefined; } \| undefined; notes?: string \| undefined; }, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly issue: (id: string, body: { dueAt: string; prefix?: string \| undefined; includeYear?: boolean \| undefined; }, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly void: (id: string, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly listInIndex: (id: string, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly unlistFromIndex: (id: string, options?: RequestOptions \| undefined) => Promise<InvoiceDto>; readonly checkout: (id: string, body?: { amount?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; } \| undefined; payment?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; payerAddress?: string \| undefined; returnAddress?: string \| undefined; } \| undefined; executionPath?: "deposit-match" \| "on-chain-contract" \| "x402" \| undefined; } \| undefined, options?: RequestOptions \| undefined) => Promise<PaymentIntentDto>; }` |  |
+| `subscriptions` | `{ readonly create: (body: { description: string; amount: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }; customer: { name: string; email: string; }; interval: "week" \| "month" \| "year"; startAt?: string \| undefined; daysUntilDue?: number \| undefined; }, options?: RequestOptions \| undefined) => Promise<SubscriptionDto>; readonly list: (options?: RequestOptions \| undefined) => Promise<readonly SubscriptionDto[]>; readonly get: (id: string, options?: RequestOptions \| undefined) => Promise<{ subscription: SubscriptionDto; cycles: readonly InvoiceViewDto[]; }>; readonly pause: (id: string, options?: RequestOptions \| undefined) => Promise<SubscriptionDto>; readonly resume: (id: string, options?: RequestOptions \| undefined) => Promise<SubscriptionDto>; readonly cancel: (id: string, options?: RequestOptions \| undefined) => Promise<SubscriptionDto>; }` | Recurring plans (#296), send-to-pay: every cycle Mayarin issues the subscriber an invoice and emails its pay link. Payments on a cycle carry `metadata.subscriptionId` into the `payment.*` webhooks. |
+{/* /types */}
+
+## Publishable commerce module
+
+The subset a publishable key reaches: catalog read and cart checkout.
+
+{/* types: packages/sdk/src/commerce.ts PublishableCommerceModule */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `products` | `Pick<{ readonly create: (body: { merchantId: string; sku: string; name: string; prices: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }[]; description?: string \| undefined; metadata?: Record<string, string> \| undefined; }, options?: RequestOptions \| undefined) => Promise<ProductDto>; readonly list: (merchantId?: string \| undefined, options?: RequestOptions \| undefined) => Promise<readonly ProductDto[]>; readonly get: (id: string, options?: RequestOptions \| undefined) => Promise<ProductDto>; readonly update: (id: string, body: { name?: string \| undefined; description?: string \| null \| undefined; prices?: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }[] \| undefined; metadata?: Record<string, string> \| undefined; active?: boolean \| undefined; }, options?: RequestOptions \| undefined) => Promise<ProductDto>; }, "list" \| "get">` |  |
+| `carts` | `{ readonly checkout: (body: { currency: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; lines: ({ productId: string; quantity: number; } \| { name: string; quantity: number; unitPrice: { amount: string; asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; }; })[]; metadata?: Record<string, string> \| undefined; settlementAsset?: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC" \| undefined; provider?: string \| undefined; payment?: { asset: "IDR" \| "SGD" \| "MYR" \| "THB" \| "PHP" \| "VND" \| "BND" \| "MMK" \| "KHR" \| "LAK" \| "USD" \| "JPY" \| "CNY" \| "HKD" \| "EUR" \| "GBP" \| "AUD" \| "CAD" \| "AED" \| "SAR" \| "BRL" \| "MXN" \| "USDC" \| "USDT" \| "EURC" \| "PYUSD" \| "USDG" \| "DAI" \| "FDUSD" \| "ETH" \| "POL" \| "BNB" \| "WETH" \| "WBTC" \| "CBBTC" \| "WBNB" \| "BTCB" \| "LINK" \| "UNI" \| "AAVE" \| "ARB" \| "CAKE" \| "SOL" \| "BTC"; chain: "ethereum" \| "ethereum-sepolia" \| "base" \| "base-sepolia" \| "arbitrum" \| "arbitrum-sepolia" \| "arc-testnet" \| "polygon-amoy" \| "bsc-testnet" \| "polygon" \| "bsc" \| "solana-devnet" \| "solana-localnet"; payerAddress?: string \| undefined; returnAddress?: string \| undefined; } \| undefined; executionPath?: "deposit-match" \| "on-chain-contract" \| "x402" \| undefined; merchantReference?: string \| undefined; ttlSeconds?: number \| undefined; merchant?: { name?: string \| undefined; id?: string \| undefined; city?: string \| undefined; countryCode?: string \| undefined; categoryCode?: string \| undefined; } \| undefined; }, options?: RequestOptions \| undefined) => Promise<PaymentIntentDto & { url: string; }>; }` |  |
+{/* /types */}
+
+## Webhook verification
+
+{/* types: packages/sdk/src/webhooks.ts VerifyWebhookOptions */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `payload` | `string` |  |
+| `signature` | `string` |  |
+| `secret` | `string` |  |
+| `now?` | `Date` |  |
+| `toleranceSeconds?` | `number` |  |
+{/* /types */}
+
+## Presets
+
+{/* types: packages/sdk/src/presets.ts Preset */}
+| Property | Type | Description |
+| --- | --- | --- |
+| `name` | `"merchant"` |  |
+| `openAmountLinks` | `false` | Payment links created with no amount let the payer type one. |
+| `checkout` | `"catalog"` | The commerce surface the integration leans on. |
+{/* /types */}

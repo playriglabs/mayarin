@@ -305,15 +305,15 @@ function NetworkRow({
         onClick={onOpen}
         className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        {/* Stacked on a phone — the network, then what it does — and one line
-            from `sm` up. The caret keeps its own column either way, so it never
+        {/* Stacked on a phone — the network, what it settles in, then the
+            accepted assets on their own line — and one line from `sm` up. The caret keeps its own column either way, so it never
             floats between the two. */}
         <span className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <span className="flex items-center gap-2 font-medium text-sm sm:min-w-44 sm:flex-1">
             <ChainLabel chain={chain} className="whitespace-nowrap" />
             {isCustomized(draft, chain) && <Badge variant="brand">Custom</Badge>}
           </span>
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground text-xs">
+          <span className="flex flex-col items-start gap-2 text-muted-foreground text-xs sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
             <span className="flex items-center gap-2">
               Settles in
               {settleable ? (
@@ -324,9 +324,11 @@ function NetworkRow({
                 <Badge variant="warning">Not available</Badge>
               )}
             </span>
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <AssetStack assets={accepted} size={18} />
-              {accepted.length} of {entry.assets.length} accepted
+              <span className="whitespace-nowrap">
+                {accepted.length} of {entry.assets.length} accepted
+              </span>
             </span>
           </span>
         </span>

@@ -41,13 +41,29 @@ function AuthLogo() {
   );
 }
 
+/**
+ * On a phone the card is the whole screen: a header band on the dot grid and
+ * glow with the wordmark, over a solid panel. From `sm` up it is the plain
+ * centred card with the mark alone, so the band and the panel step aside.
+ */
 export function AuthCard({ children }: { readonly children: ReactNode }) {
   return (
-    <div className="flex w-full flex-col gap-6 px-6 pt-20 pb-10 sm:my-12 sm:max-w-[27rem] sm:rounded-3xl sm:border sm:border-border sm:bg-card sm:p-8 dark:sm:border-transparent dark:sm:bg-muted">
-      <a href="https://mayarin.xyz" aria-label="Mayarin home" className="inline-flex w-fit">
-        <AuthLogo />
-      </a>
-      {children}
+    <div className="relative flex min-h-svh w-full flex-col sm:static sm:my-12 sm:min-h-0 sm:max-w-[27rem] sm:gap-6 sm:rounded-3xl sm:border sm:border-border sm:bg-card sm:p-8 dark:sm:border-transparent dark:sm:bg-muted">
+      <div className="auth-backdrop px-6 pt-20 pb-6 sm:bg-none! sm:p-0">
+        <a
+          href="https://mayarin.xyz"
+          aria-label="Mayarin home"
+          className="inline-flex items-center"
+        >
+          <AuthLogo />
+          <span className="-ml-0.5 font-sans text-[1.75rem] font-medium leading-none tracking-[-0.06em] sm:hidden">
+            mayarin
+          </span>
+        </a>
+      </div>
+      <div className="flex flex-1 flex-col gap-6 bg-background px-6 pt-6 pb-10 sm:contents">
+        {children}
+      </div>
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
         <ThemeToggle />
       </div>
