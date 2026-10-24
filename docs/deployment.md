@@ -594,6 +594,13 @@ Three layers, each answering something the others cannot.
   change, once per state, to a Telegram chat (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`) and to the log, so Sentry sees it too. This is the failure `/health`
   cannot show: the API answering while the worker fails.
 
+- **AWS security signals** (`ap-southeast-2`): CloudTrail `mayarin-mainnet-trail`
+  also writes to the log group `/mayarin/cloudtrail`, with metric alarms for IAM
+  changes, root use, CloudTrail tampering and failed console logins, all to the
+  `mayarin-mainnet-alerts` SNS topic (email), next to the KMS and host-status
+  alarms. GuardDuty is enabled. The two IAM users that hold KMS keys are denied
+  from any address but the host's Elastic IP.
+
 ## Mainnet Gate
 
 Create `mayarin-mainnet` as a new Railway project; do not clone the testnet
