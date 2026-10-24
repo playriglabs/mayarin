@@ -3,7 +3,10 @@ set -euo pipefail
 
 case "${RAILWAY_SERVICE_NAME:-}" in
   docs|mayarin-docs)
-    exec bun apps/docs/dist/serve-node.js
+    # Waku resolves its static root as `dist/public` against the working
+    # directory, so the server has to start from inside apps/docs.
+    cd apps/docs
+    exec bun dist/serve-node.js
     ;;
   core-api)
     exec bun run --cwd apps/api start
