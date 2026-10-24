@@ -1,3 +1,4 @@
+import { BOOK_DEMO_URL } from "../../lib/book-demo.ts";
 import { Reveal } from "../reveal.tsx";
 
 function Chevron() {
@@ -55,7 +56,7 @@ export function EarlyAccessCta() {
       </svg>
 
       <Reveal class="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-5 text-center sm:px-8">
-        <p class="text-sm mb-5 text-accent">Get early access</p>
+        <p class="text-sm mb-5 text-accent">Book a demo</p>
         <h2 class="max-w-4xl text-balance text-paper">
           Focus on building. Let Mayarin move the money.
         </h2>
@@ -65,9 +66,9 @@ export function EarlyAccessCta() {
         </p>
         <a
           class="mt-9 inline-flex min-h-12 gap-1.5 items-center justify-center rounded-full bg-accent px-6 py-2 font-medium text-plate transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-          href="#footer-early-access"
+          href={BOOK_DEMO_URL}
         >
-          Get early access
+          Book demo
           <Chevron />
         </a>
       </Reveal>

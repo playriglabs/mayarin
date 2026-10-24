@@ -157,8 +157,8 @@ function SolutionVisual({ kind }: { readonly kind: SolutionKind }) {
 /** Payer-side asset choices, the chosen one raised like a selected option. */
 function CheckoutVisual() {
   const options = [
-    { asset: "ETH", selected: false },
-    { asset: "EURC", selected: false },
+    { asset: "cbBTC", selected: false },
+    { asset: "WBTC", selected: false },
     { asset: "USDC", selected: true },
   ];
   return (
@@ -299,7 +299,7 @@ function FlagSingapore() {
 }
 
 /** The stablecoins a payout can go out in. */
-const PAYOUT_ASSETS = ["USDC", "USDT", "PYUSD"] as const;
+const PAYOUT_ASSETS = ["USDC", "USDT"] as const;
 
 /** One stablecoin payout reaching recipients wherever they are. */
 function PayoutsVisual() {

@@ -11,7 +11,7 @@ const QUESTIONS = [
   {
     question: "Who holds the money?",
     answer:
-      "You do. Settlements land in a wallet you control — a Safe or a wallet you verify in the dashboard. On the contract path Mayarin never holds your customer's funds; on the deposit path they pass through a per-payment address only until the payment settles. When a customer pays in a local currency, a licensed partner takes the payment and verifies the payer; Mayarin never holds fiat or customer identity documents.",
+      "You do. Settlements land in a wallet you control, either a Safe or a wallet you verify in the dashboard. On the contract path Mayarin never holds your customer's funds; on the deposit path they pass through a per-payment address only until the payment settles. When a customer pays in a local currency, a licensed partner takes the payment and verifies the payer; Mayarin never holds fiat or customer identity documents.",
   },
   {
     question: "Do my customers need the currency I receive?",
@@ -21,7 +21,7 @@ const QUESTIONS = [
   {
     question: "Can my customers pay without crypto?",
     answer:
-      "Yes. At checkout they can choose a local method instead — a bank transfer, an e-wallet, a QR payment or online banking — and pay in their own currency. A licensed partner takes the payment and the stablecoin is delivered to the payment's address, so you are settled the same way as any other payment.",
+      "Yes. At checkout they can choose a local method instead, such as a bank transfer, an e-wallet, a QR payment or online banking, and pay in their own currency. A licensed partner takes the payment and the stablecoin is delivered to the payment's address, so you are settled the same way as any other payment.",
   },
   {
     question: "Which local payment methods are supported?",
@@ -51,7 +51,7 @@ const QUESTIONS = [
   {
     question: "Is Mayarin live?",
     answer:
-      "Mayarin runs on testnet today, so no real money moves yet — local payment methods included, which run against our payment partner's sandbox. Join early access and we will let you know when live payments open.",
+      "Yes. Mayarin is live on mainnet, on Base, Polygon, Arbitrum and BNB Smart Chain, so real payments settle to your wallet today. Local payment methods are the exception: they still run against our payment partner's sandbox until that partner enables them for live use.",
   },
 ] as const;
 
@@ -81,8 +81,17 @@ function PlusIcon({ open }: { readonly open: boolean }) {
  * height to animate from in most browsers, while `grid-template-rows` moves
  * between `0fr` and `1fr` smoothly everywhere.
  */
-function Question({ question, answer }: { readonly question: string; readonly answer: string }) {
-  const [open, setOpen] = useState(false);
+function Question({
+  question,
+  answer,
+  open,
+  onToggle,
+}: {
+  readonly question: string;
+  readonly answer: string;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+}) {
   const id = useId();
 
   return (
@@ -91,7 +100,7 @@ function Question({ question, answer }: { readonly question: string; readonly an
         type="button"
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen(!open)}
+        onClick={onToggle}
         class="flex w-full cursor-pointer items-center justify-between gap-6 py-6 text-left font-sans text-lg font-medium transition-colors hover:text-brand"
       >
         {question}
@@ -121,6 +130,8 @@ function Question({ question, answer }: { readonly question: string; readonly an
 }
 
 export function Faq() {
+  const [openQuestion, setOpenQuestion] = useState<string | undefined>(undefined);
+
   return (
     <section id="faq" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
       <div class="grid items-start gap-12 lg:grid-cols-[0.85fr_1.4fr] lg:gap-16">
@@ -140,7 +151,15 @@ export function Faq() {
         </Reveal>
         <Reveal delay={120} class="border-t border-line">
           {QUESTIONS.map((item) => (
-            <Question key={item.question} question={item.question} answer={item.answer} />
+            <Question
+              key={item.question}
+              question={item.question}
+              answer={item.answer}
+              open={openQuestion === item.question}
+              onToggle={() =>
+                setOpenQuestion(openQuestion === item.question ? undefined : item.question)
+              }
+            />
           ))}
         </Reveal>
       </div>

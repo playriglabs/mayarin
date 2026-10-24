@@ -8,6 +8,7 @@ import { assetLogoUrl } from "@mayarin/shared";
  */
 function networkName(chain: string): string {
   if (chain === "ethereum") return "Ethereum";
+  if (chain === "solana") return "Solana";
   return chainLabel(chain).replace(/ (Testnet|Sepolia)$/, "");
 }
 

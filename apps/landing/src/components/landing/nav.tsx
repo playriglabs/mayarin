@@ -1,14 +1,12 @@
 import clsx from "clsx";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { BOOK_DEMO_URL } from "../../lib/book-demo.ts";
+import { GetStartedDialog } from "./get-started-dialog.tsx";
 
 const HELP_URL = "https://help.mayarin.xyz";
 
-/**
- * Both point at testnet for now. Sandbox stays on testnet for good; Log in
- * moves to the mainnet dashboard when it goes live.
- */
-const LOGIN_URL = "https://dashboard-testnet.mayarin.xyz/login";
+/** The sandbox stays on testnet for good. */
 const SANDBOX_URL = "https://dashboard-testnet.mayarin.xyz/login";
 
 interface MenuItem {
@@ -254,6 +252,10 @@ function DesktopMenu({
   );
 }
 
+/** One top-level row of the mobile sheet; a fixed height keeps every row the same. */
+const MOBILE_ROW =
+  "flex min-h-12 w-full cursor-pointer items-center justify-between text-left transition-colors hover:text-brand";
+
 function MobileMenu({
   id,
   label,
@@ -276,7 +278,7 @@ function MobileMenu({
         aria-expanded={open}
         aria-controls={`v2-${id}-menu-mobile`}
         onClick={onToggle}
-        class="flex w-full cursor-pointer items-center justify-between py-3 text-left"
+        class={MOBILE_ROW}
       >
         {label}
         <ChevronDown open={open} />
@@ -316,6 +318,7 @@ function MobileMenu({
 
 export function Navigation() {
   const [open, setOpen] = useState(false);
+  const [getStarted, setGetStarted] = useState(false);
   const [menu, setMenu] = useState<MenuId | null>(null);
   const toggleMenu = (id: MenuId) => setMenu(menu === id ? null : id);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -412,14 +415,18 @@ export function Navigation() {
         </nav>
 
         <div class="ml-auto hidden items-center gap-6 text-sm xl:flex mt-px">
-          <a class="transition-colors hover:text-brand" href={LOGIN_URL}>
-            Log in
-          </a>
+          <button
+            type="button"
+            class="cursor-pointer transition-colors hover:text-brand"
+            onClick={() => setGetStarted(true)}
+          >
+            Get started
+          </button>
           <a
-            href="#footer-early-access"
+            href={BOOK_DEMO_URL}
             class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-5 py-2.5 leading-5 ring-1 ring-inset ring-line transition-colors duration-200 hover:bg-ink hover:text-paper hover:ring-ink"
           >
-            Get early access
+            Book demo
             <Chevron />
           </a>
         </div>
@@ -475,7 +482,7 @@ export function Navigation() {
             id="v2-mobile-menu"
             inert={!open}
             class={clsx(
-              "bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none [&>a]:block [&>a]:py-3 [&>a:hover]:text-brand",
+              "bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none",
               open ? "translate-y-0" : "-translate-y-3",
             )}
             aria-label="Mobile navigation"
@@ -505,16 +512,29 @@ export function Navigation() {
               />
             </div>
 
-            <a href={HELP_URL}>Help Center</a>
-            <a href={SANDBOX_URL}>Sandbox</a>
-            <a href={LOGIN_URL}>Log in</a>
-            {/* biome-ignore lint/a11y/useValidAnchor: This anchor navigates to the access form and also closes the mobile menu. */}
-            <a href="#footer-early-access" onClick={() => setOpen(false)}>
-              Get early access
+            <a href={HELP_URL} class={MOBILE_ROW}>
+              Help Center
+            </a>
+            <a href={SANDBOX_URL} class={MOBILE_ROW}>
+              Sandbox
+            </a>
+            <button
+              type="button"
+              class={MOBILE_ROW}
+              onClick={() => {
+                setOpen(false);
+                setGetStarted(true);
+              }}
+            >
+              Get started
+            </button>
+            <a href={BOOK_DEMO_URL} onClick={() => setOpen(false)} class={MOBILE_ROW}>
+              Book demo
             </a>
           </nav>
         </div>
       </div>
+      <GetStartedDialog open={getStarted} onClose={() => setGetStarted(false)} />
     </header>
   );
 }
