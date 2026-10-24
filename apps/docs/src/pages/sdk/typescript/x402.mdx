@@ -75,7 +75,3 @@ Inject `fetch` and `now` for tests, and `replays` for a store of your own:
 ```ts
 const gate = createX402Gate({ baseUrl, resourceId, fetch, now, replays });
 ```
-
-## A runnable example
-
-[`apps/x402-merchant`](https://github.com/playriglabs/mayarin/blob/main/apps/x402-merchant) in the repo is this page as a working server: register, serve, and prove unpaid / paid / replayed with the repo's `scripts/e2e-x402.ts`, including `--repeat 2` for the delivery policy.

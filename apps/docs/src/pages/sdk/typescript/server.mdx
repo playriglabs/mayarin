@@ -45,11 +45,11 @@ const mayarin = createMayarin({
 
 Build the client once per process and reuse it. It holds no connection state, so it is safe to share across requests.
 
-In the demo, [`loadDemoConfig`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) does this and throws naming **every** missing variable at once, so a first run tells the operator the whole list rather than one variable per attempt.
+In the demo, [`loadDemoConfig`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts) does this and throws naming **every** missing variable at once, so a first run tells the operator the whole list rather than one variable per attempt.
 
 ## Keep the secret on the server
 
-A storefront calls the two secret-key routes it needs from its own backend and ships neither the key nor the routes to the browser. The demo storefront ([`apps/demo/server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) mounts exactly two:
+A storefront calls the two secret-key routes it needs from its own backend and ships neither the key nor the routes to the browser. The demo storefront ([`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts)) mounts exactly two:
 
 ```ts
 // GET /api/products — the merchant's catalog
@@ -69,7 +69,7 @@ If a browser needs catalog reads and cart checkout directly, use a publishable k
 
 ## Cloudflare Workers and other edge runtimes
 
-Nothing in the SDK is Node-specific, so the same code runs in a Worker — [`apps/demo/server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) is the demo's storefront deployed that way. Read config from `env` rather than `process.env`, and build the client per request — a Worker isolate may serve many requests, but config arrives with each one:
+Nothing in the SDK is Node-specific, so the same code runs in a Worker — [`server/worker.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/worker.ts) is the demo's storefront deployed that way. Read config from `env` rather than `process.env`, and build the client per request — a Worker isolate may serve many requests, but config arrives with each one:
 
 ```ts
 export default {

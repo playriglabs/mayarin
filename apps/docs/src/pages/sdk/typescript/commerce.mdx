@@ -15,6 +15,12 @@ description: Manage products, carts, payment links, invoices, and subscriptions.
 
 The browser entry point exposes only `products.list`, `products.get`, and `carts.checkout` — see [browser client](/sdk/typescript/browser).
 
+## Bring your own catalog
+
+The commerce module is optional. If your store already has its own products, cart and prices, keep them: total the order on your backend and create a [payment intent](/sdk/typescript/payments) with that amount. Mayarin then only clears the payment, and nothing here needs to be set up.
+
+Compute the total on your server and send it with a secret key. `POST /v1/payment-intents` rejects a publishable key, and an amount that comes from the browser is an amount the buyer can change. Use `merchantReference` to tie the intent back to your order id.
+
 ## Products
 
 A product carries one price per currency the merchant sells in, and `metadata` for anything your storefront needs to render it.
@@ -40,7 +46,7 @@ await mayarin.commerce.products.update(product.id, { active: false });
 
 `update` is a partial write: an absent field is left alone, and `description: null` clears it.
 
-Seeding is naturally idempotent when keyed on SKU — read the catalog first and create only what is missing, which is how [`apps/demo/seed.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/seed.ts) runs unchanged on every boot:
+Seeding is naturally idempotent when keyed on SKU — read the catalog first and create only what is missing, which is how [`seed.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/seed.ts) runs unchanged on every boot:
 
 ```ts
 const existing = new Set(
@@ -51,7 +57,7 @@ for (const item of SEED_PRODUCTS.filter((p) => !existing.has(p.sku))) {
 }
 ```
 
-In the demo, product `metadata` carries the storefront's own presentation — category, colorway, image path — and the catalog read is the storefront's first call ([`Marketplace.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/Marketplace.tsx) → `GET /api/products` → `products.list`).
+In the demo, product `metadata` carries the storefront's own presentation — category, colorway, image path — and the catalog read is the storefront's first call ([`Marketplace.tsx`](https://github.com/playriglabs/mayarin-demo/blob/main/src/Marketplace.tsx) → `GET /api/products` → `products.list`).
 
 ## Carts
 
@@ -78,7 +84,7 @@ intent.url; // the hosted checkout page — redirect the buyer here
 
 The returned intent carries `url`, the absolute hosted checkout page, so a storefront never builds the checkout address itself.
 
-A line is either a catalog reference (`productId` + `quantity`) or an ad-hoc line a cashier typed (`name` + `unitPrice` + `quantity`). The demo builds its lines from a `localStorage` cart in [`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/CheckoutButton.tsx), then posts them to its own server. Every checkout also accepts the intent-shaping options: `settlementAsset`, `provider`, `payment`, `executionPath`, `metadata`, `merchantReference`, `ttlSeconds`.
+A line is either a catalog reference (`productId` + `quantity`) or an ad-hoc line a cashier typed (`name` + `unitPrice` + `quantity`). The demo builds its lines from a `localStorage` cart in [`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin-demo/blob/main/src/CheckoutButton.tsx), then posts them to its own server. Every checkout also accepts the intent-shaping options: `settlementAsset`, `provider`, `payment`, `executionPath`, `metadata`, `merchantReference`, `ttlSeconds`.
 
 ## Payment links
 
@@ -104,7 +110,7 @@ link.url; // hand this to the buyer, or render it as a QR
 link.payable; // false once disabled or expired
 ```
 
-Redirecting to `link.url` is what the demo does — `POST /api/checkout` returns `{ id, url }` and the browser assigns it ([`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/CheckoutButton.tsx)). Alternatively, drive checkout yourself with `paymentLinks.checkout(id)` — which mints the intent server-side and, for an `open` link, takes the amount:
+Redirecting to `link.url` is what the demo does — `POST /api/checkout` returns `{ id, url }` and the browser assigns it ([`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin-demo/blob/main/src/CheckoutButton.tsx)). Alternatively, drive checkout yourself with `paymentLinks.checkout(id)` — which mints the intent server-side and, for an `open` link, takes the amount:
 
 ```ts
 const intent = await mayarin.commerce.paymentLinks.checkout(link.id, {
@@ -128,7 +134,7 @@ await mayarin.commerce.paymentLinks.unlistFromIndex(link.id);
 
 ### Reuse a link instead of minting duplicates
 
-A storefront that mints a link per checkout click accumulates one link per abandoned cart. The demo ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) looks for an equivalent payable link first and passes a deterministic idempotency key derived from the cart, so a double-click cannot create two:
+A storefront that mints a link per checkout click accumulates one link per abandoned cart. The demo ([`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts)) looks for an equivalent payable link first and passes a deterministic idempotency key derived from the cart, so a double-click cannot create two:
 
 ```ts
 const links = await mayarin.commerce.paymentLinks.list(merchantId);

@@ -74,13 +74,13 @@ const mayarin = createMayarin({
 
 ## A working example
 
-[`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) is a complete storefront built on this SDK, small enough to read in one sitting:
+[`mayarin-demo`](https://github.com/playriglabs/mayarin-demo) is a complete storefront built on this SDK, small enough to read in one sitting:
 
 | File | Shows |
 | ---- | ----- |
-| [`seed.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/seed.ts) | Upserting a catalog by SKU with `commerce.products` |
-| [`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) | The thin server: catalog reads, link minting, a verified webhook endpoint, payment status |
-| [`server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) | The same integration on Cloudflare Workers |
+| [`seed.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/seed.ts) | Upserting a catalog by SKU with `commerce.products` |
+| [`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts) | The thin server: catalog reads, link minting, a verified webhook endpoint, payment status |
+| [`server/worker.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/worker.ts) | The same integration on Cloudflare Workers |
 
 The browser never sees the secret key — the build fails if it reaches the bundle.
 

@@ -33,7 +33,7 @@ mayarin.commerce.products.create; // ✗ type error, property does not exist
 
 Nothing in the right-hand column is missing from the SDK; it is missing from *this entry point*. Creating a product, minting a payment link, issuing an invoice, or reading a payment all run on the [server client](/sdk/typescript/server) with an `sk_` key — a publishable key reaches none of them, and shipping a secret key to the browser to get around that is the one thing the split exists to prevent. See [authentication and key safety](/guides/authentication).
 
-A browser that needs one of those results calls your own backend, which does the work with the secret key and returns only what the page needs. That is the shape [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) takes — its page holds no key at all, and the build fails if a secret ever reaches the bundle ([`verify-bundle.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/verify-bundle.ts)):
+A browser that needs one of those results calls your own backend, which does the work with the secret key and returns only what the page needs. That is the shape [`mayarin-demo`](https://github.com/playriglabs/mayarin-demo) takes — its page holds no key at all, and the build fails if a secret ever reaches the bundle ([`verify-bundle.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/verify-bundle.ts)):
 
 ```ts
 // Browser: no Mayarin key involved.

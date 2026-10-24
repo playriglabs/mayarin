@@ -33,7 +33,7 @@ const gate = createX402Gate({
 app.get("/premium", x402Connect(gate), paidHandler);
 ```
 
-Unpaid is answered with the price in the standard `PAYMENT-REQUIRED` header; a settled payment runs the handler once with `PAYMENT-RESPONSE` on the answer; a replayed signature is re-served without a second charge or a second handler run; and if Mayarin cannot be reached the answer is `502` and the handler never runs. The [SDK page](/sdk/typescript/x402) covers registration, the decision table, and the delivery policy. A runnable server lives in the repo as [`apps/x402-merchant`](https://github.com/playriglabs/mayarin/blob/main/apps/x402-merchant).
+Unpaid is answered with the price in the standard `PAYMENT-REQUIRED` header; a settled payment runs the handler once with `PAYMENT-RESPONSE` on the answer; a replayed signature is re-served without a second charge or a second handler run; and if Mayarin cannot be reached the answer is `502` and the handler never runs. The [SDK page](/sdk/typescript/x402) covers registration, the decision table, and the delivery policy.
 
 ## The HTTP contract, for stacks without a gate
 

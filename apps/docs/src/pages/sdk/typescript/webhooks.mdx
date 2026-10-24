@@ -114,7 +114,7 @@ async function verifyWithAny(payload: string, signature: string, secrets: readon
 
 The previous secret stops signing 24 hours after a rotation. Deploy the new secret to your receiver inside that window, then drop the old one; a delivery signed only with the new secret fails against a receiver that still holds just the old one. Rotate by creating the new secret, confirming a delivery verifies with it, and only then removing the old secret from your configuration.
 
-The demo implements exactly this endpoint twice — [`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) for the Node dev server and [`server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) for Cloudflare — answering `401` on a bad signature and `202` once accepted.
+The demo implements exactly this endpoint twice — [`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts) for the Node dev server and [`server/worker.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/worker.ts) for Cloudflare — answering `401` on a bad signature and `202` once accepted.
 
 ## Handle it idempotently
 

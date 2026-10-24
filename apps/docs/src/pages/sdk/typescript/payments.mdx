@@ -134,7 +134,7 @@ if (intent.status === "COMPLETED") {
 }
 ```
 
-Treat a webhook as a signal and this call as the truth — the demo storefront ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) verifies the delivery, then re-reads the intent before marking an order paid:
+Treat a webhook as a signal and this call as the truth — the demo storefront ([`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts)) verifies the delivery, then re-reads the intent before marking an order paid:
 
 ```ts
 const event = parseWebhookEvent(rawBody);
@@ -148,7 +148,7 @@ if (event?.state === "SUCCESS") {
 
 Checking `merchant.id` matters: an intent id is not a capability, and a merchant should only ever fulfil its own orders.
 
-The demo's success page polls the same way: the browser calls its own `/api/payment-status/:id` ([`PaymentSuccess.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/PaymentSuccess.tsx)), and the server answers from `payment.getIntent` ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) — so the page learns the outcome without ever holding a key.
+The demo's success page polls the same way: the browser calls its own `/api/payment-status/:id` ([`PaymentSuccess.tsx`](https://github.com/playriglabs/mayarin-demo/blob/main/src/PaymentSuccess.tsx)), and the server answers from `payment.getIntent` ([`server/index.ts`](https://github.com/playriglabs/mayarin-demo/blob/main/server/index.ts)) — so the page learns the outcome without ever holding a key.
 
 ## Invoice and receipt PDFs
 
