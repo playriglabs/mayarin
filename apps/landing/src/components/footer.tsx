@@ -85,6 +85,8 @@ function BookDemo() {
   );
 }
 
+const STATUS_URL = "https://stats.uptimerobot.com/oTsGTspgSo";
+
 const STATUS_LABEL = {
   operational: "All systems operational",
   issues: "Experiencing issues",
@@ -110,7 +112,7 @@ function StatusLink() {
 
   return (
     <a
-      href="https://status.mayarin.xyz"
+      href={STATUS_URL}
       target="_blank"
       rel="noreferrer"
       class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-brand"

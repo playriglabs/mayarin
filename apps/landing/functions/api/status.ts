@@ -1,30 +1,39 @@
 /**
- * The state of status.mayarin.xyz in one word. The status page does not allow
- * cross-origin reads, so the landing asks here instead. Uptime Kuma heartbeat
- * statuses: 0 down, 1 up, 2 pending, 3 maintenance.
+ * The state of the UptimeRobot status page in one word. The API key is a
+ * read-only one and stays on the server, so the landing asks here instead of
+ * calling UptimeRobot from the browser. UptimeRobot monitor statuses:
+ * 0 paused, 1 not checked yet, 2 up, 8 seems down, 9 down.
  */
-const HEARTBEATS = "https://status.mayarin.xyz/api/status-page/heartbeat/mayarin";
+interface Env {
+  readonly UPTIMEROBOT_API_KEY?: string;
+}
 
-interface Heartbeats {
-  readonly heartbeatList: Readonly<Record<string, readonly { readonly status: number }[]>>;
+interface Monitors {
+  readonly monitors?: readonly { readonly status: number }[];
 }
 
 type State = "operational" | "issues" | "unknown";
 
-function stateOf(data: Heartbeats): State {
-  const latest = Object.values(data.heartbeatList).map((beats) => beats.at(-1)?.status);
-  if (latest.length === 0 || latest.some((status) => status === undefined)) return "unknown";
-  if (latest.some((status) => status === 0)) return "issues";
-  return latest.every((status) => status === 1) ? "operational" : "unknown";
+function stateOf(data: Monitors): State {
+  const statuses = (data.monitors ?? []).map((monitor) => monitor.status);
+  if (statuses.length === 0) return "unknown";
+  if (statuses.some((status) => status === 8 || status === 9)) return "issues";
+  return statuses.every((status) => status === 2) ? "operational" : "unknown";
 }
 
-export const onRequestGet: PagesFunction = async () => {
+export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   let state: State = "unknown";
-  try {
-    const response = await fetch(HEARTBEATS);
-    if (response.ok) state = stateOf((await response.json()) as Heartbeats);
-  } catch {
-    // An unreachable status page is "unknown", not an outage claim.
+  if (env.UPTIMEROBOT_API_KEY !== undefined) {
+    try {
+      const response = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ api_key: env.UPTIMEROBOT_API_KEY, format: "json" }),
+      });
+      if (response.ok) state = stateOf((await response.json()) as Monitors);
+    } catch {
+      // An unreachable status API is "unknown", not an outage claim.
+    }
   }
   return Response.json({ state }, { headers: { "Cache-Control": "public, max-age=60" } });
 };

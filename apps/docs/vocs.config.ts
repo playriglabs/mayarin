@@ -14,7 +14,7 @@ export default defineConfig({
     { text: "API Reference", link: "/api-reference" },
     { text: "Dashboard", link: "https://dashboard.mayarin.xyz", external: true },
     { text: "Help Center", link: "https://help.mayarin.xyz", external: true },
-    { text: "Status", link: "https://status.mayarin.xyz", external: true },
+    { text: "Status", link: "https://stats.uptimerobot.com/oTsGTspgSo", external: true },
   ],
   openapi: [
     {
