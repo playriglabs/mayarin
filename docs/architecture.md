@@ -273,7 +273,7 @@ apps/
   ✓ x402-merchant/       reference merchant app gating its own endpoint over x402
   ✓ docs/                interactive OpenAPI + SDK documentation (docs.mayarin.xyz)
   ✓ landing/             marketing site
-  ✓ blog/ studio/        editorial site and content studio
+  ✓ studio/              content studio
 
 packages/
 

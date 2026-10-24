@@ -100,7 +100,7 @@ const requireNodeVersion = async (): Promise<void> => {
 
   throw new Error(
     `Node ${found} is on the PATH, and Astro needs ${required}.12 or newer.\n` +
-      "The gate would fail in apps/blog, apps/dashboard and apps/docs with an engine\n" +
+      "The gate would fail in apps/dashboard, apps/docs and apps/landing with an engine\n" +
       "message rather than anything about the code. Run `nvm use` and try again.",
   );
 };

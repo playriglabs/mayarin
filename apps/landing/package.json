@@ -5,17 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler d1 migrations apply mayarin-landing-early-access --local && bun run --parallel dev:web dev:functions",
-    "dev:web": "vite",
+    "dev:web": "astro dev",
     "dev:functions": "wrangler pages dev public --ip 127.0.0.1 --port 8788",
-    "build": "vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && bun scripts/prerender.ts",
+    "build": "astro build",
     "deploy": "bun run typecheck && bun run build && wrangler d1 migrations apply mayarin-landing-early-access --remote && wrangler pages deploy --branch main",
     "early-access:list": "wrangler d1 execute mayarin-landing-early-access --remote --command \"select email, datetime(created_at, 'unixepoch') as submitted_at from early_access_signups order by created_at desc\"",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "preview": "astro preview",
+    "typecheck": "astro check"
   },
   "dependencies": {
+    "@astrojs/preact": "^6.1.1",
     "@mayarin/chain": "workspace:*",
     "@mayarin/shared": "workspace:*",
+    "astro": "^7.3.1",
     "clsx": "^2.1.1",
     "cobe": "^2.0.1",
     "gsap": "^3.15.0",
@@ -23,10 +25,10 @@
     "preact": "^10.27.2"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/sitemap": "^3.7.4",
     "@cloudflare/workers-types": "^4.20260702.1",
-    "@preact/preset-vite": "^2.10.2",
     "@tailwindcss/vite": "^4.1.18",
-    "preact-render-to-string": "^6.7.0",
     "shiki": "^4.4.1",
     "tailwindcss": "^4.1.18",
     "vite": "^8.0.13",
