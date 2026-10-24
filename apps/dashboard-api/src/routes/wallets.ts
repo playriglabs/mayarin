@@ -138,7 +138,9 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
       // joined when there was one chain has to be able to get a wallet on the
       // next one without anybody running a script for them, and the browser
       // must not invent a chain name of its own to ask for it.
-      chains: container.config.walletProvisionChains,
+      // Empty when there is no wallet provider, so the dashboard offers no managed wallet the
+      // deployment would refuse to create. `chain` above stays: connecting needs it either way.
+      chains: container.wallets.canProvision ? container.config.walletProvisionChains : [],
       // A merchant-held wallet can be connected on every settlement network,
       // including Solana where the EVM Safe provisioning path does not apply.
       connectChains: chainReceipts(container.config).map((receipt) => receipt.chain),

@@ -113,16 +113,30 @@ export class SettlementAddressResolver {
       return { source: "managed", address: managed.address };
     }
 
-    // A verified external wallet on this exact chain is a safe fallback too.
-    // Unlike EVM, a Solana address is not shared with the merchant's EVM Safe,
-    // so connecting their wallet is the non-custodial setup path. More than one
-    // is intentionally ambiguous: an explicit settings choice must decide.
-    const verified = (await this.#wallets.listByMerchant(merchantId)).filter(
-      (wallet) => wallet.chain === chain && isMerchantHeld(wallet) && isVerified(wallet),
+    // A verified external wallet is a safe fallback too. More than one on this chain is
+    // intentionally ambiguous: an explicit settings choice must decide.
+    const all = await this.#wallets.listByMerchant(merchantId);
+    const held = all.filter((wallet) => isMerchantHeld(wallet) && isVerified(wallet));
+    const here = held.filter((wallet) => wallet.chain === chain);
+    if (here.length > 1) return undefined;
+    const [only] = here;
+    if (only !== undefined) return { source: "verified-wallet", address: only.address };
+
+    // A Solana address is not shared with the merchant's EVM Safe, so Solana stays per chain.
+    // On EVM a wallet is proved by a recovered signature, which names a key, and that key holds
+    // the address on every EVM chain: connecting once on Base covers Polygon too. One distinct
+    // address across the EVM chains is the merchant's choice; two is theirs to settle in settings.
+    // A merchant on the managed path is the exception: the Safe is set up network by network, and a
+    // network without it must say so rather than quietly pay their own wallet while the rest pay the Safe.
+    if (!isEvmChainId(chain) || all.some((wallet) => wallet.provenance === "provisioned")) {
+      return undefined;
+    }
+    const evmAddresses = new Set(
+      held.filter((wallet) => isEvmChainId(wallet.chain)).map((wallet) => wallet.address),
     );
-    const [only] = verified;
-    return verified.length === 1 && only !== undefined
-      ? { source: "verified-wallet", address: only.address }
+    const [address] = evmAddresses;
+    return evmAddresses.size === 1 && address !== undefined
+      ? { source: "verified-wallet", address }
       : undefined;
   }
 }
