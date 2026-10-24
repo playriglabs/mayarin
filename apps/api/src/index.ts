@@ -151,7 +151,7 @@ if (fiatSettler !== undefined) {
 // "You got paid" emails, read off the clearing log on their own cursor. Same
 // guard as the dispatcher: a slow pass is skipped, never overlapped.
 const paidNotices = container.paidNotices;
-if (paidNotices !== undefined) {
+if (paidNotices !== undefined && config.paidNoticeIntervalMs > 0) {
   let mailing = false;
   setInterval(() => {
     if (mailing) return;
@@ -164,8 +164,8 @@ if (paidNotices !== undefined) {
       .finally(() => {
         mailing = false;
       });
-  }, 30_000);
-  console.log("[paid-notifier] mailing every 30000ms");
+  }, config.paidNoticeIntervalMs);
+  console.log(`[paid-notifier] mailing every ${config.paidNoticeIntervalMs}ms`);
 }
 
 // The expiry sweep runs on its own timer in the watcher's shape: a failed pass

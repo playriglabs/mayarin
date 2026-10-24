@@ -601,6 +601,55 @@ Three layers, each answering something the others cannot.
   alarms. GuardDuty is enabled. The two IAM users that hold KMS keys are denied
   from any address but the host's Elastic IP.
 
+## Scaling the checkout path
+
+The traffic that matters is payers, not merchants: a payer reaches the `pay`
+Worker, then `core-api`, then Postgres; the dashboard is only merchants, so it can
+stay on one instance and be restarted by hand. What a payer needs is the first
+three.
+
+**Already in place.** The hashed checkout assets are cached at the Cloudflare edge
+(`cf-cache-status: HIT`; the origin sends `immutable` for a year), so a burst of
+payers does not reach `core-api` for static files. The operator nonce is
+sequenced across processes by a Postgres advisory lock, and idempotency keys live
+in the database, so a second `core-api` cannot double-spend a nonce or a request.
+
+**Single points, in the order they bite.**
+
+1. **RPC.** Every mainnet chain reads through one Alchemy URL
+   (`CHAIN_RPC_URLS`), with no fallback. A rate limit or an outage there stops
+   quotes and deposit detection on that chain while every server is healthy.
+   Check the plan and monthly usage in the Alchemy dashboard first; a paid tier is
+   the cheap fix. A second provider needs a shared helper, because about twenty
+   call sites build a client from one URL. Do not fall back to a free public node:
+   the worker believes what the node says about a deposit, and a node that lies
+   can mark a payment funded.
+2. **Database.** Single-AZ. `aws rds modify-db-instance --multi-az
+--apply-immediately` builds a standby (a short I/O slowdown while it does) and
+   makes a primary failure a one to two minute failover, not a restore.
+3. **`core-api`.** One host. See the replica below.
+
+**A second `core-api`.** Same image on another host in another AZ, running only
+`core-api` and `cloudflared`. Cloudflare balances a tunnel across every connector
+that uses its token, so there is no load balancer to pay for. Its env is the
+first host's `.env.core-api` with two changes:
+
+```
+WEBHOOK_INTERVAL_MS=0
+PAID_NOTICE_INTERVAL_MS=0
+```
+
+so only the first instance sends webhooks and "you got paid" emails (their cursor
+is read, then written; two instances would send twice). The replica's Elastic IP
+must be added to `deny-outside-host` on the `mayarin-core-api` IAM user, or its
+order signing fails with `AccessDenied`. The per-IP rate limit is held in memory,
+so with two instances the effective limit is doubled. `chain-worker` and
+`dashboard-api` stay on the first host: the worker holds a database lease, and a
+second worker would wait on it.
+
+Cost in Sydney, on top of the current host: RDS Multi-AZ about $22 a month, a
+second small host about $22 with its Elastic IP and disk.
+
 ## Mainnet Gate
 
 Create `mayarin-mainnet` as a new Railway project; do not clone the testnet
