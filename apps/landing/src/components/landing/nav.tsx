@@ -113,9 +113,7 @@ function ApiIcon() {
       stroke-linecap="square"
       aria-hidden="true"
     >
-      <path d="M3 16h6M23 16h6" />
-      <rect x="9" y="9" width="14" height="14" />
-      <path d="M16 3v6M16 23v6" />
+      <path d="M18 3L7 18h8l-2 11 12-16h-8z" />
     </svg>
   );
 }

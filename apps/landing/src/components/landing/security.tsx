@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { Reveal } from "../reveal.tsx";
 import { SectionIntro } from "./ui.tsx";
+import { useEntryTimeline } from "./use-entry-timeline.ts";
 
 /**
  * What a merchant pays and what protects the account. Every line is something
@@ -102,21 +103,42 @@ function Card({
   );
 }
 
+const CODE = ["4", "8", "1", "9", "0", "7"] as const;
+const STEP_UP_MOMENTS = ["Sign-in", "Withdrawals", "Payouts", "API keys", "Webhooks"] as const;
+
 /**
  * An authenticator code, the 30-second window it lives in, and the moments the
- * dashboard asks for a fresh one.
+ * dashboard asks for a fresh one. Each loop a new code lands, the window drains
+ * and every protected moment is checked off in turn.
  */
 function CodeBoxes() {
+  const root = useEntryTimeline<HTMLDivElement>((timeline) => {
+    const digits = root.current?.querySelectorAll("[data-digit]") ?? [];
+    timeline
+      .call(() => {
+        for (const digit of digits) digit.textContent = String(Math.floor(Math.random() * 10));
+      })
+      .from("[data-digit]", { autoAlpha: 0, y: -10, duration: 0.35, stagger: 0.08 })
+      .fromTo("[data-window]", { width: "100%" }, { width: "10%", duration: 3, ease: "none" }, 0.5)
+      .from("[data-moment]", { autoAlpha: 0.35, duration: 0.3, stagger: 0.3 }, 0.9)
+      .from("[data-check]", { scale: 0, duration: 0.35, ease: "back.out(3)", stagger: 0.3 }, 0.9);
+  });
+
   return (
-    <div class="rounded-xl border border-line bg-v2-sky/40 p-4 md:p-5" aria-hidden="true">
+    <div
+      ref={root}
+      class="rounded-xl border border-line bg-v2-sky/40 p-4 md:p-5"
+      aria-hidden="true"
+    >
       <div class="flex items-center justify-between text-xs text-slate-600">
         <span>Authenticator code</span>
         <span class="text-brand">New code every 30s</span>
       </div>
       <div class="mt-3 flex items-center gap-2">
-        {["4", "8", "1", "9", "0", "7"].map((digit, index) => (
+        {CODE.map((digit, index) => (
           <span
             key={index}
+            data-digit
             class="grid size-11 flex-1 place-items-center rounded-lg border border-line bg-paper text-lg font-medium text-ink md:max-w-14"
           >
             {digit}
@@ -124,15 +146,17 @@ function CodeBoxes() {
         ))}
       </div>
       <div class="mt-4 h-1 overflow-hidden rounded-full bg-line">
-        <span class="block h-full w-2/3 rounded-full bg-brand" />
+        <span data-window class="block h-full w-2/3 rounded-full bg-brand" />
       </div>
       <div class="mt-4 flex flex-wrap gap-2">
-        {["Sign-in", "Withdrawals", "Payouts", "API keys", "Webhooks"].map((moment) => (
+        {STEP_UP_MOMENTS.map((moment) => (
           <span
             key={moment}
+            data-moment
             class="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs text-ink"
           >
             <svg
+              data-check
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -152,17 +176,35 @@ function CodeBoxes() {
   );
 }
 
-/** A $100 payment: nearly all of the bar reaches the merchant. */
+/** A $100 payment: the bar fills to nearly all of it, then the small fee lands. */
 function FeeBar() {
+  const root = useEntryTimeline<HTMLDivElement>((timeline) => {
+    timeline
+      .from("[data-keep]", {
+        scaleX: 0,
+        transformOrigin: "left",
+        duration: 1.2,
+        ease: "power3.out",
+      })
+      .from(
+        "[data-fee]",
+        { autoAlpha: 0, scaleY: 0.4, duration: 0.4, ease: "back.out(3)" },
+        "-=0.1",
+      )
+      .from("[data-fee-label]", { autoAlpha: 0, y: 6, duration: 0.4, stagger: 0.15 }, "-=0.3");
+  });
+
   return (
-    <div aria-hidden="true">
+    <div ref={root} aria-hidden="true">
       <div class="flex h-11 overflow-hidden rounded-lg">
-        <span class="flex-1 bg-v2-sky" />
-        <span class="w-[3%] bg-brand" />
+        <span data-keep class="flex-1 bg-v2-sky" />
+        <span data-fee class="w-[3%] bg-brand" />
       </div>
       <div class="mt-3 flex justify-between text-xs text-slate-600">
-        <span>You keep 99.4%</span>
-        <span class="text-brand">Fee 0.6%</span>
+        <span data-fee-label>You keep 99.4%</span>
+        <span data-fee-label class="text-brand">
+          Fee 0.6%
+        </span>
       </div>
     </div>
   );
@@ -188,18 +230,32 @@ function LockIcon() {
 
 /** Two separate keys, each held by the vault rather than the app. */
 function KeyVault() {
+  const root = useEntryTimeline<HTMLDivElement>((timeline) => {
+    timeline
+      .from("[data-key]", { autoAlpha: 0, x: -24, duration: 0.5, stagger: 0.2 })
+      .from(
+        "[data-lock]",
+        { scale: 0, rotate: -25, duration: 0.45, ease: "back.out(3)", stagger: 0.2 },
+        0.3,
+      )
+      .from("[data-vault]", { autoAlpha: 0, duration: 0.4, stagger: 0.2 }, 0.6);
+  });
+
   return (
-    <div class="space-y-2" aria-hidden="true">
+    <div ref={root} class="space-y-2" aria-hidden="true">
       {["Order signer", "Operator"].map((name) => (
         <div
           key={name}
+          data-key
           class="flex items-center gap-3 rounded-lg border border-line bg-v2-sky/60 px-3 py-2.5 text-xs text-ink"
         >
-          <span class="text-brand">
+          <span data-lock class="text-brand">
             <LockIcon />
           </span>
           {name}
-          <span class="ml-auto text-slate-600">Key vault</span>
+          <span data-vault class="ml-auto text-slate-600">
+            Key vault
+          </span>
         </div>
       ))}
     </div>
@@ -220,29 +276,87 @@ function Node({ label, strong = false }: { readonly label: string; readonly stro
   );
 }
 
-/** The payment goes to the merchant's wallet; the fee goes somewhere else. */
+/**
+ * The payment goes to the merchant's wallet; the fee goes somewhere else. A coin
+ * leaves the payer, lands in the wallet, then the treasury takes its share.
+ */
 function SettlementSplit() {
+  const root = useEntryTimeline<HTMLDivElement>((timeline) => {
+    timeline
+      .from("[data-payer]", { autoAlpha: 0, x: -16, duration: 0.4 })
+      .from("[data-line]", { scaleX: 0, transformOrigin: "left", duration: 0.5 }, "-=0.1")
+      .fromTo(
+        "[data-coin]",
+        { left: "0%", autoAlpha: 1 },
+        { left: "100%", duration: 0.9, ease: "power1.inOut" },
+      )
+      .to("[data-coin]", { autoAlpha: 0, duration: 0.2 })
+      .from("[data-wallet]", { scale: 0.85, duration: 0.5, ease: "back.out(3)" }, "-=0.2")
+      .from("[data-treasury]", { autoAlpha: 0, x: 12, duration: 0.4 }, "-=0.2");
+  });
+
   return (
-    <div class="flex items-center justify-between gap-2" aria-hidden="true">
-      <Node label="Payer" />
-      <span class="h-px flex-1 bg-brand/30" />
+    <div ref={root} class="flex items-center justify-between gap-2" aria-hidden="true">
+      <span data-payer class="inline-flex">
+        <Node label="Payer" />
+      </span>
+      <span class="relative h-px flex-1">
+        <span data-line class="absolute inset-0 bg-brand/30" />
+        <span
+          data-coin
+          class="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-0"
+        />
+      </span>
       <div class="flex flex-col gap-2">
-        <Node label="Your wallet" strong />
-        <Node label="Treasury Safe" />
+        <span data-wallet class="inline-flex">
+          <Node label="Your wallet" strong />
+        </span>
+        <span data-treasury class="inline-flex">
+          <Node label="Treasury Safe" />
+        </span>
       </div>
     </div>
   );
 }
 
-/** A webhook only wakes the check; the on-chain read is what settles. */
+/**
+ * A webhook only wakes the check; the on-chain read is what settles. The check
+ * pings while it reads the chain, and only then does the line reach "Settled".
+ */
 function ConfirmSteps() {
+  const root = useEntryTimeline<HTMLDivElement>((timeline) => {
+    timeline
+      .from("[data-webhook]", { autoAlpha: 0, x: -16, duration: 0.4 })
+      .from("[data-signal]", { scaleX: 0, transformOrigin: "left", duration: 0.4 })
+      .from("[data-check-node]", { autoAlpha: 0, scale: 0.7, duration: 0.4, ease: "back.out(3)" })
+      .fromTo(
+        "[data-ping]",
+        { scale: 1, autoAlpha: 0.5 },
+        { scale: 1.6, autoAlpha: 0, duration: 0.7, repeat: 1, ease: "power1.out" },
+      )
+      .from("[data-proof]", { scaleX: 0, transformOrigin: "left", duration: 0.4 })
+      .from("[data-settled-node]", {
+        autoAlpha: 0,
+        scale: 0.7,
+        duration: 0.4,
+        ease: "back.out(3)",
+      });
+  });
+
   return (
-    <div class="flex items-center justify-between gap-2" aria-hidden="true">
-      <Node label="Webhook" />
-      <span class="h-px flex-1 border-t border-dashed border-brand/40" />
-      <Node label="On-chain check" strong />
-      <span class="h-px flex-1 bg-brand/30" />
-      <Node label="Settled" />
+    <div ref={root} class="flex items-center justify-between gap-2" aria-hidden="true">
+      <span data-webhook class="inline-flex">
+        <Node label="Webhook" />
+      </span>
+      <span data-signal class="h-px flex-1 border-t border-dashed border-brand/40" />
+      <span data-check-node class="relative inline-flex">
+        <span data-ping class="absolute inset-0 rounded-lg bg-brand opacity-0" />
+        <Node label="On-chain check" strong />
+      </span>
+      <span data-proof class="h-px flex-1 bg-brand/30" />
+      <span data-settled-node class="inline-flex">
+        <Node label="Settled" />
+      </span>
     </div>
   );
 }

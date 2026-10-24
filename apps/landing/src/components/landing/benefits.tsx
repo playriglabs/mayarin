@@ -1,10 +1,10 @@
 import { assetSymbol } from "@mayarin/shared";
 import clsx from "clsx";
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
-import { gsap, registerGsap } from "../../lib/gsap.ts";
+import { useEffect, useState } from "preact/hooks";
 import { Reveal } from "../reveal.tsx";
 import { CURRENCY_MARKETS } from "./currency-markets.ts";
+import { useEntryTimeline } from "./use-entry-timeline.ts";
 
 /**
  * What a merchant gets from Mayarin, as a bento: two rows, a wide card beside a
@@ -130,34 +130,6 @@ function TrendUp() {
       <path d="M4 10.5l2.5-2.5 2 2L12 6.5M9.5 6.5H12V9" />
     </svg>
   );
-}
-
-/**
- * Loops a timeline from the moment the illustration first scrolls into view. The
- * prerendered markup is the finished state, so no JavaScript and reduced
- * motion both see the illustration complete; the timeline only animates
- * *from* elsewhere back to it.
- */
-function useEntryTimeline<T extends HTMLElement>(build: (timeline: gsap.core.Timeline) => void) {
-  const root = useRef<T>(null);
-  useEffect(() => {
-    const node = root.current;
-    if (!node) return;
-    registerGsap();
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const context = gsap.context(() => {
-      build(
-        gsap.timeline({
-          defaults: { ease: "power2.out" },
-          repeat: -1,
-          repeatDelay: 2.5,
-          scrollTrigger: { trigger: node, start: "top 80%", once: true },
-        }),
-      );
-    }, node);
-    return () => context.revert();
-  }, []);
-  return root;
 }
 
 const REVENUE = 48_210;

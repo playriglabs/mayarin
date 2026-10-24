@@ -49,7 +49,7 @@ export function startSmoothScroll(): () => void {
     if (!anchor?.href) return;
 
     // `#faq` and `/#faq` both point here when this is the landing page; the
-    // footer uses the second so it still works from /brand-kit/.
+    // footer uses the second so it still works from /privacy and /terms.
     const url = new URL(anchor.href);
     if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
     if (url.hash === "" || url.hash === "#") return;

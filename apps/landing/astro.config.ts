@@ -14,7 +14,7 @@ export default defineConfig({
       proxy: { "/api": "http://127.0.0.1:8788" },
     },
   },
-  // `/brand-kit`, not `/brand-kit/`: Cloudflare Pages serves the file at the bare path.
+  // `/privacy`, not `/privacy/`: Cloudflare Pages serves the file at the bare path.
   trailingSlash: "never",
   build: { format: "file" },
 });

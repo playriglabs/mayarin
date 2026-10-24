@@ -46,7 +46,7 @@ beyond layout utilities.
 | Token            | Value     | Used for                                                         |
 | ---------------- | --------- | ---------------------------------------------------------------- |
 | `--color-paper`  | `#ffffff` | Light sections                                                   |
-| `--color-void`   | `#050505` | Dark surfaces; the brand kit uses it                             |
+| `--color-void`   | `#050505` | Dark surfaces                                                    |
 | `--color-ink`    | `#111111` | Primary text                                                     |
 | `--color-slate`  | `#666666` | Secondary text                                                   |
 | `--color-line`   | `#eaeaea` | Hairlines on light                                               |
