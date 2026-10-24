@@ -6,37 +6,16 @@ Marketing site for Mayarin. Astro + Preact islands + Tailwind v4, no runtime dep
 bun run dev:landing      # http://localhost:4321
 bun run build:landing    # static output in apps/landing/dist
 bun run deploy:landing   # verify, build, and deploy to Cloudflare Pages
-bun run --cwd apps/landing early-access:list # list early-access submissions
 ```
 
 The deployment target is the `mayarin-landing` Cloudflare Pages project, as
 recorded in `wrangler.jsonc`. Deployment is manual; the project is not connected
 to GitHub. Wrangler requires Node.js 22 or newer for deployment.
 
-Early-access submissions are stored in the bound
-`mayarin-landing-early-access` D1 database. `deploy:landing` applies pending D1
-migrations before uploading the site. The list command prints email and
-submission time, newest first; it does not expose a public listing endpoint.
-
-`dev:landing` applies local D1 migrations and starts Astro alongside Wrangler
-Pages Functions on port 8788. Astro proxies `/api` to that local runtime, so the
-early-access form runs the same handler as production. Local submissions persist
-in `apps/landing/.wrangler/state` and do not write to the production database.
-Restart `bun run dev:landing` after updating the dev configuration; running Astro
-alone does not start the Functions runtime. To inspect local submissions:
-
-```bash
-cd apps/landing
-bunx wrangler d1 execute mayarin-landing-early-access --local --command "select email from early_access_signups order by created_at desc"
-```
-
-The endpoint allows five attempts per Cloudflare client IP in ten minutes,
-including invalid submissions, and returns `429` with `Retry-After` when full.
-An atomic D1 counter stores the IP hash; expired counters are removed on the next
-request. The form also blocks duplicate in-flight submissions, waits 60 seconds
-between attempts (or the server's longer cooldown), and stays disabled after
-success. The honeypot and unique email constraint remain in place. This limits
-form spam; it is not a substitute for edge protection against distributed floods.
+`dev:landing` starts Astro alongside Wrangler Pages Functions on port 8788. Astro
+proxies `/api` to that local runtime, so the status check runs the same handler
+as production. Restart `bun run dev:landing` after updating the dev
+configuration; running Astro alone does not start the Functions runtime.
 
 ## Design system
 
@@ -90,8 +69,6 @@ in `public/images/` and pass its URL to `DashboardPreview` in
   palette expressed as TextMate scopes, so highlighting is grammar-accurate but
   still only ink, white and the accent. Line numbers come from a CSS counter, so
   copied source stays clean.
-- `src/lib/early-access.ts` — one `useEarlyAccess` hook, so every form posting to
-  `/api/early-access` shares a submission path.
 - `src/lib/smooth-scroll.ts` — Lenis setup. It also routes in-page anchor clicks
   through `lenis.scrollTo` with a header offset; without that, `#hash` links jump
   instantly while wheel and touch glide, which reads as two different scrolls on

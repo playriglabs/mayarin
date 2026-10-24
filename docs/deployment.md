@@ -326,14 +326,9 @@ wrangler login
 bun run deploy:landing
 ```
 
-`deploy:landing` typechecks and builds the landing app, applies pending
-`mayarin-landing-early-access` D1 migrations, then uploads its `dist` directory.
-Wrangler requires Node.js 22 or newer. The Pages project is not connected to
-GitHub. List early-access submissions without exposing an admin HTTP route:
-
-```bash
-bun run --cwd apps/landing early-access:list
-```
+`deploy:landing` typechecks and builds the landing app, then uploads its `dist`
+directory. Wrangler requires Node.js 22 or newer. The Pages project is not
+connected to GitHub.
 
 ### 7. Smoke the deployment
 

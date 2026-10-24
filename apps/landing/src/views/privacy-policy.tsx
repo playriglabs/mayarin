@@ -8,8 +8,8 @@ const SECTIONS = [
         <P>We collect only what we need to run the service.</P>
         <List>
           <li>
-            <Strong>Contact details.</Strong> Your email address and company name when you join
-            early access, book a demo or write to us.
+            <Strong>Contact details.</Strong> The details you give us when you book a demo or write
+            to us, such as your name, email address and company.
           </li>
           <li>
             <Strong>Account details.</Strong> If you are a merchant, your login, business details,
@@ -58,7 +58,7 @@ const SECTIONS = [
         <li>To verify sign-ins and protect accounts, including two-factor authentication.</li>
         <li>To respond to your questions, demo requests and support needs.</li>
         <li>To detect fraud and abuse, and to meet our legal and regulatory obligations.</li>
-        <li>To tell you about early access or product changes, if you asked to hear from us.</li>
+        <li>To tell you about product changes, if you asked to hear from us.</li>
       </List>
     ),
   },
@@ -88,9 +88,8 @@ const SECTIONS = [
     body: (
       <P>
         We keep personal information for as long as it is needed for the purposes above and to meet
-        legal, accounting and audit obligations. Early-access and contact emails are kept until you
-        ask us to remove them. Payment records are kept for as long as the law and our audit trail
-        require.
+        legal, accounting and audit obligations. Contact emails are kept until you ask us to remove
+        them. Payment records are kept for as long as the law and our audit trail require.
       </P>
     ),
   },

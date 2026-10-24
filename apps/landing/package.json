@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler d1 migrations apply mayarin-landing-early-access --local && bun run --parallel dev:web dev:functions",
+    "dev": "bun run --parallel dev:web dev:functions",
     "dev:web": "astro dev",
     "dev:functions": "wrangler pages dev public --ip 127.0.0.1 --port 8788",
     "build": "astro build",
-    "deploy": "bun run typecheck && bun run build && wrangler d1 migrations apply mayarin-landing-early-access --remote && wrangler pages deploy --branch main",
-    "early-access:list": "wrangler d1 execute mayarin-landing-early-access --remote --command \"select email, datetime(created_at, 'unixepoch') as submitted_at from early_access_signups order by created_at desc\"",
+    "deploy": "bun run typecheck && bun run build && wrangler pages deploy --branch main",
     "preview": "astro preview",
     "typecheck": "astro check"
   },
