@@ -1,4 +1,5 @@
 import { chainLabel } from "@mayarin/chain";
+import { type Translate, translateEnglish, useT } from "../i18n/index.tsx";
 import { Dropdown } from "./dropdown.tsx";
 import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
@@ -26,13 +27,14 @@ export function RailPicker({
   /** Extra classes on the block — the invoice hides it from the printed page. */
   readonly className?: string;
 }) {
+  const t = useT();
   const current = selected ?? rails[0];
   if (rails.length <= 1 || current === undefined) return null;
 
   return (
     <Dropdown
       className={`mt-6 ${className}`}
-      label="Pay with"
+      label={t("payWith")}
       searchable={rails.length > SEARCH_FROM}
       value={railKey(current)}
       options={rails.map((rail) => ({
@@ -54,6 +56,32 @@ function railKey(rail: Rail): string {
 }
 
 /** "USDC on Arc Testnet" — the rail in one line, for a page with nothing to ask. */
-export function railSummary(rail: Rail | undefined): string {
-  return rail === undefined ? "" : `${rail.asset} on ${chainLabel(rail.chain)}`;
+export function railSummary(rail: Rail | undefined, t: Translate = translateEnglish): string {
+  return rail === undefined
+    ? ""
+    : t("assetOnChain", { asset: rail.asset, chain: chainLabel(rail.chain) });
 }
+
+const SLOT = "\u0000";
+
+/** A sentence with `{rail}` in it, the rail set in bold wherever the language puts it. */
+export function RailSentence({
+  text,
+  rail,
+}: {
+  readonly text: string;
+  readonly rail: Rail | undefined;
+}) {
+  const t = useT();
+  const [before = "", ...after] = text.split(SLOT);
+  return (
+    <>
+      {before}
+      {after.length > 0 && <strong className="font-medium text-ink">{railSummary(rail, t)}</strong>}
+      {after.join(SLOT)}
+    </>
+  );
+}
+
+/** The `{rail}` value to hand `t`, so `RailSentence` can find the slot again. */
+export const RAIL_SLOT = SLOT;

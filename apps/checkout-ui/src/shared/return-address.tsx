@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/index.tsx";
 import { errorText } from "./ui.ts";
-import { connectWallet, hasWallet } from "./wallet.ts";
+import { connectWallet, hasWallet, walletErrorText } from "./wallet.ts";
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -29,6 +30,7 @@ export function ReturnAddressField({
   readonly value: string;
   readonly onChange: (value: string) => void;
 }) {
+  const t = useT();
   const invalid = value.trim() !== "" && validReturnAddress(value) === null;
   const [walletError, setWalletError] = useState("");
   // Read after mount, not while rendering: the page is rendered before an extension has
@@ -46,7 +48,7 @@ export function ReturnAddressField({
     try {
       onChange(await connectWallet());
     } catch (cause) {
-      setWalletError(cause instanceof Error ? cause.message : "Unable to connect a wallet");
+      setWalletError(walletErrorText(cause, t, "unableToConnectWallet"));
     }
   }
 
@@ -54,12 +56,12 @@ export function ReturnAddressField({
     <div className="mt-6">
       <div className="mb-2 flex items-center gap-1.5">
         <label className="text-sm text-ink" htmlFor="return-address">
-          Return address <span className="text-muted">· optional</span>
+          {t("returnAddress")} <span className="text-muted">· {t("optional")}</span>
         </label>
         <span className="group relative inline-flex">
           <button
             type="button"
-            aria-label="About the return address"
+            aria-label={t("aboutReturnAddress")}
             aria-describedby="return-address-hint"
             className="flex size-4 items-center justify-center rounded-full border border-line bg-transparent p-0 text-[10px] leading-none text-muted hover:text-ink focus-visible:text-ink"
           >
@@ -70,8 +72,7 @@ export function ReturnAddressField({
             role="tooltip"
             className="pointer-events-none invisible absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-xl border border-line bg-panel p-3 text-xs leading-relaxed text-muted opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
           >
-            If the payment fails after you have sent the funds, they go back to this address. Use a
-            wallet you control, not an exchange deposit address.
+            {t("returnAddressHint")}
           </span>
         </span>
       </div>
@@ -107,7 +108,7 @@ export function ReturnAddressField({
               <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
               <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
             </svg>
-            Use wallet
+            {t("useWallet")}
           </button>
         )}
       </div>
@@ -118,7 +119,7 @@ export function ReturnAddressField({
       )}
       {invalid && (
         <p className={errorText} role="alert">
-          That is not a valid 0x address.
+          {t("invalidAddress")}
         </p>
       )}
     </div>

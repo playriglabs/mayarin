@@ -5,7 +5,13 @@ export type QuoteEstimate =
   | { readonly status: "idle"; readonly display: "Enter an amount" }
   | { readonly status: "loading"; readonly display: "Calculating…" }
   | { readonly status: "available"; readonly display: string }
-  | { readonly status: "unavailable"; readonly display: "Unavailable"; readonly message: string };
+  | {
+      readonly status: "unavailable";
+      readonly display: "Unavailable";
+      readonly message: string;
+      /** The request itself failed, rather than the rail being unpriceable. */
+      readonly code?: "request-failed";
+    };
 
 const CALCULATING: QuoteEstimate = { status: "loading", display: "Calculating…" };
 const ENTER_AMOUNT: QuoteEstimate = { status: "idle", display: "Enter an amount" };
@@ -164,6 +170,7 @@ export function useQuoteEstimate(
             status: "unavailable",
             display: "Unavailable",
             message: QUOTE_REQUEST_FAILED,
+            code: "request-failed",
           });
         }
         setRefreshing(false);

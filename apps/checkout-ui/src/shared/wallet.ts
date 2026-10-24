@@ -7,6 +7,28 @@
  * so no wallet library is pulled in for them.
  */
 
+import type { MessageKey } from "../i18n/en.ts";
+import type { Translate } from "../i18n/index.tsx";
+
+/**
+ * A wallet failure the page words itself, in the payer's language. Anything the
+ * wallet's own prompt rejects with keeps its own message.
+ */
+export class WalletError extends Error {
+  constructor(
+    readonly key: MessageKey,
+    readonly values: Readonly<Record<string, string | number>> = {},
+  ) {
+    super(key);
+  }
+}
+
+/** The text for a thrown value: ours translated, the wallet's as it came, else the fallback. */
+export function walletErrorText(cause: unknown, t: Translate, fallback: MessageKey): string {
+  if (cause instanceof WalletError) return t(cause.key, cause.values);
+  return cause instanceof Error ? cause.message : t(fallback);
+}
+
 interface Eip1193 {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
 }
@@ -14,7 +36,7 @@ interface Eip1193 {
 function provider(): Eip1193 {
   const injected = (window as unknown as { ethereum?: Eip1193 }).ethereum;
   if (injected === undefined) {
-    throw new Error("No browser wallet found. Install MetaMask or open this page in a wallet.");
+    throw new WalletError("walletNotFound");
   }
   return injected;
 }
@@ -31,7 +53,7 @@ export function hasWallet(): boolean {
 export async function connectWallet(): Promise<string> {
   const accounts = (await provider().request({ method: "eth_requestAccounts" })) as string[];
   const account = accounts[0];
-  if (account === undefined) throw new Error("The wallet returned no account.");
+  if (account === undefined) throw new WalletError("walletNoAccount");
   return account;
 }
 
@@ -59,9 +81,7 @@ export async function sendCall(call: {
     await wallet.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
     const switched = (await wallet.request({ method: "eth_chainId" })) as string;
     if (BigInt(switched) !== BigInt(chainId)) {
-      throw new Error(
-        `Your wallet is on another network. Switch it to chain ${BigInt(chainId)} and try again.`,
-      );
+      throw new WalletError("wrongNetwork", { chain: String(BigInt(chainId)) });
     }
   }
   const hash = (await wallet.request({
@@ -80,12 +100,12 @@ async function waitForReceipt(wallet: Eip1193, hash: string): Promise<void> {
       params: [hash],
     })) as { status: string } | null;
     if (receipt !== null) {
-      if (BigInt(receipt.status) !== 1n) throw new Error("The transaction reverted on chain.");
+      if (BigInt(receipt.status) !== 1n) throw new WalletError("txReverted");
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 3_000));
   }
-  throw new Error("The transaction is still pending. Refresh this page in a minute.");
+  throw new WalletError("txPending");
 }
 
 /** Signs `message` with `from` (`personal_sign`); resolves with the signature. */

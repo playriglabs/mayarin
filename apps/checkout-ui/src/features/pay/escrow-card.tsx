@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "../../i18n/index.tsx";
 import { ShieldIcon, shortAddress } from "../../shared/buyer-protection.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, primaryButton, secondaryButton } from "../../shared/ui.ts";
-import { connectWallet, sendCall } from "../../shared/wallet.ts";
+import { connectWallet, sendCall, walletErrorText } from "../../shared/wallet.ts";
 import { DisputeThread } from "./dispute-thread.tsx";
 import type { EscrowPayload } from "./types.ts";
 
@@ -15,6 +16,7 @@ import type { EscrowPayload } from "./types.ts";
  * would certainly revert.
  */
 export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
+  const t = useT();
   const [escrow, setEscrow] = useState<EscrowPayload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +43,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
     try {
       const from = await connectWallet();
       if (from.toLowerCase() !== escrow.terms.payer.toLowerCase()) {
-        throw new Error(`Switch to the wallet you paid with, ${shortAddress(escrow.terms.payer)}.`);
+        throw new Error(t("switchWallet", { address: shortAddress(escrow.terms.payer) }));
       }
       // A v2 escrow with a bond pulls it on dispute (#315): approve it first.
       if (action === "dispute" && escrow.calls.approveBond !== null) {
@@ -61,7 +63,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       // Mined: the API reads the chain, so the card now shows the change.
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The wallet refused the transaction");
+      setError(walletErrorText(cause, t, "walletRefused"));
     } finally {
       setBusy(false);
     }
@@ -77,7 +79,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       disabled={busy}
       onClick={() => void act("release")}
     >
-      Release payment
+      {t("releasePayment")}
     </button>
   );
 
@@ -91,34 +93,38 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
           : escrow.disputed
             ? "Disputed"
             : "Held";
+  const statusLabel = {
+    Released: t("statusReleased"),
+    Split: t("statusSplit"),
+    Refunded: t("statusRefunded"),
+    Disputed: t("statusDisputed"),
+    Held: t("statusHeld"),
+  }[status];
 
   const headline =
     escrow.outcome === "released"
-      ? "Paid to the merchant"
+      ? t("paidToMerchant")
       : escrow.outcome === "split"
-        ? "Split by the arbiter"
+        ? t("splitByArbiter")
         : escrow.outcome === "refunded"
-          ? "Refunded to your wallet"
+          ? t("refundedToWallet")
           : escrow.disputed
-            ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
-            : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`;
+            ? t("refundedIfUndecided", { date: when(escrow.terms.resolveBy) })
+            : t("releasesOn", { date: when(escrow.terms.releaseAfter) });
 
   const note =
     escrow.outcome !== "held"
       ? undefined
       : escrow.disputed
         ? escrow.terms.arbiter === ZERO_ADDRESS
-          ? "The automatic release is stopped. The merchant can refund you."
-          : "The automatic release is stopped. The arbiter decides, or the merchant refunds you."
+          ? t("releaseStoppedMerchant")
+          : t("releaseStoppedArbiter")
         : holdOpen
           ? escrow.calls.approveBond === null
-            ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
-            : "Got what you paid for? Release it now. Something wrong? Open a dispute first. It takes a bond, returned if your claim holds."
-          : "The hold has ended. It releases to the merchant shortly.";
+            ? t("gotWhatYouPaid")
+            : t("gotWhatYouPaidBond")
+          : t("holdEnded");
 
-  // Laid out like the buyer-protection card the payer saw before paying: the
-  // shield, one line of what it is, one of where the money is. What to do next
-  // sits under a hairline, the way "How it works" does there.
   return (
     <div
       className="mt-6 w-full rounded-2xl border border-line bg-field/50 p-4 text-left"
@@ -127,12 +133,12 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       <div className="flex items-center gap-3">
         <ShieldIcon checked />
         <div className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
-          <p className="m-0 text-sm text-ink">Buyer protection</p>
+          <p className="m-0 text-sm text-ink">{t("buyerProtection")}</p>
           <p className="m-0">{headline}</p>
         </div>
         <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
           <span className={`size-1.5 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
-          {status}
+          {statusLabel}
         </span>
       </div>
 
@@ -166,7 +172,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
               disabled={busy}
               onClick={() => void act("dispute")}
             >
-              Open a dispute
+              {t("openDispute")}
             </button>
           )}
         </div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LanguageSwitcher, useT } from "../i18n/index.tsx";
 import { PoweredBy } from "./powered-by.tsx";
 
 /**
@@ -9,10 +10,11 @@ import { PoweredBy } from "./powered-by.tsx";
  * page renders are pinned by tests that forbid both.
  */
 export function TestnetBanner() {
+  const t = useT();
   if (typeof window !== "undefined" && window.__BOOTSTRAP__?.network === "mainnet") return null;
   return (
     <p className="m-0 bg-banner px-4 py-2.5 text-center text-sm text-banner-ink print:hidden">
-      Mayarin Testnet ─ Payments use test assets and have no real-world value
+      {t("testnetBanner")}
     </p>
   );
 }
@@ -64,8 +66,9 @@ export function SummaryColumn({
     >
       <div className="w-full max-w-md print:max-w-none">
         {/* First thing in the column, above the merchant, on the same left edge. */}
-        <div className="mb-8 print:hidden">
+        <div className="mb-8 flex items-center justify-between gap-4 print:hidden">
           <PoweredBy align="start" />
+          <LanguageSwitcher />
         </div>
         {children}
       </div>

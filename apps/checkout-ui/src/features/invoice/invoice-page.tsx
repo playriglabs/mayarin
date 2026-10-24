@@ -1,6 +1,8 @@
 import { chainLabel } from "@mayarin/chain";
 import clsx from "clsx";
 import { useState } from "react";
+import type { MessageKey } from "../../i18n/en.ts";
+import { LanguageSwitcher, useI18n } from "../../i18n/index.tsx";
 import { Brand } from "../../shared/brand.tsx";
 import { BuyerProtection, railBody } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell, TestnetBanner } from "../../shared/checkout-shell.tsx";
@@ -9,7 +11,7 @@ import { EstimateRow } from "../../shared/estimate-row.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
-import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { RAIL_SLOT, RailPicker, RailSentence, railSummary } from "../../shared/rail-picker.tsx";
 import {
   offersReturnAddress,
   ReturnAddressField,
@@ -17,21 +19,21 @@ import {
 } from "../../shared/return-address.tsx";
 import { errorText, noteText, panelIntro, panelTitle, primaryButton } from "../../shared/ui.ts";
 import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
-import { dateLine, paidOn, STATUS_LABEL, STATUS_TONE, shortDate } from "./invoice-status.ts";
+import { dateLine, paidOn, STATUS_TONE, shortDate, statusLabel } from "./invoice-status.ts";
 import { PaidMark } from "./paid-mark.tsx";
 import type { InvoiceBootstrap, InvoicePaymentRecord, SubscriptionInterval } from "./types.ts";
 
-const INTERVAL_SUFFIX: Record<SubscriptionInterval, string> = {
-  week: "/ wk",
-  month: "/ mo",
-  year: "/ yr",
-};
+const INTERVAL_SUFFIX = {
+  week: "perWeek",
+  month: "perMonth",
+  year: "perYear",
+} as const satisfies Record<SubscriptionInterval, MessageKey>;
 
-const INTERVAL_ROW: Record<SubscriptionInterval, string> = {
-  week: "Weekly",
-  month: "Monthly",
-  year: "Yearly",
-};
+const INTERVAL_ROW = {
+  week: "weekly",
+  month: "monthly",
+  year: "yearly",
+} as const satisfies Record<SubscriptionInterval, MessageKey>;
 
 /**
  * One page that serves two readers. While something is owed, a buyer sees the
@@ -42,6 +44,7 @@ const INTERVAL_ROW: Record<SubscriptionInterval, string> = {
  * cannot drift from the one the buyer looked at.
  */
 export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstrap }) {
+  const { locale, t } = useI18n();
   const { status, buyer, lines, payable, payments } = bootstrap;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -81,7 +84,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       });
       const created = await response.json();
       if (!response.ok) {
-        setError(created?.error?.message ?? "Unable to start the payment");
+        setError(created?.error?.message ?? t("unableToStartPayment"));
         setBusy(false);
         return;
       }
@@ -97,14 +100,14 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         setError(
           confirmed?.error?.message ??
             confirmed?.paymentIntent?.failureReason ??
-            "The price could not be locked",
+            t("priceCouldNotBeLocked"),
         );
         setBusy(false);
         return;
       }
       location.href = `/checkout/pay/${created.paymentIntent.id}?t=${encodeURIComponent(created.payerToken)}`;
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("networkError"));
       setBusy(false);
     }
   }
@@ -118,9 +121,11 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <Brand merchant={bootstrap.merchant} />
       <header className="mt-8 flex flex-wrap justify-between gap-4 border-b border-line pb-5">
         <div>
-          <h1 className="m-0 text-2xl font-normal">Invoice {bootstrap.number ?? "(draft)"}</h1>
+          <h1 className="m-0 text-2xl font-normal">
+            {t("invoiceNumber", { number: bootstrap.number ?? t("draftNumber") })}
+          </h1>
           <p className="mt-1 mb-0 text-xs text-muted">
-            {dateLine(bootstrap.issuedAt, bootstrap.dueAt)}
+            {dateLine(bootstrap.issuedAt, bootstrap.dueAt, t, locale)}
           </p>
         </div>
         <div>
@@ -135,22 +140,24 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
             {/* The tick is read before the word is. Only for a document that
                 is actually settled — a part payment is not a receipt. */}
             {status === "paid" && <PaidMark />}
-            {STATUS_LABEL[status]}
+            {statusLabel(status, t)}
           </p>
         </div>
       </header>
 
       <div className="my-6 flex flex-wrap gap-8">
         <dl className="m-0 min-w-48">
-          <dt className="mb-1 text-[11px] tracking-wide text-muted uppercase">From</dt>
+          <dt className="mb-1 text-[11px] tracking-wide text-muted uppercase">{t("from")}</dt>
           <dd className="m-0">{bootstrap.merchant.name}</dd>
           <dd className="m-0 text-muted">{bootstrap.merchant.city}</dd>
         </dl>
         <dl className="m-0 min-w-48">
-          <dt className="mb-1 text-[11px] tracking-wide text-muted uppercase">Bill to</dt>
+          <dt className="mb-1 text-[11px] tracking-wide text-muted uppercase">{t("billTo")}</dt>
           <dd className="m-0">{buyer.name}</dd>
           {buyer.address !== null && <dd className="m-0 text-muted">{buyer.address}</dd>}
-          {buyer.taxId !== null && <dd className="m-0 text-muted">Tax ID {buyer.taxId}</dd>}
+          {buyer.taxId !== null && (
+            <dd className="m-0 text-muted">{t("taxIdValue", { value: buyer.taxId })}</dd>
+          )}
           {buyer.email !== null && <dd className="m-0 text-muted">{buyer.email}</dd>}
         </dl>
       </div>
@@ -158,10 +165,10 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <table className="mt-2 w-full border-collapse">
         <thead>
           <tr>
-            <th className={head}>Description</th>
-            <th className={`${head} ${num}`}>Quantity</th>
-            <th className={`${head} ${num}`}>Unit price</th>
-            <th className={`${head} ${num}`}>Total</th>
+            <th className={head}>{t("description")}</th>
+            <th className={`${head} ${num}`}>{t("quantity")}</th>
+            <th className={`${head} ${num}`}>{t("unitPrice")}</th>
+            <th className={`${head} ${num}`}>{t("total")}</th>
           </tr>
         </thead>
         <tbody>
@@ -179,19 +186,19 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         <tfoot>
           <tr>
             <td colSpan={3} className="pt-3">
-              Total
+              {t("total")}
             </td>
             <td className={`pt-3 text-[15px] ${num}`}>{bootstrap.total.display}</td>
           </tr>
           <tr>
             <td colSpan={3} className="pt-1.5 text-muted">
-              Amount paid
+              {t("amountPaid")}
             </td>
             <td className={`pt-1.5 text-muted ${num}`}>{bootstrap.paid.display}</td>
           </tr>
           <tr>
             <td colSpan={3} className="pt-1.5">
-              Amount due
+              {t("amountDue")}
             </td>
             <td className={`pt-1.5 text-[15px] ${num}`}>{bootstrap.outstanding.display}</td>
           </tr>
@@ -213,11 +220,14 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <div className="flex min-h-dvh flex-col">
         <TestnetBanner />
         <main
-          aria-label="Invoice"
+          aria-label={t("invoiceLabel")}
           className="flex flex-1 flex-col items-center justify-center bg-page px-5 py-12 print:block print:bg-white print:p-0"
         >
           <div className="w-full max-w-3xl print:max-w-none">{invoiceDocument}</div>
-          <PoweredBy className="mt-10 print:hidden" />
+          <div className="mt-10 flex items-center justify-center gap-4 print:hidden">
+            <PoweredBy />
+            <LanguageSwitcher />
+          </div>
         </main>
       </div>
     );
@@ -228,40 +238,42 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
   // "Rp 99.000 / mo", rather than as a document with one line on it.
   const interval = bootstrap.subscription?.interval;
   const plan = interval !== undefined && lines.length === 1;
-  const breakdown: SummaryRow[] = [{ label: "Subtotal", value: bootstrap.total.display }];
+  const breakdown: SummaryRow[] = [{ label: t("subtotal"), value: bootstrap.total.display }];
   if (bootstrap.paid.amount !== "0") {
-    breakdown.push({ label: "Amount paid", value: bootstrap.paid.display });
+    breakdown.push({ label: t("amountPaid"), value: bootstrap.paid.display });
   }
   breakdown.push({
-    label: interval === undefined ? "Amount due" : INTERVAL_ROW[interval],
+    label: interval === undefined ? t("amountDue") : t(INTERVAL_ROW[interval]),
     value: bootstrap.outstanding.display,
   });
   const details: SummaryRow[] = [
-    { label: "Invoice", value: bootstrap.number ?? "(draft)" },
-    { label: "Billed to", value: buyer.name },
+    { label: t("invoiceLabel"), value: bootstrap.number ?? t("draftNumber") },
+    { label: t("billedTo"), value: buyer.name },
   ];
-  if (buyer.taxId !== null) details.push({ label: "Tax ID", value: buyer.taxId });
+  if (buyer.taxId !== null) details.push({ label: t("taxId"), value: buyer.taxId });
   // An absent date is said in words, never as a dash.
   if (bootstrap.dueAt !== null) {
-    details.push({ label: "Due", value: shortDate(bootstrap.dueAt) });
+    details.push({ label: t("due"), value: shortDate(bootstrap.dueAt, locale) });
   } else if (bootstrap.issuedAt === null) {
-    details.push({ label: "Issued", value: "Not yet issued" });
+    details.push({ label: t("issued"), value: t("notYetIssued") });
   }
 
   return (
     <CheckoutShell
-      label="Pay this invoice"
+      label={t("payThisInvoice")}
       summary={
         <CheckoutSummary
-          label="Invoice"
+          label={t("invoiceLabel")}
           // The merchant's name alone: an invoice's dates already fill the line
           // under the price, and the city adds nothing a payer needs here.
           merchant={{ ...bootstrap.merchant, city: "" }}
           title={
-            plan ? (lines[0]?.name ?? "Subscription") : `Invoice ${bootstrap.number ?? "(draft)"}`
+            plan
+              ? (lines[0]?.name ?? t("subscription"))
+              : t("invoiceNumber", { number: bootstrap.number ?? t("draftNumber") })
           }
           totalDisplay={bootstrap.outstanding.display}
-          {...(interval === undefined ? {} : { priceSuffix: INTERVAL_SUFFIX[interval] })}
+          {...(interval === undefined ? {} : { priceSuffix: t(INTERVAL_SUFFIX[interval]) })}
           details={details}
           // A plan is its own line; listing it again under the price says it twice.
           lines={
@@ -273,21 +285,16 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         </CheckoutSummary>
       }
     >
-      <h2 className={panelTitle}>Pay this invoice</h2>
+      <h2 className={panelTitle}>{t("payThisInvoice")}</h2>
       <p className={panelIntro}>
         {bootstrap.rails.length === 1
-          ? `Payable with ${railSummary(rail)}.`
-          : "Choose the asset and network you hold."}
+          ? t("payableWith", { rail: railSummary(rail, t) })
+          : t("chooseHeldAsset")}
       </p>
 
       <RailPicker rails={bootstrap.rails} selected={rail} onSelect={setRail} />
 
       {rail !== undefined && <EstimateRow asset={rail.asset} quote={quote} />}
-      {estimate.status === "unavailable" && (
-        <p className={errorText} role="alert">
-          {estimate.message}
-        </p>
-      )}
 
       <BuyerProtection
         protection={bootstrap.protection}
@@ -306,10 +313,10 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         onClick={() => void pay()}
       >
         {busy
-          ? "Preparing payment…"
+          ? t("preparingPayment")
           : estimate.status === "unavailable"
-            ? "Payment unavailable"
-            : `Pay ${bootstrap.outstanding.display}`}
+            ? t("paymentUnavailable")
+            : t("payAmount", { amount: bootstrap.outstanding.display })}
       </button>
       {error !== "" && (
         <p className={errorText} role="alert">
@@ -317,9 +324,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         </p>
       )}
       <p className={`${noteText} text-center`}>
-        The exact amount is locked on the next step, and you send{" "}
-        <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address shown
-        there.
+        <RailSentence text={t("exactAmountLocked", { rail: RAIL_SLOT })} rail={rail} />
       </p>
     </CheckoutShell>
   );
@@ -335,11 +340,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
  * which is also why the figures live here rather than in one summary line.
  */
 function Settled({ payments }: { readonly payments: readonly InvoicePaymentRecord[] }) {
+  const { locale, t } = useI18n();
   return (
     <section className="mt-6 rounded-2xl border border-line p-4">
       <h2 className="m-0 inline-flex items-center gap-1.5 text-xs text-brand">
         <PaidMark size={13} />
-        Paid with
+        {t("paidWith")}
       </h2>
       <ul className="mt-3 mb-0 grid list-none gap-2.5 p-0">
         {payments.map((payment) => (
@@ -351,18 +357,20 @@ function Settled({ payments }: { readonly payments: readonly InvoicePaymentRecor
               {payment.rail === null ? (
                 // A fiat-only intent has no chain to name, and naming one it did
                 // not settle on would be worse than saying nothing.
-                <span>Off-chain</span>
+                <span>{t("offChain")}</span>
               ) : (
                 <>
                   <RailMark asset={payment.rail.asset} chain={payment.rail.chain} size={28} />
                   <span>{payment.rail.asset}</span>
-                  <span className="text-muted">on {chainLabel(payment.rail.chain)}</span>
+                  <span className="text-muted">
+                    {t("onChain", { chain: chainLabel(payment.rail.chain) })}
+                  </span>
                 </>
               )}
             </span>
             <span className="inline-flex items-baseline gap-3 text-sm tabular-nums">
               <strong className="font-medium">{payment.amount.display}</strong>
-              <span className="text-muted">{paidOn(payment.paidAt)}</span>
+              <span className="text-muted">{paidOn(payment.paidAt, locale)}</span>
             </span>
           </li>
         ))}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n/index.tsx";
 import { BuyerProtection, protectionApplies, railBody } from "../../shared/buyer-protection.tsx";
 import { EstimateRow } from "../../shared/estimate-row.tsx";
 import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
@@ -9,7 +10,7 @@ import {
   useLocalCurrencyRail,
 } from "../../shared/local-currency-option.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
-import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { RAIL_SLOT, RailPicker, RailSentence, railSummary } from "../../shared/rail-picker.tsx";
 import {
   offersReturnAddress,
   ReturnAddressField,
@@ -43,6 +44,7 @@ export function ChooseRail({
   readonly bootstrap: PayBootstrap;
   readonly choice: RailChoice;
 }) {
+  const t = useT();
   const { rails, lockMinutes } = choice;
   const [rail, setRail] = useState(rails[0]);
   const [error, setError] = useState("");
@@ -90,12 +92,12 @@ export function ChooseRail({
       );
       const confirmed = await response.json();
       if (!response.ok) {
-        setError(confirmed?.error?.message ?? "Unable to lock the price");
+        setError(confirmed?.error?.message ?? t("unableToLockPrice"));
         setBusy(false);
         return;
       }
       if (confirmed.paymentIntent.status === "FAILED") {
-        setError(confirmed.paymentIntent.failureReason ?? "The price could not be locked");
+        setError(confirmed.paymentIntent.failureReason ?? t("priceCouldNotBeLocked"));
         setBusy(false);
         return;
       }
@@ -103,7 +105,7 @@ export function ChooseRail({
       if (localCurrency) rememberLocalCurrencyIntent(bootstrap.intentId);
       location.reload();
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("networkError"));
       setBusy(false);
     }
   }
@@ -115,19 +117,22 @@ export function ChooseRail({
 
   return (
     <>
-      <h2 className={panelTitle}>Choose how to pay</h2>
+      <h2 className={panelTitle}>{t("chooseHowToPay")}</h2>
       <p className={panelIntro}>
         {rail === undefined
-          ? `Pay ${bootstrap.merchant.name}.`
+          ? t("payMerchant", { merchant: bootstrap.merchant.name })
           : rails.length === 1
-            ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
-            : `Select an asset and network to pay ${bootstrap.merchant.name}.`}
+            ? t("payMerchantWith", {
+                merchant: bootstrap.merchant.name,
+                rail: railSummary(rail, t),
+              })
+            : t("selectAssetAndNetwork", { merchant: bootstrap.merchant.name })}
       </p>
 
       {rail === undefined ? (
         <div className={unavailableBox}>
-          <h3>This merchant has no payment method available</h3>
-          <p>Contact the merchant to complete this order.</p>
+          <h3>{t("noPaymentMethod")}</h3>
+          <p>{t("contactMerchantToComplete")}</p>
         </div>
       ) : (
         <>
@@ -148,12 +153,6 @@ export function ChooseRail({
 
               <EstimateRow asset={rail.asset} quote={quote} />
 
-              {estimate.status === "unavailable" && (
-                <p className={errorText} role="alert">
-                  {estimate.message}
-                </p>
-              )}
-
               <BuyerProtection
                 protection={protection}
                 rail={rail}
@@ -170,12 +169,12 @@ export function ChooseRail({
                 onClick={pay}
               >
                 {busy
-                  ? "Preparing payment…"
+                  ? t("preparingPayment")
                   : estimate.status === "unavailable"
-                    ? "Payment unavailable"
+                    ? t("paymentUnavailable")
                     : estimate.status === "loading"
-                      ? "Calculating price…"
-                      : `Continue with ${rail.asset}`}
+                      ? t("calculatingPrice")
+                      : t("continueWith", { asset: rail.asset })}
               </button>
               {error !== "" && (
                 <p className={errorText} role="alert">
@@ -183,9 +182,10 @@ export function ChooseRail({
                 </p>
               )}
               <p className={`${noteText} text-center`}>
-                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-                <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
-                shown there.
+                <RailSentence
+                  text={t("priceLockNote", { minutes: lockMinutes, rail: RAIL_SLOT })}
+                  rail={rail}
+                />
               </p>
             </>
           )}

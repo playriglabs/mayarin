@@ -1,15 +1,20 @@
+import type { MessageKey } from "../../i18n/en.ts";
+import { type Translate, translateEnglish } from "../../i18n/index.tsx";
 import type { InvoiceStatus } from "./types.ts";
 
-export const STATUS_LABEL: Readonly<Record<InvoiceStatus, string>> = {
-  draft: "Draft",
-  issued: "Unpaid",
-  partially_paid: "Partially paid",
-  paid: "Paid",
-  overdue: "Overdue",
-  void: "Void",
-};
+const STATUS_KEY = {
+  draft: "invoiceDraft",
+  issued: "invoiceUnpaid",
+  partially_paid: "invoicePartiallyPaid",
+  paid: "invoicePaid",
+  overdue: "invoiceOverdue",
+  void: "invoiceVoid",
+} as const satisfies Readonly<Record<InvoiceStatus, MessageKey>>;
 
-/** Only these two carry a warning colour. The rest are ordinary states. */
+export function statusLabel(status: InvoiceStatus, t: Translate = translateEnglish): string {
+  return t(STATUS_KEY[status]);
+}
+
 export const STATUS_TONE: Readonly<Record<InvoiceStatus, string>> = {
   draft: "text-muted",
   issued: "text-muted",
@@ -19,28 +24,30 @@ export const STATUS_TONE: Readonly<Record<InvoiceStatus, string>> = {
   void: "text-muted",
 };
 
-const DATE = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "Asia/Jakarta" });
-
-/** The day a payment landed, in the same long form as the issued/due line. */
-export function paidOn(paidAt: string): string {
-  return DATE.format(new Date(paidAt));
+/** Dates are shown in the payer's language, always in Jakarta time as before. */
+function formatDate(iso: string, locale: string, dateStyle: "long" | "medium"): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle, timeZone: "Asia/Jakarta" }).format(
+    new Date(iso),
+  );
 }
 
-const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "Asia/Jakarta",
-});
-
-/** "Oct 14, 2026" — for a label–value row, where the long form wraps. */
-export function shortDate(iso: string): string {
-  return SHORT_DATE.format(new Date(iso));
+export function paidOn(paidAt: string, locale = "en-US"): string {
+  return formatDate(paidAt, locale, "long");
 }
 
-/** The issued/due line. An absent date is said in words, never as a dash. */
-export function dateLine(issuedAt: string | null, dueAt: string | null): string {
+export function shortDate(iso: string, locale = "en-US"): string {
+  return formatDate(iso, locale, "medium");
+}
+
+export function dateLine(
+  issuedAt: string | null,
+  dueAt: string | null,
+  t: Translate = translateEnglish,
+  locale = "en-US",
+): string {
   const parts = [
-    issuedAt === null ? undefined : `Issued ${DATE.format(new Date(issuedAt))}`,
-    dueAt === null ? undefined : `Due ${DATE.format(new Date(dueAt))}`,
+    issuedAt === null ? undefined : t("issuedOn", { date: paidOn(issuedAt, locale) }),
+    dueAt === null ? undefined : t("dueOn", { date: paidOn(dueAt, locale) }),
   ].filter((part) => part !== undefined);
-  return parts.length === 0 ? "Not yet issued" : parts.join(" · ");
+  return parts.length === 0 ? t("notYetIssued") : parts.join(" · ");
 }

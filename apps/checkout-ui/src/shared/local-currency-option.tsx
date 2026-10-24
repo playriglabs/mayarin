@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
+import { useT } from "../i18n/index.tsx";
 import { protectionApplies } from "./buyer-protection.tsx";
-import { railSummary } from "./rail-picker.tsx";
+import { RAIL_SLOT, RailSentence } from "./rail-picker.tsx";
 import type { Protection, Rail } from "./types.ts";
 import { errorText, noteText, primaryButton } from "./ui.ts";
 
@@ -83,15 +84,16 @@ export function PaymentMethodTabs({
   readonly onChange: (method: PaymentMethod) => void;
   readonly disabled: boolean;
 }) {
+  const t = useT();
   return (
     <fieldset className="m-0 mt-6 grid min-w-0 grid-cols-2 gap-3 border-0 p-0">
-      <legend className="sr-only">Payment method</legend>
+      <legend className="sr-only">{t("paymentMethod")}</legend>
       <MethodTile
         selected={value === "crypto"}
         disabled={disabled}
         onSelect={() => onChange("crypto")}
-        title="Crypto"
-        hint="From a wallet"
+        title={t("methodCrypto")}
+        hint={t("methodCryptoHint")}
         icon={
           <path
             d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19v3M3 7.5V17a2 2 0 0 0 2 2h14V8H5.5A2.5 2.5 0 0 1 3 7.5ZM16 13.5h.01"
@@ -104,8 +106,8 @@ export function PaymentMethodTabs({
         selected={value === "local"}
         disabled={disabled}
         onSelect={() => onChange("local")}
-        title="Local currency"
-        hint="GCash, QRIS, FPX"
+        title={t("methodLocal")}
+        hint={t("methodLocalHint")}
         icon={
           <path
             d="M3 6h18v12H3zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM6.5 12h.01M17.5 12h.01"
@@ -184,15 +186,12 @@ export function LocalCurrencyPanel({
   readonly rail: Rail;
   readonly onContinue: () => void;
 }) {
+  const t = useT();
   return (
     <div className="mt-6">
-      <p className="m-0 text-sm text-muted">
-        Pay in your own currency with an e-wallet, QRIS or bank transfer. We take the payment and
-        deliver it to the merchant for you — there is no wallet to connect.
-      </p>
+      <p className="m-0 text-sm text-muted">{t("localCurrencyIntro")}</p>
       <p className="mt-4 mb-0 text-xs text-muted">
-        Delivered to the merchant as{" "}
-        <strong className="font-medium text-ink">{railSummary(rail)}</strong>.
+        <RailSentence text={t("deliveredAs", { rail: RAIL_SLOT })} rail={rail} />
       </p>
       <button
         type="button"
@@ -200,17 +199,14 @@ export function LocalCurrencyPanel({
         disabled={busy}
         onClick={onContinue}
       >
-        {busy ? "Preparing payment…" : "Continue in local currency"}
+        {busy ? t("preparingPayment") : t("continueInLocal")}
       </button>
       {error !== "" && (
         <p className={errorText} role="alert">
           {error}
         </p>
       )}
-      <p className={`${noteText} text-center`}>
-        The exact price is locked for {lockMinutes} minutes on the next step, where you choose your
-        method and confirm your details.
-      </p>
+      <p className={`${noteText} text-center`}>{t("localLockNote", { minutes: lockMinutes })}</p>
     </div>
   );
 }

@@ -1,9 +1,17 @@
 import { type ChangeEvent, useEffect, useId, useState } from "react";
+import { useI18n, useT } from "../../i18n/index.tsx";
 import { Dropdown } from "../../shared/dropdown.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, fieldLabel, noteText, panelIntro, primaryButton } from "../../shared/ui.ts";
 import { parseBirthDate } from "./birth-date.ts";
-import { availableMarkets, flagEmoji, type Market, pickMarket } from "./markets.ts";
+import {
+  availableMarkets,
+  countryName,
+  flagEmoji,
+  type Market,
+  marketName,
+  pickMarket,
+} from "./markets.ts";
 
 /**
  * Pay in a local rail instead of sending crypto: GCash, QRIS, FPX, bank
@@ -100,6 +108,7 @@ export function LocalCurrencyCard({
   /** Without `leading`: what the button does — the page switches to local currency. */
   readonly onChoose?: () => void;
 }) {
+  const { locale, t } = useI18n();
   const [availability, setAvailability] = useState<Availability>("unknown");
   const [open, setOpen] = useState(leading);
   // The markets the provider can take, asked of it; and which one the payer is in.
@@ -177,6 +186,7 @@ export function LocalCurrencyCard({
   }, [intentId]);
 
   const marketCurrency = picked?.currency;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `t` only words the error; switching language must not refetch the methods and drop the payer's choice
   useEffect(() => {
     if (!open || marketCurrency === undefined) return;
     let cancelled = false;
@@ -196,14 +206,14 @@ export function LocalCurrencyCard({
         if (!response.ok) {
           setMethods({
             status: "error",
-            message: body?.error?.message ?? "Local payment is unavailable right now",
+            message: body?.error?.message ?? t("localUnavailable"),
           });
           return;
         }
         setMethods({ status: "ready", methods: body.methods as readonly Method[] });
       })
       .catch(() => {
-        if (!cancelled) setMethods({ status: "error", message: "Network error. Try again." });
+        if (!cancelled) setMethods({ status: "error", message: t("networkErrorTryAgain") });
       });
     return () => {
       cancelled = true;
@@ -225,7 +235,7 @@ export function LocalCurrencyCard({
           className="size-5.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-ink motion-reduce:animate-none"
           aria-hidden="true"
         />
-        <p className="m-0 text-sm text-muted">Loading payment methods…</p>
+        <p className="m-0 text-sm text-muted">{t("loadingMethods")}</p>
       </div>
     );
   }
@@ -262,7 +272,7 @@ export function LocalCurrencyCard({
       });
       const body = await response.json();
       if (!response.ok) {
-        setError(body?.error?.message ?? "We could not start this payment");
+        setError(body?.error?.message ?? t("couldNotStartPayment"));
         setBusy(false);
         return;
       }
@@ -270,7 +280,7 @@ export function LocalCurrencyCard({
         // Asked again after the link was already followed means the check is
         // still running, which reads differently from the first ask.
         if (pending !== null) {
-          setError("Your email is not confirmed yet. Open the link we sent, then try again.");
+          setError(t("emailNotConfirmed"));
         }
         setPending({ userId: body.userId, token: body.token, contact });
         setBusy(false);
@@ -283,7 +293,7 @@ export function LocalCurrencyCard({
         // hosted page takes the payment, then returns here.
         // Only a web page: the URL came from a payment provider's response.
         if (!/^https:\/\//i.test(instructions.url)) {
-          setError("This payment method could not be opened. Try another.");
+          setError(t("methodCouldNotOpen"));
           setBusy(false);
           return;
         }
@@ -298,7 +308,7 @@ export function LocalCurrencyCard({
       });
       setBusy(false);
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("networkError"));
       setBusy(false);
     }
   }
@@ -315,7 +325,7 @@ export function LocalCurrencyCard({
     };
     const dateOfBirth = parseBirthDate(text("dobDay"), text("dobMonth"), text("dobYear"));
     if (dateOfBirth === undefined) {
-      setError("Enter your date of birth as day, month and year.");
+      setError(t("enterBirthDate"));
       return;
     }
     setError("");
@@ -345,7 +355,7 @@ export function LocalCurrencyCard({
         />
       ) : pending !== null ? (
         <div role="status">
-          <h3 className="m-0 text-sm font-medium text-ink">Confirm your email</h3>
+          <h3 className="m-0 text-sm font-medium text-ink">{t("confirmYourEmail")}</h3>
           <p className="mt-1.5 mb-0 text-sm text-muted">
             We sent a link to{" "}
             <strong className="font-medium text-ink">{pending.contact.email}</strong>. Open it to
@@ -362,7 +372,7 @@ export function LocalCurrencyCard({
               )
             }
           >
-            {busy ? "Checking…" : "I have confirmed — continue"}
+            {busy ? t("checking") : t("iHaveConfirmed")}
           </button>
           {error !== "" && (
             <p className={errorText} role="alert">
@@ -385,7 +395,7 @@ export function LocalCurrencyCard({
             <>
               {methods.status === "loading" && (
                 <p className="m-0 text-xs text-muted" role="status">
-                  Loading payment methods…
+                  {t("loadingMethods")}
                 </p>
               )}
               {methods.status === "error" && (
@@ -398,13 +408,13 @@ export function LocalCurrencyCard({
                   <div>
                     {changing ? (
                       <Dropdown
-                        label="Pay in"
+                        label={t("payIn")}
                         value={market.currency}
                         disabled={busy}
                         onSelect={setCurrency}
                         options={markets.map((entry) => ({
                           value: entry.currency,
-                          title: entry.label.replace(/ \(.*\)$/, ""),
+                          title: countryName(entry, locale),
                           subtitle: entry.currency,
                           mark: () => <span aria-hidden="true">{flagEmoji(entry.country)}</span>,
                         }))}
@@ -412,11 +422,12 @@ export function LocalCurrencyCard({
                     ) : (
                       <p className="m-0 flex items-baseline justify-between gap-4 text-sm text-muted">
                         <span>
-                          Paying in{" "}
+                          {t("payingIn", { market: "\u0000" }).split("\u0000")[0]}
                           <strong className="font-medium text-ink">
                             <span aria-hidden="true">{flagEmoji(market.country)}</span>{" "}
-                            {market.label}
+                            {marketName(market, locale)}
                           </strong>
+                          {t("payingIn", { market: "\u0000" }).split("\u0000")[1]}
                         </span>
                         <button
                           type="button"
@@ -424,7 +435,7 @@ export function LocalCurrencyCard({
                           disabled={busy}
                           onClick={() => setChanging(true)}
                         >
-                          Change
+                          {t("change")}
                         </button>
                       </p>
                     )}
@@ -432,13 +443,12 @@ export function LocalCurrencyCard({
 
                   {all.length === 0 && (
                     <p className="m-0 mt-5 text-sm text-muted" role="status">
-                      No local payment method takes an amount this small in {market.currency}.
-                      Choose another currency, or pay with crypto instead.
+                      {t("amountTooSmall", { currency: market.currency })}
                     </p>
                   )}
 
                   <fieldset className="m-0 mt-5 min-w-0 border-0 p-0" hidden={all.length === 0}>
-                    <legend className={fieldLabel}>Payment method</legend>
+                    <legend className={fieldLabel}>{t("paymentMethod")}</legend>
                     <div className="grid grid-cols-2 gap-3">
                       {wallets.map((method) => (
                         <MethodTile
@@ -451,7 +461,7 @@ export function LocalCurrencyCard({
                       ))}
                       {banks.length > 0 && (
                         <MethodTile
-                          label="Bank transfer"
+                          label={t("bankTransfer")}
                           selected={choice === BANK}
                           onSelect={() => setChoice(BANK)}
                         />
@@ -462,8 +472,8 @@ export function LocalCurrencyCard({
                   {choice === BANK && (
                     <Dropdown
                       className="mt-4"
-                      label="Bank"
-                      placeholder="Choose your bank"
+                      label={t("bank")}
+                      placeholder={t("chooseYourBank")}
                       value={bankCode}
                       disabled={busy}
                       onSelect={setBankCode}
@@ -480,7 +490,7 @@ export function LocalCurrencyCard({
                     className={`${primaryButton} mt-8`}
                     disabled={selected === undefined}
                   >
-                    Continue
+                    {t("continue")}
                   </button>
                 </>
               )}
@@ -501,17 +511,17 @@ export function LocalCurrencyCard({
                   disabled={busy}
                   onClick={() => setStep("method")}
                 >
-                  Back
+                  {t("back")}
                 </button>
               </p>
 
               <fieldset className="m-0 mt-4 min-w-0 border-0 p-0" disabled={busy}>
-                <legend className="sr-only">Your details</legend>
+                <legend className="sr-only">{t("yourDetails")}</legend>
                 <div className="grid gap-3">
                   <Field
                     id={panelId}
                     name="email"
-                    label="Email"
+                    label={t("email")}
                     type="email"
                     autoComplete="email"
                     placeholder="you@example.com"
@@ -520,16 +530,16 @@ export function LocalCurrencyCard({
                     <Field
                       id={panelId}
                       name="firstName"
-                      label="First name"
+                      label={t("firstName")}
                       autoComplete="given-name"
-                      placeholder="First name"
+                      placeholder={t("firstName")}
                     />
                     <Field
                       id={panelId}
                       name="lastName"
-                      label="Last name"
+                      label={t("lastName")}
                       autoComplete="family-name"
-                      placeholder="Last name"
+                      placeholder={t("lastName")}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -537,14 +547,14 @@ export function LocalCurrencyCard({
                     <Field
                       id={panelId}
                       name="city"
-                      label="City"
+                      label={t("city")}
                       autoComplete="address-level2"
                       placeholder={market.cityExample}
                     />
                   </div>
                   <div>
                     <label className={compactLabel} htmlFor={`${panelId}-phone`}>
-                      Phone
+                      {t("phone")}
                     </label>
                     <div className="flex gap-2">
                       <span
@@ -569,7 +579,7 @@ export function LocalCurrencyCard({
               </fieldset>
 
               <button type="submit" className={`${primaryButton} mt-5`} disabled={busy}>
-                {busy ? "Opening payment…" : "Pay now"}
+                {busy ? t("openingPayment") : t("payNow")}
               </button>
               {error !== "" && (
                 <p className={errorText} role="alert">
@@ -577,8 +587,7 @@ export function LocalCurrencyCard({
                 </p>
               )}
               <p className="mt-3 mb-0 text-center text-[11px] leading-snug text-muted">
-                Our payment partner verifies your identity and takes the payment. Mayarin passes
-                these details on and keeps none of them.
+                {t("partnerNote")}
               </p>
             </>
           )}
@@ -589,11 +598,11 @@ export function LocalCurrencyCard({
 
   if (leading) {
     return (
-      <section aria-label="Pay in local currency">
+      <section aria-label={t("payInLocalCurrency")}>
         {step === "method" && created === null && pending === null && (
           <p className={panelIntro}>
-            Pay with an e-wallet, QRIS or bank transfer — no crypto wallet needed.
-            {delivery !== undefined && <> Delivered to the merchant as {delivery}.</>}
+            {t("localIntro")}
+            {delivery !== undefined && <> {t("deliveredAs", { rail: delivery })}</>}
           </p>
         )}
         {body}
@@ -610,7 +619,7 @@ export function LocalCurrencyCard({
       className="mt-4 block w-full border-0 bg-transparent p-0 text-center text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
       onClick={onChoose}
     >
-      Pay in local currency instead
+      {t("payInLocalInstead")}
     </button>
   );
 }
@@ -625,6 +634,7 @@ function Instruction({
   readonly copied: boolean;
   readonly onCopy: (value: string) => void;
 }) {
+  const t = useT();
   const { instructions, fiatAmount, fiatCurrency, method } = created;
   const amount = formatFiat(fiatAmount, fiatCurrency);
 
@@ -632,7 +642,7 @@ function Instruction({
     <div role="status" className="flex flex-col items-center text-center">
       {instructions.kind === "qr" && (
         <>
-          <h3 className="m-0 text-base font-medium text-ink">Scan to pay</h3>
+          <h3 className="m-0 text-base font-medium text-ink">{t("scanToPay")}</h3>
           <span className="mt-2 inline-flex items-center gap-2 text-sm text-muted">
             <MethodLogo url={method.logoUrl} size={22} />
             {method.name}
@@ -640,18 +650,16 @@ function Instruction({
           <div className="mt-4 rounded-xl bg-white p-3">
             <img
               className="block size-52"
-              alt="QR code to pay"
+              alt={t("qrToPayAlt")}
               src={`/checkout/qr?value=${encodeURIComponent(instructions.value)}`}
             />
           </div>
-          <p className="mt-4 mb-0 text-xs text-muted">
-            Open your e-wallet or banking app and scan this code.
-          </p>
+          <p className="mt-4 mb-0 text-xs text-muted">{t("scanWithApp")}</p>
         </>
       )}
       {instructions.kind === "waiting" && (
         <>
-          <h3 className="m-0 text-base font-medium text-ink">Waiting for your payment</h3>
+          <h3 className="m-0 text-base font-medium text-ink">{t("waitingForYourPayment")}</h3>
           <span className="mt-2 inline-flex items-center gap-2 text-sm text-muted">
             <MethodLogo url={method.logoUrl} size={22} />
             {method.name}
@@ -661,12 +669,12 @@ function Instruction({
       {instructions.kind === "va" && (
         <>
           <h3 className="mt-3 mx-0 mb-0 text-base font-medium text-ink">
-            Transfer to this account
+            {t("transferToAccount")}
           </h3>
           <dl className="mt-4 w-full rounded-2xl border border-line p-4 text-left">
             {instructions.bank !== null && (
               <div className="flex items-baseline justify-between gap-4 py-1.5">
-                <dt className="text-xs text-muted">Bank</dt>
+                <dt className="text-xs text-muted">{t("bank")}</dt>
                 <dd className="m-0 inline-flex items-center gap-2 text-sm text-ink">
                   <MethodLogo url={method.logoUrl} size={22} />
                   {instructions.bank}
@@ -674,16 +682,16 @@ function Instruction({
               </div>
             )}
             <div className="flex items-center justify-between gap-4 py-1.5">
-              <dt className="text-xs text-muted">Virtual account</dt>
+              <dt className="text-xs text-muted">{t("virtualAccount")}</dt>
               <dd className="m-0 flex items-center gap-2 text-sm text-ink tabular-nums">
                 <code>{instructions.code}</code>
                 <button
                   type="button"
                   className="rounded-full border border-line bg-panel px-3 py-1 text-xs text-ink transition-colors hover:bg-field"
-                  aria-label={copied ? "Account number copied" : "Copy the account number"}
+                  aria-label={copied ? t("accountCopied") : t("copyAccount")}
                   onClick={() => onCopy(instructions.code)}
                 >
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? t("copied") : t("copy")}
                 </button>
               </dd>
             </div>
@@ -691,12 +699,10 @@ function Instruction({
         </>
       )}
       <div className="mt-5 flex w-full items-baseline justify-between gap-4 border-y border-line py-4">
-        <span className="text-sm text-muted">Pay exactly</span>
+        <span className="text-sm text-muted">{t("payExactly")}</span>
         <strong className="text-xl font-medium tabular-nums">{amount}</strong>
       </div>
-      <p className={`${noteText} text-center`}>
-        This page updates by itself once your payment arrives. You do not need to do anything else.
-      </p>
+      <p className={`${noteText} text-center`}>{t("updatesByItself")}</p>
     </div>
   );
 }
@@ -706,6 +712,7 @@ function Instruction({
  * fills, so the whole date goes in without leaving the keyboard.
  */
 function DateOfBirthField() {
+  const t = useT();
   const take = (event: ChangeEvent<HTMLInputElement>, length: number, next?: string) => {
     const digits = event.target.value.replace(/\D/g, "");
     event.target.value = digits;
@@ -716,11 +723,11 @@ function DateOfBirthField() {
 
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">
-      <legend className={compactLabel}>Date of birth</legend>
+      <legend className={compactLabel}>{t("dateOfBirth")}</legend>
       <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-1.5">
         <input
           name="dobDay"
-          aria-label="Day"
+          aria-label={t("day")}
           placeholder="DD"
           inputMode="numeric"
           autoComplete="bday-day"
@@ -731,7 +738,7 @@ function DateOfBirthField() {
         />
         <input
           name="dobMonth"
-          aria-label="Month"
+          aria-label={t("month")}
           placeholder="MM"
           inputMode="numeric"
           autoComplete="bday-month"
@@ -742,7 +749,7 @@ function DateOfBirthField() {
         />
         <input
           name="dobYear"
-          aria-label="Year"
+          aria-label={t("year")}
           placeholder="YYYY"
           inputMode="numeric"
           autoComplete="bday-year"

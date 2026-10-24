@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { type Translate, translateEnglish, useT } from "../i18n/index.tsx";
 import { offersReturnAddress } from "./return-address.tsx";
 import type { Protection, Rail } from "./types.ts";
 import { chevron, errorText } from "./ui.ts";
-import { connectWallet } from "./wallet.ts";
+import { connectWallet, walletErrorText } from "./wallet.ts";
 
 /**
  * Buyer protection, offered before the price is locked (#304).
@@ -24,6 +25,7 @@ export function BuyerProtection({
   readonly payerAddress: string | null;
   readonly onPayerAddress: (address: string | null) => void;
 }) {
+  const t = useT();
   const [error, setError] = useState("");
   const [ineligible, setIneligible] = useState(false);
   if (!protectionApplies(protection, rail)) return null;
@@ -45,7 +47,7 @@ export function BuyerProtection({
       }
       onPayerAddress(address);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to connect a wallet");
+      setError(walletErrorText(cause, t, "unableToConnectWallet"));
     }
   }
 
@@ -57,15 +59,15 @@ export function BuyerProtection({
         <ShieldIcon checked={payerAddress !== null} />
         <div className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
           <p className="m-0">
-            <span className="text-sm text-ink">Buyer protection</span>
-            {!protection.required && payerAddress === null && " · optional"}
+            <span className="text-sm text-ink">{t("buyerProtection")}</span>
+            {!protection.required && payerAddress === null && ` · ${t("optional")}`}
           </p>
           <p className="m-0">
             {payerAddress === null ? (
-              `Held ${holdDuration(protection.holdSeconds)} until you confirm delivery`
+              t("heldUntilConfirm", { duration: holdDuration(protection.holdSeconds, t) })
             ) : (
               <>
-                On · wallet <code>{shortAddress(payerAddress)}</code>
+                {t("protectionOn")} <code>{shortAddress(payerAddress)}</code>
               </>
             )}
           </p>
@@ -76,7 +78,7 @@ export function BuyerProtection({
             className="shrink-0 rounded-full border border-line bg-panel px-3.5 py-1.5 text-xs text-ink transition-colors hover:bg-field"
             onClick={() => void connect()}
           >
-            Connect wallet
+            {t("connectWallet")}
           </button>
         ) : (
           !protection.required && (
@@ -85,25 +87,24 @@ export function BuyerProtection({
               className="ml-1 border-0 bg-transparent p-0 text-xs text-muted underline"
               onClick={() => onPayerAddress(null)}
             >
-              Remove
+              {t("remove")}
             </button>
           )
         )}
       </div>
       <details className="group mt-3 border-t border-line pt-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-          How it works
+          {t("howItWorks")}
           <span className={`${chevron} size-1.5 border-current rotate-45 group-open:-rotate-135`} />
         </summary>
         <p className="mt-2 mb-0 text-xs leading-relaxed text-muted">
-          Your payment is held for {holdDuration(protection.holdSeconds)} until you confirm
-          delivery, then released to the merchant. Disputes are decided by {protection.arbiterLabel}
-          ; if undecided, you're refunded.{" "}
+          {t("protectionExplain", {
+            duration: holdDuration(protection.holdSeconds, t),
+            arbiter: protection.arbiterLabel,
+          })}{" "}
           {bondApplies(protection, rail) &&
-            `Opening a dispute takes a bond of ${protection.bondBps / 100}% of the payment, returned if your claim holds and paid to the merchant if it doesn't. `}
-          {protection.required
-            ? "Connect the wallet you pay from to release or dispute later."
-            : "Connect the wallet you pay from to turn it on."}
+            `${t("bondNote", { percent: protection.bondBps / 100 })} `}
+          {protection.required ? t("connectToRelease") : t("connectToTurnOn")}
         </p>
       </details>
       {ineligible && (
@@ -113,9 +114,7 @@ export function BuyerProtection({
           }
           role="alert"
         >
-          {protection.required
-            ? "This payment requires buyer protection, which this wallet can no longer use."
-            : "Buyer protection isn't available for this wallet. You can still pay — the merchant is paid directly."}
+          {protection.required ? t("protectionRequired") : t("protectionUnavailable")}
         </p>
       )}
       {error !== "" && (
@@ -178,11 +177,11 @@ export function railBody(
   };
 }
 
-export function holdDuration(seconds: number): string {
+export function holdDuration(seconds: number, t: Translate = translateEnglish): string {
   const days = Math.round(seconds / 86_400);
-  if (days >= 1) return days === 1 ? "1 day" : `${days} days`;
+  if (days >= 1) return days === 1 ? t("oneDay") : t("days", { count: days });
   const hours = Math.max(1, Math.round(seconds / 3_600));
-  return hours === 1 ? "1 hour" : `${hours} hours`;
+  return hours === 1 ? t("oneHour") : t("hours", { count: hours });
 }
 
 export function shortAddress(address: string): string {
