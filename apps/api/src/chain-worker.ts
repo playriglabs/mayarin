@@ -88,7 +88,11 @@ const STUCK_PAYMENT_INTERVAL_MS = 60_000;
 const checkStuckPayments = createStuckPaymentCheck({
   list: () => container.engine.listResumable(),
   now: () => new Date(),
-  send: alertSender(config.alertWebhookUrl),
+  send: alertSender(
+    config.telegramBotToken !== undefined && config.telegramChatId !== undefined
+      ? { botToken: config.telegramBotToken, chatId: config.telegramChatId }
+      : undefined,
+  ),
 });
 let checkingStuck = false;
 const stuckPaymentTimer = setInterval(() => {

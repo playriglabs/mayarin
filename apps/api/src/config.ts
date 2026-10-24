@@ -127,10 +127,11 @@ const configSchema = z.object({
    */
   escrowAlertWebhookUrl: z.string().url("ESCROW_ALERT_WEBHOOK_URL must be a URL").optional(),
   /**
-   * Where the chain worker reports a payment stuck after the payer paid. A
-   * Discord or Slack incoming webhook; unset, the worker only logs it.
+   * The Telegram bot and chat the chain worker reports a stuck payment to.
+   * Needs both; with either missing, the worker only logs it.
    */
-  alertWebhookUrl: z.string().url("ALERT_WEBHOOK_URL must be a URL").optional(),
+  telegramBotToken: z.string().min(1).optional(),
+  telegramChatId: z.string().min(1).optional(),
   /**
    * Email for a newly opened dispute (#313), sent to the merchant's admin
    * accounts through Resend — the same key and sender the dashboard uses.
@@ -1435,7 +1436,8 @@ export function loadConfig(
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,
     escrowAlertWebhookUrl: env.ESCROW_ALERT_WEBHOOK_URL,
-    alertWebhookUrl: env.ALERT_WEBHOOK_URL,
+    telegramBotToken: env.TELEGRAM_BOT_TOKEN,
+    telegramChatId: env.TELEGRAM_CHAT_ID,
     resendApiKey: env.RESEND_API_KEY,
     emailFrom: env.RESEND_FROM_EMAIL,
     dashboardUrl: env.DASHBOARD_URL,

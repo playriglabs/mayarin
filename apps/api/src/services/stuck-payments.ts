@@ -61,17 +61,18 @@ export function createStuckPaymentCheck(watch: StuckPaymentWatch): () => Promise
   };
 }
 
-/** Logs the alert, and posts it when a webhook is set. A failed post throws, so the next pass retries it. */
-export function alertSender(webhookUrl: string | undefined): (text: string) => Promise<void> {
+/** Logs the alert, and sends it to Telegram when a bot is set. A failed send throws, so the next pass retries it. */
+export function alertSender(
+  telegram: { readonly botToken: string; readonly chatId: string } | undefined,
+): (text: string) => Promise<void> {
   return async (text) => {
     console.error(`[stuck-payments] ${text}`);
-    if (webhookUrl === undefined) return;
-    const response = await fetch(webhookUrl, {
+    if (telegram === undefined) return;
+    const response = await fetch(`https://api.telegram.org/bot${telegram.botToken}/sendMessage`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      // Slack reads `text`, Discord reads `content`.
-      body: JSON.stringify({ text, content: text }),
+      body: JSON.stringify({ chat_id: telegram.chatId, text }),
     });
-    if (!response.ok) throw new Error(`Alert webhook answered ${response.status}`);
+    if (!response.ok) throw new Error(`Telegram answered ${response.status}`);
   };
 }

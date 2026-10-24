@@ -590,8 +590,7 @@ Three layers, each answering something the others cannot.
   an identical message is sent at most once a minute.
 - **Stuck-payment alert**: the chain worker reports a payment still in
   `ASSET_RECEIVED`, `CLEARING`, `SETTLING` or `SETTLED` ten minutes after its last
-  change, once per state, to `ALERT_WEBHOOK_URL` (a Discord or Slack incoming
-  webhook) and to the log, so Sentry sees it too. This is the failure `/health`
+  change, once per state, to a Telegram chat (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`) and to the log, so Sentry sees it too. This is the failure `/health`
   cannot show: the API answering while the worker fails.
 
 ## Mainnet Gate
