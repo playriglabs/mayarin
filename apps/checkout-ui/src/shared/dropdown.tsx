@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useT } from "../i18n/index.tsx";
 import { chevron, fieldLabel } from "./ui.ts";
 
 /**
@@ -24,7 +25,7 @@ export function Dropdown({
   options,
   value,
   onSelect,
-  placeholder = "Choose",
+  placeholder,
   disabled = false,
   searchable = false,
   className = "",
@@ -40,6 +41,7 @@ export function Dropdown({
   readonly searchable?: boolean;
   readonly className?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -97,7 +99,7 @@ export function Dropdown({
           onClick={() => setOpen((previous) => !previous)}
         >
           {current === undefined ? (
-            <span className="min-w-0 flex-1 text-sm text-muted">{placeholder}</span>
+            <span className="min-w-0 flex-1 text-sm text-muted">{placeholder ?? t("choose")}</span>
           ) : (
             <>
               {current.mark?.(28)}
@@ -107,7 +109,7 @@ export function Dropdown({
           {/* A rotated square's corner sits below its box's centre; nudged so
               the chevron lines up with the word beside it. */}
           <span className="flex items-center gap-2 text-xs leading-none text-muted">
-            Change
+            {t("change")}
             <span
               className={`${chevron} size-1.5 ${open ? "translate-y-0.5 -rotate-135" : "-translate-y-1 rotate-45"}`}
               aria-hidden="true"
@@ -147,8 +149,8 @@ export function Dropdown({
                   type="search"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="Search asset or network"
-                  aria-label="Search asset or network"
+                  placeholder={t("searchAssetOrNetwork")}
+                  aria-label={t("searchAssetOrNetwork")}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="w-full border-0 bg-transparent py-3 text-sm text-ink outline-none placeholder:text-muted"

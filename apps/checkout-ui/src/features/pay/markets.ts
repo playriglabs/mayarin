@@ -167,6 +167,26 @@ const LANGUAGE_COUNTRY: Readonly<Record<string, string>> = {
  * The flag of an ISO 3166 alpha-2 country, from its two letters: each maps to a
  * regional-indicator symbol, and a pair of them renders as the flag.
  */
+/** The country's name in the payer's language; the English label's own name if the runtime has none. */
+export function countryName(market: Market, locale: string): string {
+  try {
+    return (
+      new Intl.DisplayNames([locale], { type: "region" }).of(market.country) ?? fallbackName(market)
+    );
+  } catch {
+    return fallbackName(market);
+  }
+}
+
+function fallbackName(market: Market): string {
+  return market.label.replace(/ \(.*\)$/, "");
+}
+
+/** "Indonesia (IDR)", the country in the payer's language. */
+export function marketName(market: Market, locale: string): string {
+  return `${countryName(market, locale)} (${market.currency})`;
+}
+
 export function flagEmoji(country: string): string {
   return [...country.toUpperCase()]
     .map((letter) => String.fromCodePoint(0x1f1e6 + letter.charCodeAt(0) - 65))

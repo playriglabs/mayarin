@@ -1,5 +1,6 @@
 import { type QuoteView, REFRESH_SECONDS } from "../features/link/use-quote-estimate.ts";
-import { estimateRow } from "./ui.ts";
+import { useT } from "../i18n/index.tsx";
+import { errorText, estimateRow } from "./ui.ts";
 
 const RING_RADIUS = 8;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -68,19 +69,31 @@ export function EstimateRow({
   readonly asset: string;
   readonly quote: QuoteView;
 }) {
+  const t = useT();
   const { estimate, secondsLeft, refreshing, refresh } = quote;
+  const display = {
+    idle: t("enterAnAmount"),
+    loading: t("calculating"),
+    unavailable: t("unavailable"),
+    available: estimate.display,
+  }[estimate.status];
   const canRefresh = estimate.status === "available" || estimate.status === "unavailable";
 
   return (
     <>
       <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
-        <span>Estimated total in {asset}</span>
+        <span>{t("estimatedTotalIn", { asset })}</span>
         {/* The placeholder is a prompt, not a figure, so it does not take the
             size of the total it stands in for. */}
         <strong className={estimate.status === "idle" ? "text-base! text-muted" : undefined}>
-          {estimate.display}
+          {display}
         </strong>
       </div>
+      {estimate.status === "unavailable" && (
+        <p className={errorText} role="alert">
+          {estimate.code === "request-failed" ? t("quoteRequestFailed") : t("quoteUnavailable")}
+        </p>
+      )}
       {canRefresh && (
         <div className="mt-3 flex justify-end">
           <button
@@ -89,8 +102,8 @@ export function EstimateRow({
             disabled={refreshing}
             aria-label={
               estimate.status === "available"
-                ? `Refresh price, updates automatically in ${secondsLeft} seconds`
-                : "Refresh price"
+                ? t("refreshPriceAuto", { seconds: secondsLeft })
+                : t("refreshPrice")
             }
             className="inline-flex items-center gap-2 rounded-full border border-line py-1.5 pr-3.5 pl-2 text-xs text-muted tabular-nums transition-colors enabled:hover:border-muted enabled:hover:text-ink disabled:cursor-default"
           >
@@ -98,7 +111,7 @@ export function EstimateRow({
               secondsLeft={estimate.status === "available" ? secondsLeft : null}
               spinning={refreshing}
             />
-            {estimate.status === "available" ? `${refreshing ? 0 : secondsLeft}s` : "Retry"}
+            {estimate.status === "available" ? `${refreshing ? 0 : secondsLeft}s` : t("retry")}
           </button>
         </div>
       )}

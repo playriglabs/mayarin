@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { type Translate, translateEnglish, useT } from "../../i18n/index.tsx";
 import type { PaymentStage } from "./status-wording.ts";
 
 type StepState = "done" | "current" | "upcoming" | "bad";
@@ -16,38 +17,42 @@ interface Step {
  * status: an intent is `CONFIRMED` the moment the payer presses Continue,
  * long before any money moves. Only a terminal status overrides it.
  */
-export function timelineSteps(status: string, stage: PaymentStage): readonly Step[] {
+export function timelineSteps(
+  status: string,
+  stage: PaymentStage,
+  t: Translate = translateEnglish,
+): readonly Step[] {
   if (status === "COMPLETED") {
     return [
-      { label: "Waiting for payment", state: "done" },
-      { label: "Processing payment", state: "done" },
-      { label: "Payment successful", state: "done" },
+      { label: t("stepWaiting"), state: "done" },
+      { label: t("stepProcessing"), state: "done" },
+      { label: t("stepSuccessful"), state: "done" },
     ];
   }
   if (status === "FAILED") {
     return [
-      { label: "Waiting for payment", state: "done" },
-      { label: "Processing payment", state: "done" },
-      { label: "Payment failed", state: "bad" },
+      { label: t("stepWaiting"), state: "done" },
+      { label: t("stepProcessing"), state: "done" },
+      { label: t("paymentFailed"), state: "bad" },
     ];
   }
   if (status === "EXPIRED") {
     return [
-      { label: "Payment expired", state: "bad" },
-      { label: "Processing payment", state: "upcoming" },
-      { label: "Success", state: "upcoming" },
+      { label: t("paymentExpired"), state: "bad" },
+      { label: t("stepProcessing"), state: "upcoming" },
+      { label: t("stepSuccess"), state: "upcoming" },
     ];
   }
   return stage === "confirming"
     ? [
-        { label: "Waiting for payment", state: "done" },
-        { label: "Processing payment", state: "current" },
-        { label: "Success", state: "upcoming" },
+        { label: t("stepWaiting"), state: "done" },
+        { label: t("stepProcessing"), state: "current" },
+        { label: t("stepSuccess"), state: "upcoming" },
       ]
     : [
-        { label: "Waiting for payment", state: "current" },
-        { label: "Processing payment", state: "upcoming" },
-        { label: "Success", state: "upcoming" },
+        { label: t("stepWaiting"), state: "current" },
+        { label: t("stepProcessing"), state: "upcoming" },
+        { label: t("stepSuccess"), state: "upcoming" },
       ];
 }
 
@@ -75,9 +80,10 @@ export function StatusTimeline({
   readonly stage: PaymentStage;
   readonly className?: string;
 }) {
-  const steps = timelineSteps(status, stage);
+  const t = useT();
+  const steps = timelineSteps(status, stage, t);
   return (
-    <ol className={clsx("m-0 grid list-none p-0", className)} aria-label="Payment progress">
+    <ol className={clsx("m-0 grid list-none p-0", className)} aria-label={t("paymentProgress")}>
       {steps.map((step, index) => {
         const last = index === steps.length - 1;
         return (

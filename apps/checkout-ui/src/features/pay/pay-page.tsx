@@ -2,6 +2,7 @@ import { chainLabel } from "@mayarin/chain";
 import clsx from "clsx";
 import { useState } from "react";
 import { match, P } from "ts-pattern";
+import { useT } from "../../i18n/index.tsx";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import {
@@ -31,10 +32,11 @@ import { usePaymentStatus } from "./use-payment-status.ts";
  * on a deposit address that could never be allocated.
  */
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
+  const t = useT();
   if (bootstrap.choice !== null) {
     return (
       <CheckoutShell
-        label="Payment details"
+        label={t("paymentDetails")}
         summary={
           <CheckoutSummary
             merchant={bootstrap.merchant}
@@ -65,6 +67,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
  * through to the deposit card silently.
  */
 function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
+  const t = useT();
   const { intentId, expiresAt } = bootstrap;
   // Chosen on the page before: the payer said they would pay in local currency,
   // so that form leads and the crypto instructions wait below it.
@@ -78,7 +81,7 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
 
   return (
     <CheckoutShell
-      label="Payment instructions"
+      label={t("paymentInstructions")}
       summary={
         <CheckoutSummary
           merchant={bootstrap.merchant}
@@ -94,15 +97,17 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
 
       {waiting && (
         <div className="flex items-center justify-between gap-4">
-          <h2 className={panelTitle}>Complete your payment</h2>
+          <h2 className={panelTitle}>{t("completeYourPayment")}</h2>
           <span
             className={clsx(
               "inline-flex shrink-0 items-baseline gap-1.5 rounded-full border px-3 py-1 text-xs",
               remaining.low ? "border-danger/40 text-danger" : "border-line text-muted",
             )}
           >
-            Time left
-            <strong className="text-sm font-medium text-ink tabular-nums">{remaining.text}</strong>
+            {t("timeLeft")}
+            <strong className="text-sm font-medium text-ink tabular-nums">
+              {remaining.expired ? t("expired") : remaining.text}
+            </strong>
           </span>
         </div>
       )}
@@ -124,10 +129,8 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
               aria-hidden="true"
             />
             <div>
-              <h3 className="m-0 text-sm font-medium">Preparing your payment address…</h3>
-              <p className="mt-1 mb-0 text-xs text-muted">
-                Your price is being locked. Keep this page open.
-              </p>
+              <h3 className="m-0 text-sm font-medium">{t("preparingAddress")}</h3>
+              <p className="mt-1 mb-0 text-xs text-muted">{t("priceBeingLocked")}</p>
             </div>
           </div>
         ))
@@ -142,7 +145,10 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
               <LocalCurrencyCard
                 intentId={intentId}
                 priceCurrency={bootstrap.amount.asset}
-                delivery={`${deposit.amount.asset} on ${chainLabel(deposit.chain)}`}
+                delivery={t("assetOnChain", {
+                  asset: deposit.amount.asset,
+                  chain: chainLabel(deposit.chain),
+                })}
                 leading
               />
               <button
@@ -153,7 +159,7 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
                   setLocalFirst(false);
                 }}
               >
-                Pay with crypto instead
+                {t("payWithCryptoInstead")}
               </button>
             </>
           ) : (
@@ -178,10 +184,10 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
         )
         .exhaustive()}
 
-      {!terminal && !localFirst && <p className={footnote}>This page updates automatically.</p>}
+      {!terminal && !localFirst && <p className={footnote}>{t("pageUpdatesAutomatically")}</p>}
       {waiting && deposit === undefined && (
         <p className={footnote}>
-          Reference ID <code>{intentId}</code>
+          {t("referenceId")} <code>{intentId}</code>
         </p>
       )}
     </CheckoutShell>

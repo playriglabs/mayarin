@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n/index.tsx";
 import { BuyerProtection } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
@@ -12,7 +13,7 @@ import {
   useLocalCurrencyRail,
 } from "../../shared/local-currency-option.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
-import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { RAIL_SLOT, RailPicker, RailSentence, railSummary } from "../../shared/rail-picker.tsx";
 import {
   offersReturnAddress,
   ReturnAddressField,
@@ -52,6 +53,7 @@ import { canContinueWithQuote, useQuoteEstimate } from "./use-quote-estimate.ts"
  * `RailPicker` asks nothing when there is nothing to ask.
  */
 export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
+  const t = useT();
   const { payable, currency, total, lines, rails, unpayableReason, lockMinutes } = bootstrap;
   const [rail, setRail] = useState(rails[0]);
   const [amount, setAmount] = useState("");
@@ -79,7 +81,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   async function start(target: Rail, localCurrency: boolean) {
     if (!payable || busy) return;
     if (total === null && Number(amount) <= 0) {
-      setError("Enter an amount first.");
+      setError(t("enterAmountFirst"));
       return;
     }
     setBusy(true);
@@ -101,7 +103,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       });
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.error?.message ?? "Unable to create the payment");
+        setError(payload?.error?.message ?? t("unableToCreatePayment"));
         setBusy(false);
         return;
       }
@@ -117,12 +119,12 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       );
       const confirmed = await confirmation.json();
       if (!confirmation.ok) {
-        setError(confirmed?.error?.message ?? "Unable to lock the price");
+        setError(confirmed?.error?.message ?? t("unableToLockPrice"));
         setBusy(false);
         return;
       }
       if (confirmed.paymentIntent.status === "FAILED") {
-        setError(confirmed.paymentIntent.failureReason ?? "The price could not be locked");
+        setError(confirmed.paymentIntent.failureReason ?? t("priceCouldNotBeLocked"));
         setBusy(false);
         return;
       }
@@ -130,7 +132,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       if (localCurrency) rememberLocalCurrencyIntent(intentId);
       location.href = `/checkout/pay/${intentId}?t=${encodeURIComponent(payerToken)}`;
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("networkError"));
       setBusy(false);
     }
   }
@@ -142,7 +144,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
   return (
     <CheckoutShell
-      label="Payment details"
+      label={t("paymentDetails")}
       summary={
         <CheckoutSummary
           merchant={bootstrap.merchant}
@@ -152,19 +154,22 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         />
       }
     >
-      <h2 className={panelTitle}>Choose how to pay</h2>
+      <h2 className={panelTitle}>{t("chooseHowToPay")}</h2>
       <p className={panelIntro}>
         {rail === undefined
-          ? `Pay ${bootstrap.merchant.name}.`
+          ? t("payMerchant", { merchant: bootstrap.merchant.name })
           : rails.length === 1
-            ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
-            : `Select an asset and network to pay ${bootstrap.merchant.name}.`}
+            ? t("payMerchantWith", {
+                merchant: bootstrap.merchant.name,
+                rail: railSummary(rail, t),
+              })
+            : t("selectAssetAndNetwork", { merchant: bootstrap.merchant.name })}
       </p>
 
       {total === null && (
         <div className="mt-6">
           <label className={fieldLabel} htmlFor="amount">
-            Amount
+            {t("amount")}
           </label>
           {/* The symbol matches the figure beside it, so "€ 5" reads as one amount. */}
           <div className="flex min-h-14 items-stretch rounded-xl border border-transparent bg-field focus-within:border-muted">
@@ -203,12 +208,6 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
               <EstimateRow asset={rail.asset} quote={quote} />
 
-              {estimate.status === "unavailable" && (
-                <p className={errorText} role="alert">
-                  {estimate.message}
-                </p>
-              )}
-
               <BuyerProtection
                 protection={bootstrap.protection}
                 rail={rail}
@@ -226,14 +225,14 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 onClick={pay}
               >
                 {busy
-                  ? "Preparing payment…"
+                  ? t("preparingPayment")
                   : estimate.status === "unavailable"
-                    ? "Payment unavailable"
+                    ? t("paymentUnavailable")
                     : estimate.status === "idle"
-                      ? "Enter an amount to continue"
+                      ? t("enterAmountToContinue")
                       : estimate.status === "loading"
-                        ? "Calculating price…"
-                        : `Continue with ${rail.asset}`}
+                        ? t("calculatingPrice")
+                        : t("continueWith", { asset: rail.asset })}
               </button>
               {error !== "" && (
                 <p className={errorText} role="alert">
@@ -241,21 +240,18 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 </p>
               )}
               <p className={`${noteText} text-center`}>
-                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-                <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
-                shown there.
+                <RailSentence
+                  text={t("priceLockNote", { minutes: lockMinutes, rail: RAIL_SLOT })}
+                  rail={rail}
+                />
               </p>
             </>
           )}
         </>
       ) : (
         <div className={unavailableBox}>
-          <h3>
-            {payable
-              ? "This merchant has no payment method available"
-              : "This payment link is no longer available"}
-          </h3>
-          <p>{unpayableReason ?? "Contact the merchant for a new payment link."}</p>
+          <h3>{payable ? t("noPaymentMethod") : t("linkUnavailable")}</h3>
+          <p>{unpayableReason ?? t("contactMerchantForLink")}</p>
         </div>
       )}
     </CheckoutShell>

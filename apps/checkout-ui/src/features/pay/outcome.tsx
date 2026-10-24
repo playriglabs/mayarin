@@ -1,3 +1,4 @@
+import { useT } from "../../i18n/index.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { EscrowCard } from "./escrow-card.tsx";
@@ -63,19 +64,20 @@ export function Outcome({
   /** The payment's own URL; its invoice and receipt PDFs sit under it (#293). */
   readonly statusUrl: string;
 }) {
+  const t = useT();
   const paid = status === "COMPLETED";
   const expired = status === "EXPIRED";
-  const heading = paid ? "Payment completed" : expired ? "Payment expired" : "Payment failed";
+  const heading = paid ? t("paymentCompleted") : expired ? t("paymentExpired") : t("paymentFailed");
   // Deliberately not the engine's own failure reason: that string names
   // clearing transactions and executor attempts — a sentence for an operator
   // reading the dashboard, not for the person holding the phone.
   const note = paid
     ? escrowed
-      ? "Your payment is held in escrow until you release it or the hold ends."
-      : "The merchant has been paid. You can safely close this page."
+      ? t("noteEscrowHeld")
+      : t("noteMerchantPaid")
     : expired
-      ? "The time to pay ran out before a payment arrived. Start a new payment to try again."
-      : "Start a new payment to try again.";
+      ? t("noteExpired")
+      : t("noteFailed");
 
   const documentLink =
     "inline-flex items-center justify-center gap-2 rounded-full border border-line px-3 py-2.5 text-sm text-ink no-underline transition-colors hover:bg-field";
@@ -93,11 +95,10 @@ export function Outcome({
         {/* A payer who already sent funds needs someone to talk to, and the
             reference is what either side will ask for first. */}
         <p className="mt-5 mb-0 rounded-2xl border border-line bg-field/50 px-4 py-3 text-xs leading-relaxed text-muted">
-          Already sent funds? We recommend contacting {merchantName} or your wallet or exchange
-          provider&apos;s customer service, and sharing the Reference ID below.
+          {t("alreadySentFunds", { merchant: merchantName })}
         </p>
         <p className="mt-4 mb-0 text-xs text-subtle">
-          Reference ID <code>{intentId}</code>
+          {t("referenceId")} <code>{intentId}</code>
         </p>
       </div>
     );
@@ -112,15 +113,15 @@ export function Outcome({
       <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
         <a href={withPayerToken(`${statusUrl}/invoice.pdf`)} download className={documentLink}>
           <InvoiceIcon />
-          Download invoice
+          {t("downloadInvoice")}
         </a>
         <a href={withPayerToken(`${statusUrl}/receipt.pdf`)} download className={documentLink}>
           <ReceiptIcon />
-          Download receipt
+          {t("downloadReceipt")}
         </a>
       </div>
       <p className={`${footnote} mt-6`}>
-        Reference ID <code>{intentId}</code>
+        {t("referenceId")} <code>{intentId}</code>
       </p>
     </div>
   );

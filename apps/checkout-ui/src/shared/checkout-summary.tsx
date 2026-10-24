@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useT } from "../i18n/index.tsx";
 import { Brand } from "./brand.tsx";
 import { SummaryColumn } from "./checkout-shell.tsx";
 import type { LineItem, MerchantRef } from "./types.ts";
@@ -25,7 +26,7 @@ export function CheckoutSummary({
   priceSuffix,
   details,
   breakdown,
-  label = "Order summary",
+  label,
   children,
 }: {
   readonly merchant: MerchantRef;
@@ -48,6 +49,7 @@ export function CheckoutSummary({
   // total. Under the heading and the big figure that says everything twice, so
   // it is dropped, and the Total row with it. A real product has an image or a
   // description, or more than one line, and is shown.
+  const t = useT();
   const restatesHeading =
     lines?.length === 1 &&
     lines[0]?.quantity === 1 &&
@@ -58,10 +60,10 @@ export function CheckoutSummary({
   const visible = restatesHeading ? null : lines;
   const shown = visible?.slice(0, VISIBLE_LINES) ?? [];
   const hidden = (visible?.length ?? 0) - shown.length;
-  const rows = breakdown ?? [{ label: "Total", value: totalDisplay }];
+  const rows = breakdown ?? [{ label: t("total"), value: totalDisplay }];
 
   return (
-    <SummaryColumn label={label}>
+    <SummaryColumn label={label ?? t("orderSummary")}>
       <Brand
         merchant={merchant}
         label={merchant.city.trim() === "" ? merchant.name : `${merchant.name} — ${merchant.city}`}
@@ -125,7 +127,7 @@ export function CheckoutSummary({
           ))}
           {hidden > 0 && (
             <p className="m-0 text-sm text-muted">
-              +{hidden} more {hidden === 1 ? "item" : "items"}
+              {t(hidden === 1 ? "moreItem" : "moreItems", { count: hidden })}
             </p>
           )}
         </div>

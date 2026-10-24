@@ -1,15 +1,10 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useT } from "../../i18n/index.tsx";
 import { shortAddress } from "../../shared/buyer-protection.tsx";
 import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, secondaryButton } from "../../shared/ui.ts";
-import { connectWallet, signMessage } from "../../shared/wallet.ts";
+import { connectWallet, signMessage, walletErrorText } from "../../shared/wallet.ts";
 import type { DisputeMessage } from "./types.ts";
-
-const AUTHOR_LABELS: Readonly<Record<DisputeMessage["author"], string>> = {
-  payer: "You",
-  merchant: "Merchant",
-  arbiter: "Mayarin Resolution",
-};
 
 /**
  * The payer's side of a dispute (#313): the thread, and a box to explain what
@@ -39,6 +34,12 @@ export function DisputeThread({
   /** The dispute's number, to quote when contacting support. */
   readonly reference: string;
 }) {
+  const t = useT();
+  const authorLabels: Readonly<Record<DisputeMessage["author"], string>> = {
+    payer: t("authorYou"),
+    merchant: t("authorMerchant"),
+    arbiter: "Mayarin Resolution",
+  };
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -59,7 +60,7 @@ export function DisputeThread({
     try {
       const from = await connectWallet();
       if (from.toLowerCase() !== payer.toLowerCase()) {
-        throw new Error(`Switch to the wallet you paid with, ${shortAddress(payer)}.`);
+        throw new Error(t("switchWallet", { address: shortAddress(payer) }));
       }
       const paymentId = statusUrl.slice(statusUrl.lastIndexOf("/") + 1);
       const signedAt = new Date().toISOString();
@@ -76,12 +77,12 @@ export function DisputeThread({
         const failure = (await response.json().catch(() => null)) as {
           error?: { message?: string };
         } | null;
-        throw new Error(failure?.error?.message ?? "The message was not sent");
+        throw new Error(failure?.error?.message ?? t("messageNotSent"));
       }
       setDraft("");
       onPosted();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The message was not sent");
+      setError(walletErrorText(cause, t, "messageNotSent"));
     } finally {
       setBusy(false);
     }
@@ -90,8 +91,9 @@ export function DisputeThread({
   return (
     <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
       <p className="m-0 text-xs leading-relaxed text-muted">
-        {note !== undefined && `${note} `}Quote dispute{" "}
-        <strong className="font-medium text-ink">#{reference}</strong> if you contact support.
+        {note !== undefined && `${note} `}
+        {t("quoteDisputeBefore")} <strong className="font-medium text-ink">#{reference}</strong>{" "}
+        {t("quoteDisputeAfter")}
       </p>
       {messages.length > 0 && (
         // A fixed height that scrolls, so a long thread never pushes the page down.
@@ -104,7 +106,7 @@ export function DisputeThread({
               key={message.id}
               className={`rounded-xl px-3 py-2 ${message.author === "payer" ? "bg-field" : "bg-panel"}`}
             >
-              <span className="text-xs text-muted">{AUTHOR_LABELS[message.author]}</span>
+              <span className="text-xs text-muted">{authorLabels[message.author]}</span>
               <p className="mt-1 mb-0 text-sm whitespace-pre-wrap text-ink">{message.body}</p>
             </li>
           ))}
@@ -119,16 +121,12 @@ export function DisputeThread({
           }}
         >
           <textarea
-            aria-label={asked ? "Add to your case" : "Tell the arbiter what went wrong"}
+            aria-label={asked ? t("addToCase") : t("tellArbiter")}
             className="block w-full resize-none rounded-xl border border-transparent bg-field px-3 py-2 text-sm text-ink outline-0 focus:border-muted"
             value={draft}
             maxLength={2000}
             rows={3}
-            placeholder={
-              asked
-                ? "Add to your case"
-                : "Tell the arbiter what went wrong: what you ordered, what arrived, any tracking."
-            }
+            placeholder={asked ? t("addToCase") : t("tellArbiterHint")}
             onChange={(event) => setDraft(event.target.value)}
           />
           {/* "Sign and send" and "Release payment" share one row. */}
@@ -138,7 +136,7 @@ export function DisputeThread({
               className={secondaryButton}
               disabled={busy || draft.trim() === ""}
             >
-              {busy ? "Signing…" : "Sign and send"}
+              {busy ? t("signing") : t("signAndSend")}
             </button>
             {release}
           </div>

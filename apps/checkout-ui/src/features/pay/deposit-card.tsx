@@ -1,4 +1,5 @@
 import { type ReactNode, useId, useState } from "react";
+import { useT } from "../../i18n/index.tsx";
 import { AssetLogo } from "../../shared/asset-logo.tsx";
 import { ChainLabel, ChainLogo } from "../../shared/chain-logo.tsx";
 import { walletAmount } from "../../shared/money.ts";
@@ -24,6 +25,7 @@ export function DepositCard({
   readonly copied: CopyTarget | undefined;
   readonly onCopy: (target: CopyTarget, text: string) => void;
 }) {
+  const t = useT();
   const amount = walletAmount(deposit.amount.formatted);
   // One section open at a time, both closed at rest: the card above already
   // says what to send, where, and on which network. The one rule that loses a
@@ -47,7 +49,7 @@ export function DepositCard({
           <div className="relative shrink-0 rounded-xl bg-white p-2">
             <img
               className="block size-36"
-              alt={`QR address for ${deposit.amount.asset} at ${deposit.chain}`}
+              alt={t("qrAlt", { asset: deposit.amount.asset, chain: deposit.chain })}
               src={`/checkout/qr?level=high&value=${encodeURIComponent(deposit.address)}`}
             />
             <span className="absolute top-1/2 left-1/2 grid size-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white">
@@ -59,7 +61,7 @@ export function DepositCard({
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-4 text-center sm:text-left">
             <div>
-              <span className="block text-xs text-muted">Send exactly</span>
+              <span className="block text-xs text-muted">{t("sendExactly")}</span>
               {/* The amount and its copy button read as one unit, so they share
                   a row that never wraps the button under the figure. */}
               <div className="mt-1 flex items-center justify-center gap-1.5 sm:justify-start">
@@ -69,34 +71,34 @@ export function DepositCard({
                 </strong>
                 <CopyButton
                   copied={copied === "amount"}
-                  label={copied === "amount" ? "Amount copied" : `Copy the amount ${amount}`}
+                  label={copied === "amount" ? t("amountCopied") : t("copyAmount", { amount })}
                   onClick={() => onCopy("amount", amount)}
                 />
               </div>
             </div>
             <div>
-              <span className="block text-xs text-muted">Network</span>
+              <span className="block text-xs text-muted">{t("network")}</span>
               <span className="mt-1 block text-sm">
                 <ChainLabel chain={deposit.chain} size={16} />
               </span>
             </div>
             <p className="m-0 text-xs text-muted">
-              Only {deposit.amount.asset} on this network counts.
+              {t("onlyAssetCounts", { asset: deposit.amount.asset })}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 border-t border-line bg-field/50 px-5 py-3.5">
           <div className="min-w-0 flex-1">
-            <span className="block text-xs text-muted">Address</span>
+            <span className="block text-xs text-muted">{t("address")}</span>
             <Address value={deposit.address} />
           </div>
           <button
             type="button"
             className="shrink-0 rounded-full border border-line bg-panel px-3.5 py-1.5 text-xs text-ink transition-colors hover:bg-field"
-            aria-label={copied === "address" ? "Address copied" : "Copy payment address"}
+            aria-label={copied === "address" ? t("addressCopied") : t("copyAddress")}
             onClick={() => onCopy("address", deposit.address)}
           >
-            {copied === "address" ? "Copied" : "Copy"}
+            {copied === "address" ? t("copied") : t("copy")}
           </button>
         </div>
       </div>
@@ -104,16 +106,16 @@ export function DepositCard({
       <div className="mt-6 border-y border-line">
         <Fold
           id={detailsId}
-          label="Payment details"
+          label={t("paymentDetails")}
           open={detailsOpen}
           onToggle={() => toggle("details")}
         >
           <dl className="m-0 mb-3">
-            <DataRow label="Local price">{localPrice}</DataRow>
-            <DataRow label="Amount received">
+            <DataRow label={t("localPrice")}>{localPrice}</DataRow>
+            <DataRow label={t("amountReceivedLabel")}>
               {walletAmount(deposit.received.formatted)} {deposit.received.asset}
             </DataRow>
-            <DataRow label="Reference ID">
+            <DataRow label={t("referenceId")}>
               <code>{intentId}</code>
             </DataRow>
           </dl>
@@ -125,22 +127,14 @@ export function DepositCard({
         <div className="border-t border-line">
           <Fold
             id={notesId}
-            label="Key things to note"
+            label={t("keyThingsToNote")}
             open={notesOpen}
             onToggle={() => toggle("notes")}
           >
             <ul className="m-0 mb-3 flex list-none flex-col gap-2.5 p-0">
-              <Note ok>
-                Send the exact amount before the timer runs out. The price is locked until then.
-              </Note>
-              <Note ok>
-                Sent too little? Send the rest to the same address before the timer ends — transfers
-                add up.
-              </Note>
-              <Note ok={false}>
-                Don&apos;t send from an exchange that deducts its fee from the amount — the payment
-                would arrive short.
-              </Note>
+              <Note ok>{t("noteSendExact")}</Note>
+              <Note ok>{t("noteSentTooLittle")}</Note>
+              <Note ok={false}>{t("noteExchangeFee")}</Note>
             </ul>
           </Fold>
         </div>

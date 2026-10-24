@@ -1,4 +1,5 @@
 import { chainLabel } from "@mayarin/chain";
+import { useT } from "../../i18n/index.tsx";
 import { walletAmount } from "../../shared/money.ts";
 import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { ProcessingArt } from "./illustrations.tsx";
@@ -18,22 +19,27 @@ export function ConfirmingCard({
   readonly deposit: Deposit;
   readonly intentId: string;
 }) {
+  const t = useT();
   const received = walletAmount(deposit.received.formatted);
 
   return (
     <div className={stateView} role="status">
       <ProcessingArt />
-      <h2 className={stateTitle}>Payment processing</h2>
+      <h2 className={stateTitle}>{t("paymentProcessing")}</h2>
       {/* One sentence: what arrived and where, then how long. The amount is
           the payer's proof it landed, so it leads. */}
       <p className={stateText}>
         {deposit.received.amount === "0"
-          ? `Your ${deposit.amount.asset} on ${chainLabel(deposit.chain)} arrived.`
-          : `${received} ${deposit.received.asset} received on ${chainLabel(deposit.chain)}.`}{" "}
-        Confirming it now, usually under a minute.
+          ? t("assetArrived", { asset: deposit.amount.asset, chain: chainLabel(deposit.chain) })
+          : t("amountReceived", {
+              amount: received,
+              asset: deposit.received.asset,
+              chain: chainLabel(deposit.chain),
+            })}{" "}
+        {t("confirmingNow")}
       </p>
       <p className={`${footnote} mt-6`}>
-        Reference ID <code>{intentId}</code>
+        {t("referenceId")} <code>{intentId}</code>
       </p>
     </div>
   );

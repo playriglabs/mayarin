@@ -3,6 +3,7 @@ import type { Bootstrap } from "./bootstrap.ts";
 import { InvoicePage } from "./features/invoice/invoice-page.tsx";
 import { LinkPage } from "./features/link/link-page.tsx";
 import { PayPage } from "./features/pay/pay-page.tsx";
+import { I18nProvider } from "./i18n/index.tsx";
 import "./styles.css";
 
 /**
@@ -40,7 +41,11 @@ const bootstrap = window.__BOOTSTRAP__;
 
 if (root !== null && bootstrap !== undefined) {
   document.title = titleFor(bootstrap);
-  createRoot(root).render(<App bootstrap={bootstrap} />);
+  createRoot(root).render(
+    <I18nProvider>
+      <App bootstrap={bootstrap} />
+    </I18nProvider>,
+  );
 } else if (root !== null) {
   // Served without a bootstrap: someone opened the raw shell. Nothing secret
   // to show and nothing to render — say so instead of a blank page.
