@@ -98,8 +98,9 @@ resources). It is one static bearer.
 2. The ledger, event log, withdrawals and audit trails are append-only in the
    database, so a compromised service credential cannot rewrite them quietly.
    Verify that is still true (`forbid_row_mutation` triggers present).
-3. Restore is not rehearsed and backups are not defined (SEC-20); treat a
-   destructive incident as unrecoverable until that is done.
+3. Mainnet keeps 7 days of point-in-time backups, and a restore was rehearsed on
+   24 Oct 2026 (all 46 tables matched). Follow "AWS mainnet host or database
+   lost" below. Testnet on Railway has no such rehearsal.
 4. Sessions and CSRF values are hashed at rest, API keys are hashed, webhook
    secrets are **not** (plaintext): rotate every webhook secret.
 
@@ -219,9 +220,52 @@ factory.
 3. Dependencies here are updated by hand, so the lockfile diff in the offending
    PR is the first place to look.
 
+## AWS mainnet host or database lost
+
+Payments in flight stay safe on-chain while the host is down: the contract path
+settles in the payer's transaction, and the chain worker picks deposits up from
+its cursors when it returns. Nothing here fails over by itself.
+
+**Database lost or corrupted** (RDS `mayarin-mainnet`, single-AZ, 7-day PITR):
+
+1. Restore to a **new** instance, never over the old one:
+   `aws rds restore-db-instance-to-point-in-time --source-db-instance-identifier
+mayarin-mainnet --target-db-instance-identifier mayarin-restore --use-latest-restorable-time`
+   with the same subnet group, the security group `mayarin-mainnet-db`,
+   `--no-publicly-accessible` and class `db.t4g.micro`. Pass the same `--db-subnet-group-name` and
+   `--vpc-security-group-ids` as the source.
+2. The instance sits in `backing-up` for about 20 minutes while RDS takes its
+   first snapshot. It already accepts connections once the endpoint exists; do
+   not wait for `available`.
+3. Compare row counts of the tables that matter (`clearing_transactions`,
+   `clearing_events`, `ledger_entries`, `chain_deposits`) against the last known
+   good numbers before pointing anything at it.
+4. Stop the chain worker first (`docker compose stop chain-worker`), then change
+   the host in `deploy/aws/.env.db`, then `docker compose up -d`. The worker
+   holds a database lease; two workers on two databases would race the same
+   nonces.
+5. Anything written after the restore point is lost from the database but not
+   from the chain: let the worker re-scan, then reconcile deposits against
+   `chain_deposits`.
+
+**Host lost** (EC2 `mayarin-mainnet-app`): launch a replacement from
+`deploy/aws/bootstrap.sh` in the same subnet, attach the instance profile, and
+associate the **same Elastic IP**. The two IAM users that hold the KMS signing
+keys carry `deny-outside-host`, which only admits that EIP: a different address
+makes every signature fail with `AccessDenied` until the policy names it. Then
+`deploy/aws/.env.*` are rebuilt from Secrets Manager
+(`mayarin/mainnet/<service>-env`) and `docker compose up -d` brings the three
+services back. The Cloudflare tunnel token lives in `.env.cloudflared`.
+
+**Who tells you**: UptimeRobot (`api`, `api-merchant`, checkout, dashboard),
+Sentry for errors, Telegram for a payment unfinished ten minutes after the payer
+paid, and CloudWatch alarms for IAM changes, root use, CloudTrail tampering and
+failed console logins (all to the `mayarin-mainnet-alerts` SNS email). GuardDuty
+is on in `ap-southeast-2`.
+
 ## Cloudflare or Railway outage
 
 Nothing here fails over. Payments in flight stay safe on-chain: the contract path
 settles in the payer's own transaction, and the deposit path is picked up by the
 worker's re-scan after recovery. The payer-facing symptom is a checkout that does
-not load; there is no status page yet.
+not load; the public status page is `stats.uptimerobot.com/oTsGTspgSo`.
