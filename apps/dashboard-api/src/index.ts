@@ -8,10 +8,13 @@
  */
 
 import { bodyCeilingFor } from "@mayarin/http";
+import { initErrorReporting } from "@mayarin/observability";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createContainer } from "./container.ts";
 import { MAX_LOGO_BYTES } from "./services/logo-storage.ts";
+
+initErrorReporting("dashboard-api");
 
 const config = loadConfig();
 const container = createContainer({ config });

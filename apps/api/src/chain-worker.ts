@@ -2,11 +2,15 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import { acquireWorkerLease, CHAIN_WORKER_FENCE } from "@mayarin/db";
+import { initErrorReporting } from "@mayarin/observability";
 import { ConfigurationError } from "@mayarin/shared";
 import { loadConfig } from "./config.ts";
 import { createContainer, watchedPairs } from "./container.ts";
 import { startEscrowKeeper } from "./services/escrow-keeper.ts";
+import { alertSender, createStuckPaymentCheck } from "./services/stuck-payments.ts";
 import { startIndexerLoops, startWatcherLoops } from "./services/watcher-loops.ts";
+
+initErrorReporting("chain-worker");
 
 const config = loadConfig(process.env, "worker");
 const chain = config.chain;
@@ -77,6 +81,25 @@ const resumeTimer = setInterval(() => {
       resuming = false;
     });
 }, RESUME_INTERVAL_MS);
+
+// A payer who has paid and a merchant who has not been paid, ten minutes on, is
+// worth a person's attention; the API's /health stays green while this happens.
+const STUCK_PAYMENT_INTERVAL_MS = 60_000;
+const checkStuckPayments = createStuckPaymentCheck({
+  list: () => container.engine.listResumable(),
+  now: () => new Date(),
+  send: alertSender(config.alertWebhookUrl),
+});
+let checkingStuck = false;
+const stuckPaymentTimer = setInterval(() => {
+  if (checkingStuck) return;
+  checkingStuck = true;
+  void checkStuckPayments()
+    .catch((error: unknown) => console.error("[chain-worker] stuck payment check failed", error))
+    .finally(() => {
+      checkingStuck = false;
+    });
+}, STUCK_PAYMENT_INTERVAL_MS);
 
 // A failed deposit goes back to the address the payer named, after the grace
 // period in which a person can still retry the payment. Slower than the resume
@@ -296,6 +319,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   clearInterval(operatorFloatTimer);
   clearInterval(gasRefillTimer);
   clearInterval(resumeTimer);
+  clearInterval(stuckPaymentTimer);
   if (depositReturnTimer !== undefined) clearInterval(depositReturnTimer);
   clearInterval(lateDepositTimer);
   await container.close();

@@ -25,6 +25,7 @@
     "@mayarin/invoicing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/notifications": "workspace:*",
+    "@mayarin/observability": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
     "@mayarin/provider-chainlink": "workspace:*",
     "@mayarin/provider-coinbase": "workspace:*",

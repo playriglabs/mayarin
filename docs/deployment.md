@@ -573,6 +573,27 @@ is mid-write: a mutation is not retried. Check `/health` on both hostnames after
 
 ---
 
+## Monitoring
+
+Three layers, each answering something the others cannot.
+
+- **UptimeRobot** (free plan, 5 minute checks) watches the public surfaces from
+  outside AWS: `api.mayarin.xyz/health`, `api-merchant.mayarin.xyz/health`, the
+  dashboard and `pay.mayarin.xyz/checkout/qr?value=smoke`. The free plan probes
+  with HEAD, so the pay proxy answers HEAD like GET. Its public page is
+  `stats.uptimerobot.com/oTsGTspgSo`, linked from the landing footer and the docs
+  nav. The footer's live dot reads the monitors through `/api/status`, with a
+  read-only key held as the `UPTIMEROBOT_API_KEY` Pages secret.
+- **Sentry** receives every `console.error` from `core-api`, `dashboard-api` and
+  the chain worker (`@mayarin/observability`). Set `SENTRY_DSN` in the service
+  env files; unset, nothing is sent. A refused request (`-> 4xx`) is dropped and
+  an identical message is sent at most once a minute.
+- **Stuck-payment alert**: the chain worker reports a payment still in
+  `ASSET_RECEIVED`, `CLEARING`, `SETTLING` or `SETTLED` ten minutes after its last
+  change, once per state, to `ALERT_WEBHOOK_URL` (a Discord or Slack incoming
+  webhook) and to the log, so Sentry sees it too. This is the failure `/health`
+  cannot show: the API answering while the worker fails.
+
 ## Mainnet Gate
 
 Create `mayarin-mainnet` as a new Railway project; do not clone the testnet

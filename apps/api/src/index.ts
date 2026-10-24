@@ -7,9 +7,12 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import { MAX_JSON_BODY_BYTES } from "@mayarin/http";
+import { initErrorReporting } from "@mayarin/observability";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createContainer } from "./container.ts";
+
+initErrorReporting("core-api");
 
 const config = loadConfig();
 const container = createContainer({ config });
