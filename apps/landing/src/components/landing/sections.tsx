@@ -1,3 +1,4 @@
+import { BOOK_DEMO_URL } from "../../lib/book-demo.ts";
 import { Reveal } from "../reveal.tsx";
 import { PaymentOrbits } from "./payment-orbits.tsx";
 import { ScrollTilt } from "./scroll-tilt.tsx";
@@ -33,7 +34,7 @@ export function Hero() {
             >
               See the use cases
             </a>
-            <Action href="#footer-early-access">Get early access</Action>
+            <Action href={BOOK_DEMO_URL}>Book demo</Action>
           </Reveal>
         </div>
         <div class="relative z-0 isolate mx-auto mt-14 max-w-255 px-1 pt-3 md:mt-24 md:max-w-290 md:px-4">

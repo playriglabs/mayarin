@@ -72,10 +72,10 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
       <Frame>
         <div class="w-full max-w-70 space-y-2">
           {[
-            { asset: "ETH", chain: "base", selected: true },
-            { asset: "PYUSD", chain: "ethereum", selected: false },
-            { asset: "USDC", chain: "arbitrum", selected: false },
-            { asset: "USDT", chain: "solana-devnet", selected: false },
+            { asset: "WBTC", chain: "arbitrum", selected: true },
+            { asset: "cbBTC", chain: "base", selected: false },
+            { asset: "USDT", chain: "solana", selected: false },
+            { asset: "WETH", chain: "polygon", selected: false },
           ].map((rail) => (
             <div
               key={`${rail.asset}-${rail.chain}`}

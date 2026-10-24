@@ -1,5 +1,5 @@
-import { useEarlyAccess } from "../lib/early-access.ts";
-import { ScrambleText } from "./scramble-text.tsx";
+import { useEffect, useState } from "preact/hooks";
+import { BOOK_DEMO_URL } from "../lib/book-demo.ts";
 import { ArrowRight } from "./ui.tsx";
 
 const COLUMNS = [
@@ -28,6 +28,7 @@ const COLUMNS = [
         href: "https://docs.mayarin.xyz/concepts/rails#settlement-stablecoins",
       },
       { label: "Use cases", href: "/#use-cases" },
+      { label: "Security", href: "/#security" },
     ],
   },
   {
@@ -43,6 +44,7 @@ const COLUMNS = [
   {
     heading: "Resources",
     links: [
+      { label: "Help Center", href: "https://help.mayarin.xyz" },
       { label: "FAQ", href: "/#faq" },
       { label: "Changelog", href: "https://docs.mayarin.xyz/changelog" },
       { label: "Brand kit", href: "/brand-kit/" },
@@ -66,58 +68,62 @@ function LinkedInIcon() {
   );
 }
 
-/**
- * Early access reduced to one field. The landing section states the offer; here
- * the address is all that is left to give, so the submit collapses into the
- * field rather than being a second control beside it.
- */
-function EarlyAccessCapture() {
-  const { state, submit, submitting, disabled, cooldown } = useEarlyAccess();
+/** The live-product call to action: talk to us rather than join a list. */
+function BookDemo() {
+  return (
+    <div>
+      <p class="text-sm text-slate-600">Book a demo</p>
+      <a
+        href={BOOK_DEMO_URL}
+        class="mt-5 flex h-12 items-center justify-between border border-line bg-paper px-4 text-sm text-ink transition-colors duration-200 hover:border-brand hover:text-brand"
+      >
+        Talk to the team
+        <ArrowRight />
+      </a>
+    </div>
+  );
+}
+
+const STATUS_LABEL = {
+  operational: "All systems operational",
+  issues: "Experiencing issues",
+  unknown: "System status",
+} as const;
+
+const STATUS_DOT = {
+  operational: "bg-emerald-500",
+  issues: "bg-amber-500",
+  unknown: "bg-slate-400",
+} as const;
+
+/** Links to the status page and shows its live state once the check answers. */
+function StatusLink() {
+  const [state, setState] = useState<keyof typeof STATUS_LABEL>("unknown");
+
+  useEffect(() => {
+    fetch("/api/status")
+      .then((response) => response.json() as Promise<{ state: keyof typeof STATUS_LABEL }>)
+      .then((body) => setState(body.state in STATUS_LABEL ? body.state : "unknown"))
+      .catch(() => setState("unknown"));
+  }, []);
 
   return (
-    <form id="footer-early-access" class="scroll-mt-24" onSubmit={(event) => void submit(event)}>
-      <label for="footer-early-access-email" class="text-sm text-slate-600">
-        Get early access
-      </label>
-      <div class="mt-5 flex h-12 items-center border border-line bg-paper transition-colors duration-200 focus-within:border-brand">
-        <input
-          id="footer-early-access-email"
-          name="email"
-          type="email"
-          required
-          autocomplete="email"
-          placeholder="you@company.com"
-          disabled={disabled}
-          class="h-full min-w-0 flex-1 bg-transparent px-4 text-sm text-ink outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-        />
-        <button
-          type="submit"
-          disabled={disabled}
-          aria-label={submitting ? "Joining the early-access list" : "Request early access"}
-          class="inline-flex size-12 shrink-0 cursor-pointer items-center justify-center text-ink transition-colors duration-200 hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <ArrowRight />
-        </button>
-      </div>
-      <p
-        class={state.status === "error" ? "mt-3 text-xs text-red-700" : "mt-3 text-xs text-brand"}
-        aria-live="polite"
-      >
-        {state.status === "success" || state.status === "error" ? state.message : ""}
-        {state.status === "error" && cooldown > 0 ? ` Try again in ${cooldown}s.` : ""}
-      </p>
-
-      <div class="hidden" aria-hidden="true">
-        <label for="footer-early-access-company">Company website</label>
-        <input
-          id="footer-early-access-company"
-          name="company"
-          type="text"
-          tabIndex={-1}
-          autocomplete="off"
-        />
-      </div>
-    </form>
+    <a
+      href="https://status.mayarin.xyz"
+      target="_blank"
+      rel="noreferrer"
+      class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-brand"
+    >
+      <span aria-hidden="true" class="relative flex size-2.5">
+        {state === "operational" && (
+          <span
+            class={`absolute inline-flex size-full animate-ping rounded-full opacity-60 motion-reduce:animate-none ${STATUS_DOT[state]}`}
+          />
+        )}
+        <span class={`relative inline-flex size-2.5 rounded-full ${STATUS_DOT[state]}`} />
+      </span>
+      {STATUS_LABEL[state]}
+    </a>
   );
 }
 
@@ -125,7 +131,7 @@ export function Footer() {
   return (
     <footer class="bg-paper">
       <div class="shell py-12 md:py-16">
-        <div class="grid gap-12 md:grid-cols-[2fr_1fr] md:gap-14 lg:gap-16">
+        <div class="grid gap-10 md:grid-cols-[2fr_1fr] md:gap-14 lg:gap-16">
           <div>
             <div class="grid grid-cols-2 gap-x-8 gap-y-10 lg:grid-cols-4">
               {COLUMNS.map((column) => (
@@ -138,7 +144,7 @@ export function Footer() {
                           href={link.href}
                           class="text-[15px] leading-6 font-medium text-ink transition-colors duration-200 hover:text-brand"
                         >
-                          <ScrambleText text={link.label} trigger="a" />
+                          {link.label}
                         </a>
                       </li>
                     ))}
@@ -153,7 +159,7 @@ export function Footer() {
           </div>
 
           <div>
-            <EarlyAccessCapture />
+            <BookDemo />
 
             <div class="mt-8 flex items-center justify-between gap-6 border-t border-line pt-6">
               <p class="text-sm text-slate-600">Find us on social</p>
@@ -181,13 +187,16 @@ export function Footer() {
           </div>
         </div>
 
-        <div class="mt-14 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-xs font-medium text-slate-600">
+        <div class="mt-10 flex flex-col items-center gap-3 border-t border-line pt-6 text-center sm:mt-14 sm:flex-row sm:justify-between sm:gap-4 sm:text-left">
+          <p class="order-2 text-xs font-medium text-slate-600 sm:order-none">
             © {new Date().getFullYear()} Mayarin. All rights reserved.
           </p>
-          <p class="text-slate-600 leading-5 text-sm font-medium">
-            Money moves – Infrastructure orchestrates
-          </p>
+          <div class="order-1 flex flex-col items-center gap-3 sm:order-none sm:flex-row sm:gap-8">
+            <StatusLink />
+            <p class="text-slate-600 leading-5 text-sm font-medium">
+              Money moves – Infrastructure orchestrates
+            </p>
+          </div>
         </div>
       </div>
     </footer>

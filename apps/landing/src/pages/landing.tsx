@@ -10,6 +10,7 @@ import { Opportunity } from "../components/landing/opportunity.tsx";
 import { PaymentReach } from "../components/landing/payment-reach.tsx";
 import { Reach } from "../components/landing/reach.tsx";
 import { Hero, ValueStrip } from "../components/landing/sections.tsx";
+import { Security } from "../components/landing/security.tsx";
 import { UseCases } from "../components/landing/use-cases.tsx";
 import { Why } from "../components/landing/why.tsx";
 import { startSmoothScroll } from "../lib/smooth-scroll.ts";
@@ -32,6 +33,7 @@ export function Landing() {
           <Capabilities />
           <UseCases />
           <Why />
+          <Security />
           <Reach />
           <Developers />
           <Faq />
