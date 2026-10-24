@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BOOK_DEMO_URL } from "../../lib/book-demo.ts";
+import { BOOK_DEMO_URL, openBookDemo } from "../../lib/book-demo.ts";
 import { GetStartedDialog } from "./get-started-dialog.tsx";
 
 const HELP_URL = "https://help.mayarin.xyz";
@@ -424,6 +424,7 @@ export function Navigation() {
           </button>
           <a
             href={BOOK_DEMO_URL}
+            onClick={openBookDemo}
             class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-5 py-2.5 leading-5 ring-1 ring-inset ring-line transition-colors duration-200 hover:bg-ink hover:text-paper hover:ring-ink"
           >
             Book demo
@@ -528,7 +529,14 @@ export function Navigation() {
             >
               Get started
             </button>
-            <a href={BOOK_DEMO_URL} onClick={() => setOpen(false)} class={MOBILE_ROW}>
+            <a
+              href={BOOK_DEMO_URL}
+              onClick={(event) => {
+                setOpen(false);
+                openBookDemo(event);
+              }}
+              class={MOBILE_ROW}
+            >
               Book demo
             </a>
           </nav>
