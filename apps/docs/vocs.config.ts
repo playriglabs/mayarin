@@ -5,6 +5,7 @@ export default defineConfig({
   titleTemplate: "%s — Mayarin Docs",
   baseUrl: "https://docs.mayarin.xyz",
   accentColor: "light-dark(#2563eb, #60a5fa)",
+  logoUrl: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
   iconUrl: "/favicon-32x32.png",
   ogImageUrl: "/og-image.jpeg",
   description:
@@ -13,6 +14,7 @@ export default defineConfig({
     { text: "API Reference", link: "/api-reference" },
     { text: "Dashboard", link: "https://dashboard.mayarin.xyz", external: true },
     { text: "Help Center", link: "https://help.mayarin.xyz", external: true },
+    { text: "Status", link: "https://status.mayarin.xyz", external: true },
   ],
   openapi: [
     {

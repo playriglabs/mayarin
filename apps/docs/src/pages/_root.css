@@ -28,3 +28,22 @@ h4 {
   font-family: "Inter Tight Variable", ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
 }
+
+/* Wordmark beside the logo mark, same as the previous docs. */
+[data-v-logo]:has(> img) {
+  gap: 2px;
+}
+
+[data-v-logo] > img {
+  height: 40px;
+  max-height: none;
+}
+
+[data-v-logo]:has(> img)::after {
+  content: "mayarin";
+  font-family: "PP Neue Montreal", ui-sans-serif, system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}

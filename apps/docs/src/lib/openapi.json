@@ -2442,6 +2442,10 @@
                       "payerAddress": {
                         "type": "string",
                         "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
+                      },
+                      "returnAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
                     "required": [
@@ -4469,6 +4473,10 @@
                       "payerAddress": {
                         "type": "string",
                         "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
+                      },
+                      "returnAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
                     "required": [
@@ -5472,6 +5480,10 @@
                       "payerAddress": {
                         "type": "string",
                         "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
+                      },
+                      "returnAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
                     "required": [
@@ -6509,6 +6521,10 @@
                       "payerAddress": {
                         "type": "string",
                         "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
+                      },
+                      "returnAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
                     "required": [
